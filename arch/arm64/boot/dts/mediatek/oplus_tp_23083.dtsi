@@ -1,0 +1,88 @@
+&spi0 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	hbp_spi_bus0:hbp_spi@0 {
+		compatible = "oplus,hbp_spi_bus";
+		reg = <0x0>;
+		status = "okay";
+
+		spi-max-frequency = <19000000>;
+		bus,spi-mode = <0>;
+		bus,rx-dummy = <0>;
+		bus,tx-dummy = <0>;
+	};
+};
+
+&soc {
+	focaltech:focaltech@0 {
+		compatible = "focaltech,ft3683g";
+		status = "okay";
+
+		device,id = <0>;
+		device,chip_name = "ft3683g";
+		device,resolution = <17280 38592>;
+
+		/*interrupt config*/
+		interrupt-parent = <&pio>;
+		interrupts = <8 0x2002>;
+		irq-gpio = <&pio 8 0x2002>;
+
+		pinctrl-names = "default",
+			"ts_reset_active",
+			"ts_reset_idle",
+			"ts_resume",
+			"ts_suspend";
+		pinctrl-0 = <&ts_int_active &ts_reset_active>;
+		pinctrl-1 = <&ts_reset_active>;
+		pinctrl-2 = <&ts_reset_idle>;
+		pinctrl-3 = <&ctp_oplus_spi_active &ctp_oplus_spi_mosi_active>;
+		pinctrl-4 = <&ctp_oplus_spi_suspend>;
+
+		/*cs active state, not used now*/
+		spi,cs_active = <0>;
+
+		/*power config*/
+		power,avdd-supply = <&mt6373_vtp>;
+		power,avdd_volt = <3100000 3100000>;
+		/*
+		power,vddi-supply = <&mt6369_vtp>;
+		power,vddi_volt = <1800000 1800000>;
+		*/
+
+		/*bus config*/
+		device,attached_bus = <&hbp_spi_bus0>;
+	};
+
+	hbp:hbp@0 {
+		compatible = "oplus,hbp_core";
+		hbp,project = "omega-c1";
+		hbp,devices = <&focaltech>;
+	};
+};
+
+
+&pio {
+	/*add for omega TP*/
+	ts_int_active: ts_int_active {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO8__FUNC_GPIO8>;
+			bias-disable;
+			input-enable;
+		};
+	};
+	ts_reset_active: ts_reset_active {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO67__FUNC_GPIO67>;
+			output-high;
+		};
+	};
+	ts_reset_idle: ts_reset_idle {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO67__FUNC_GPIO67>;
+			output-low;
+		};
+	};
+};
+

@@ -108,6 +108,16 @@ void __kasan_unpoison_pages(struct page *page, unsigned int order, bool init)
 		return;
 
 	tag = kasan_random_tag();
+#if defined(CONFIG_CONT_PTE_HUGEPAGE) && (defined(CONFIG_KASAN_SW_TAGS) || defined(CONFIG_KASAN_HW_TAGS))
+	if (cont_pte_huge_page_enabled()) {
+		unsigned long pfn = page_to_pfn(page);
+		/* use page0's tag as we will get vaddr by page0 in thp_zsmalloc */
+		if (within_cont_pte_cma(pfn) && !IS_ALIGNED(pfn, CONT_PTES)) {
+			struct page *head = pfn_to_page(pfn & ~((unsigned long)CONT_PTES - 1));
+			tag = page_kasan_tag(head);
+		}
+	}
+#endif
 	for (i = 0; i < (1 << order); i++)
 		page_kasan_tag_set(page + i, tag);
 	kasan_unpoison(page_address(page), PAGE_SIZE << order, init);

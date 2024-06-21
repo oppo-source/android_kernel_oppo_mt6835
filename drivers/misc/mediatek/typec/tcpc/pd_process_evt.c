@@ -334,8 +334,7 @@ static inline bool pd_process_unexpected_alert(
 #if CONFIG_USB_PD_REV30_ALERT_REMOTE
 	struct tcpc_device __maybe_unused *tcpc = pd_port->tcpc;
 
-	if (pd_event->event_type == PD_EVT_DATA_MSG ||
-		pd_event->msg == PD_DATA_ALERT) {
+	if (pd_event_data_msg_match(pd_event, PD_DATA_ALERT)) {
 		PE_INFO("unexpected_alert\n");
 
 		pd_dpm_inform_alert(pd_port);
@@ -764,6 +763,7 @@ static inline bool pe_transit_startup_state(
 		return false;
 
 	pd_dpm_notify_pe_startup(pd_port);
+	pd_enable_timer(pd_port, PD_TIMER_INT_INVAILD);
 	PE_TRANSIT_STATE(pd_port, startup_state);
 
 	return true;

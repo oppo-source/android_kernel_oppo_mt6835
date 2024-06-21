@@ -48,6 +48,9 @@
 
 void check_current_scenario_id_bound(struct subdrv_ctx *ctx);
 void i2c_table_write(struct subdrv_ctx *ctx, u16 *list, u32 len);
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+void i2c_table_rewrite(struct subdrv_ctx *ctx, u16 *list, u32 len);
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 void commit_i2c_buffer(struct subdrv_ctx *ctx);
 void set_i2c_buffer(struct subdrv_ctx *ctx, u16 reg, u16 val);
 u16 i2c_read_eeprom(struct subdrv_ctx *ctx, u16 addr);
@@ -65,11 +68,21 @@ void set_max_framerate_by_scenario(struct subdrv_ctx *ctx,
 		enum SENSOR_SCENARIO_ID_ENUM scenario_id, u32 framerate);
 bool set_auto_flicker(struct subdrv_ctx *ctx, bool min_framelength_en);
 void set_long_exposure(struct subdrv_ctx *ctx);
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+void set_shutter(struct subdrv_ctx *ctx, u64 shutter);
+void set_shutter_frame_length(struct subdrv_ctx *ctx, u64 shutter, u32 frame_length);
+#else
 void set_shutter(struct subdrv_ctx *ctx, u32 shutter);
 void set_shutter_frame_length(struct subdrv_ctx *ctx, u32 shutter, u32 frame_length);
+#endif
 void set_hdr_tri_shutter(struct subdrv_ctx *ctx, u64 *shutters, u16 exp_cnt);
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+void set_multi_shutter_frame_length(struct subdrv_ctx *ctx,
+		u64 *shutters, u16 shutter_cnt,	u16 frame_length);
+#else
 void set_multi_shutter_frame_length(struct subdrv_ctx *ctx,
 		u32 *shutters, u16 shutter_cnt,	u16 frame_length);
+#endif
 u16 gain2reg(u32 gain);
 void set_gain(struct subdrv_ctx *ctx, u32 gain);
 void set_hdr_tri_gain(struct subdrv_ctx *ctx, u64 *gains, u16 exp_cnt);
@@ -117,8 +130,13 @@ void get_pdaf_info(struct subdrv_ctx *ctx, enum SENSOR_SCENARIO_ID_ENUM scenario
 void get_sensor_pdaf_capacity(struct subdrv_ctx *ctx,
 		enum SENSOR_SCENARIO_ID_ENUM scenario_id, u32 *pdaf_cap);
 void extend_frame_length(struct subdrv_ctx *ctx, u32 ns);
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+void seamless_switch(struct subdrv_ctx *ctx,
+		enum SENSOR_SCENARIO_ID_ENUM scenario_id, u64 *ae_ctrl);
+#else
 void seamless_switch(struct subdrv_ctx *ctx,
 		enum SENSOR_SCENARIO_ID_ENUM scenario_id, u32 *ae_ctrl);
+#endif
 void get_seamless_scenarios(struct subdrv_ctx *ctx,
 		enum SENSOR_SCENARIO_ID_ENUM scenario_id, u32 *pScenarios);
 void get_sensor_hdr_capacity(struct subdrv_ctx *ctx,
@@ -143,6 +161,11 @@ void get_mipi_pixel_rate(struct subdrv_ctx *ctx,
 		enum SENSOR_SCENARIO_ID_ENUM scenario_id, u32 *mipi_pixel_rate);
 void get_sensor_rgbw_output_mode(struct subdrv_ctx *ctx,
 		enum SENSOR_SCENARIO_ID_ENUM scenario_id, u32 *rgbw_output_mode);
+void get_readout_by_scenario(struct subdrv_ctx *ctx,
+		enum SENSOR_SCENARIO_ID_ENUM scenario_id, u64 *readout_time);
+void get_exposure_count_by_scenario(struct subdrv_ctx *ctx,
+		enum SENSOR_SCENARIO_ID_ENUM scenario_id, u32 *scenario_exp_cnt);
+void set_sensor_rmsc_mode(struct subdrv_ctx *ctx, struct mtk_sensor_rmsc_mode *rmsc_mode);
 
 int common_get_imgsensor_id(struct subdrv_ctx *ctx, u32 *sensor_id);
 void subdrv_ctx_init(struct subdrv_ctx *ctx);
@@ -170,4 +193,18 @@ int common_get_csi_param(struct subdrv_ctx *ctx,
 	enum SENSOR_SCENARIO_ID_ENUM scenario_id,
 	struct mtk_csi_param *csi_param);
 int common_update_sof_cnt(struct subdrv_ctx *ctx, u32 sof_cnt);
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+void get_is_streaming_enable(struct subdrv_ctx *ctx, u32 *enable);
+void get_sensor_setting_info(struct subdrv_ctx *ctx,
+	enum SENSOR_SCENARIO_ID_ENUM scenario_id, u64 *sensor_setting_info);
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
+
+void write_frame_length_in_lut(struct subdrv_ctx *ctx,
+	u32 fll, u32 *fll_in_lut);
+void set_frame_length_in_lut(struct subdrv_ctx *ctx,
+	u32 frame_length, u32 *frame_length_in_lut);
+void set_multi_shutter_frame_length_in_lut(struct subdrv_ctx *ctx,
+	u64 *shutters, u16 shutter_cnt,	u32 frame_length, u32 *frame_length_in_lut);
+void set_multi_gain_in_lut(struct subdrv_ctx *ctx, u32 *gains, u16 exp_cnt);
 #endif

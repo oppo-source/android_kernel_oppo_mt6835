@@ -36,6 +36,15 @@
 #if IS_ENABLED(CONFIG_MTK_ULTRASND_PROXIMITY)
 #include "../ultrasound/ultra_scp/mtk-scp-ultra-common.h"
 #endif
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+#include "../feedback/oplus_audio_kernel_fb.h"
+#ifdef dev_err
+#undef dev_err
+#define dev_err dev_err_fb_fatal_delay
+#endif
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
+
 /* FORCE_FPGA_ENABLE_IRQ use irq in fpga */
 /* #define FORCE_FPGA_ENABLE_IRQ */
 
@@ -1148,6 +1157,7 @@ static int mt6985_adsp_mem_set(struct snd_kcontrol *kcontrol,
 	int ul_memif_num = -1;
 	int ref_memif_num = -1;
 	int task_id = get_dsp_task_id_from_str(kcontrol->id.name);
+	int old_value;
 
 	switch (task_id) {
 	case AUDIO_TASK_PRIMARY_ID:
@@ -1173,8 +1183,6 @@ static int mt6985_adsp_mem_set(struct snd_kcontrol *kcontrol,
 	case AUDIO_TASK_BTUL_ID:
 		ul_memif_num = get_dsp_task_attr(task_id,
 						 ADSP_TASK_ATTR_MEMUL);
-		ref_memif_num = get_dsp_task_attr(task_id,
-						  ADSP_TASK_ATTR_MEMREF);
 		break;
 	case AUDIO_TASK_CALL_FINAL_ID:
 	case AUDIO_TASK_PLAYBACK_ID:
@@ -1194,17 +1202,38 @@ static int mt6985_adsp_mem_set(struct snd_kcontrol *kcontrol,
 
 	if (dl_memif_num >= 0) {
 		memif = &afe->memif[dl_memif_num];
+		old_value = memif->use_adsp_share_mem;
 		memif->use_adsp_share_mem = ucontrol->value.integer.value[0];
+
+		pr_info("%s(), dl:%s, use_adsp_share_mem %d->%d\n",
+			__func__, memif->data->name, old_value, memif->use_adsp_share_mem);
+
+		if (memif->substream && memif->use_adsp_share_mem == 0 && old_value)
+			AUDIO_AEE("disable adsp memory used before substream shutdown");
 	}
 
 	if (ul_memif_num >= 0) {
 		memif = &afe->memif[ul_memif_num];
+		old_value = memif->use_adsp_share_mem;
 		memif->use_adsp_share_mem = ucontrol->value.integer.value[0];
+
+		pr_info("%s(), ul:%s, use_adsp_share_mem %d->%d\n",
+			__func__, memif->data->name, old_value, memif->use_adsp_share_mem);
+
+		if (memif->substream && memif->use_adsp_share_mem == 0 && old_value)
+			AUDIO_AEE("disable adsp memory used before substream shutdown");
 	}
 
 	if (ref_memif_num >= 0) {
 		memif = &afe->memif[ref_memif_num];
+		old_value = memif->use_adsp_share_mem;
 		memif->use_adsp_share_mem = ucontrol->value.integer.value[0];
+
+		pr_info("%s(), ref:%s, use_adsp_share_mem %d->%d\n",
+			__func__, memif->data->name, old_value, memif->use_adsp_share_mem);
+
+		if (memif->substream && memif->use_adsp_share_mem == 0 && old_value)
+			AUDIO_AEE("disable adsp memory used before substream shutdown");
 	}
 
 	return 0;
@@ -1421,6 +1450,10 @@ static const struct snd_kcontrol_new mt6985_pcm_kcontrols[] = {
 		       SND_SOC_NOPM, 0, 0x1, 0,
 		       mt6985_adsp_mem_get,
 		       mt6985_adsp_mem_set),
+	SOC_SINGLE_EXT("adsp_spatializer_sharemem_scenario",
+		       SND_SOC_NOPM, 0, 0x1, 0,
+		       mt6985_adsp_mem_get,
+		       mt6985_adsp_mem_set),
 	SOC_SINGLE_EXT("adsp_btdl_sharemem_scenario",
 		       SND_SOC_NOPM, 0, 0x1, 0,
 		       mt6985_adsp_mem_get,
@@ -1594,6 +1627,8 @@ static const struct snd_kcontrol_new memif_ul1_ch1_mix[] = {
 				    I_ADDA_UL_CH3, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("ETDM_CH3", AFE_CONN21_1,
 			    I_ETDM_IN_CH3, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL11_CH1", AFE_CONN21_2,
+			    I_DL11_CH1, 1, 0),
 };
 
 static const struct snd_kcontrol_new memif_ul1_ch2_mix[] = {
@@ -1607,6 +1642,8 @@ static const struct snd_kcontrol_new memif_ul1_ch2_mix[] = {
 				    I_ADDA_UL_CH4, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("ETDM_CH4", AFE_CONN22_1,
 				    I_ETDM_IN_CH4, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL11_CH2", AFE_CONN22_2,
+				    I_DL11_CH2, 1, 0),
 };
 
 static const struct snd_kcontrol_new memif_ul1_ch3_mix[] = {
@@ -1691,6 +1728,8 @@ static const struct snd_kcontrol_new memif_ul2_ch2_mix[] = {
 				    I_DL7_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL11_CH2", AFE_CONN6_2,
 				    I_DL11_CH2, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL11_CH3", AFE_CONN6_2,
+				    I_DL11_CH3, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("DL13_CH2", AFE_CONN6_2,
 				    I_DL13_CH2, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("PCM_1_CAP_CH1", AFE_CONN6,
@@ -2293,6 +2332,7 @@ static const struct snd_soc_dapm_route mt6985_memif_routes[] = {
 	{"UL2_CH2", "DL7_CH2", "Hostless_UL2 UL"},
 	{"UL2_CH1", "DL11_CH1", "Hostless_UL2 UL"},
 	{"UL2_CH2", "DL11_CH2", "Hostless_UL2 UL"},
+	{"UL2_CH2", "DL11_CH3", "Hostless_UL2 UL"},
 	{"UL2_CH1", "DL13_CH1", "Hostless_UL2 UL"},
 	{"UL2_CH2", "DL13_CH2", "Hostless_UL2 UL"},
 
@@ -2472,6 +2512,25 @@ static const struct snd_soc_dapm_route mt6985_memif_routes[] = {
 	{"UL4_TINYCONN_CH7_MUX", "ETDM_CH7", "ETDM Capture"},
 	{"UL4_TINYCONN_CH8_MUX", "ETDM_CH8", "ETDM Capture"},
 
+
+	{"UL4_TINYCONN_CH1_MUX", "ETDM_CH3", "ETDM Capture"},
+	{"UL4_TINYCONN_CH1_MUX", "ETDM_CH4", "ETDM Capture"},
+	{"UL4_TINYCONN_CH1_MUX", "ETDM_CH5", "ETDM Capture"},
+	{"UL4_TINYCONN_CH1_MUX", "ETDM_CH6", "ETDM Capture"},
+
+	{"UL4_TINYCONN_CH2_MUX", "ETDM_CH3", "ETDM Capture"},
+	{"UL4_TINYCONN_CH2_MUX", "ETDM_CH4", "ETDM Capture"},
+	{"UL4_TINYCONN_CH2_MUX", "ETDM_CH5", "ETDM Capture"},
+	{"UL4_TINYCONN_CH2_MUX", "ETDM_CH6", "ETDM Capture"},
+
+	{"UL4_TINYCONN_CH3_MUX", "ETDM_CH4", "ETDM Capture"},
+	{"UL4_TINYCONN_CH3_MUX", "ETDM_CH5", "ETDM Capture"},
+	{"UL4_TINYCONN_CH3_MUX", "ETDM_CH6", "ETDM Capture"},
+
+	{"UL4_TINYCONN_CH4_MUX", "ETDM_CH3", "ETDM Capture"},
+	{"UL4_TINYCONN_CH4_MUX", "ETDM_CH5", "ETDM Capture"},
+	{"UL4_TINYCONN_CH4_MUX", "ETDM_CH6", "ETDM Capture"},
+
 	{"UL11", NULL, "UL11_TINYCONN_CH1_MUX"},
 	{"UL11", NULL, "UL11_TINYCONN_CH2_MUX"},
 	{"UL11_TINYCONN_CH1_MUX", "ETDM_CH1", "ETDM Capture"},
@@ -2481,6 +2540,10 @@ static const struct snd_soc_dapm_route mt6985_memif_routes[] = {
 	{"UL10", NULL, "UL10_TINYCONN_CH2_MUX"},
 	{"UL10_TINYCONN_CH1_MUX", "ETDM_CH1", "ETDM Capture"},
 	{"UL10_TINYCONN_CH2_MUX", "ETDM_CH2", "ETDM Capture"},
+
+	{"UL1_CH1", "DL11_CH1", "Hostless_UL1 UL"},
+	{"UL1_CH2", "DL11_CH2", "Hostless_UL1 UL"},
+	{"Hostless_UL1 UL", NULL, "UL1_VIRTUAL_INPUT"},
 };
 
 static const struct mtk_base_memif_data memif_data[MT6985_MEMIF_NUM] = {
@@ -4076,8 +4139,13 @@ static irqreturn_t mt6985_afe_irq_handler(int irq_id, void *dev)
 	status_mcu = status & mcu_en & AFE_IRQ_STATUS_BITS;
 
 	if (ret || status_mcu == 0) {
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+		dev_err_not_fb(afe->dev, "%s(), irq status err, ret %d, status 0x%x, mcu_en 0x%x\n",
+			__func__, ret, status, mcu_en);
+#else
 		dev_err(afe->dev, "%s(), irq status err, ret %d, status 0x%x, mcu_en 0x%x\n",
 			__func__, ret, status, mcu_en);
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 
 		goto err_irq;
 	}
@@ -8127,6 +8195,7 @@ static int mt6985_afe_pcm_dev_probe(struct platform_device *pdev)
 		afe->memif[i].const_irq = 1;
 	}
 	afe->memif[MT6985_DEEP_MEMIF].ack = mtk_sp_clean_written_buffer_ack;
+	afe->memif[MT6985_FAST_MEMIF].fast_palyback = 1;
 
 	/* init arm_smccc_smc call */
 	arm_smccc_smc(MTK_SIP_AUDIO_CONTROL, MTK_AUDIO_SMC_OP_INIT,
@@ -8243,6 +8312,12 @@ static int mt6985_afe_pcm_dev_probe(struct platform_device *pdev)
 
 err_pm_disable:
 	pm_runtime_disable(&pdev->dev);
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	if (ret) {
+		pr_err_fb_fatal_delay("%s:failed ret=%d", __func__, ret);
+	}
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 
 	return ret;
 }

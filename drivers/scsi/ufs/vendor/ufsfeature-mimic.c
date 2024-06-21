@@ -4,6 +4,7 @@
  */
 
 #include "ufshcd.h"
+#include "ufshcd-add-info.h"
 #include "ufshcd-crypto.h"
 #include "ufsfeature.h"
 #include <trace/hooks/ufshcd.h>
@@ -244,11 +245,6 @@ ufsf_get_rsp_upiu_result(struct utp_upiu_rsp *ucd_rsp_ptr)
 	return be32_to_cpu(ucd_rsp_ptr->header.dword_1) & MASK_RSP_UPIU_RESULT;
 }
 
-static inline void ufsf_outstanding_req_clear(struct ufs_hba *hba, int tag)
-{
-	clear_bit(tag, &hba->outstanding_reqs);
-}
-
 static int
 ufsf_check_query_response(struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
 {
@@ -481,41 +477,50 @@ ufsf_dev_cmd_completion(struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
 }
 
 static int ufsf_wait_for_dev_cmd(struct ufs_hba *hba,
-				 struct ufshcd_lrb *lrbp, int max_timeout)
+		struct ufshcd_lrb *lrbp, int max_timeout)
 {
-	int err = 0;
-	unsigned long time_left;
-	unsigned long flags;
-
+	unsigned long time_left = msecs_to_jiffies(max_timeout);
+	int err;
+retry:
 	time_left = wait_for_completion_timeout(hba->dev_cmd.complete,
-			msecs_to_jiffies(max_timeout));
-
-	/* Make sure descriptors are ready before ringing the doorbell */
-	wmb();
-	spin_lock_irqsave(hba->host->host_lock, flags);
-	hba->dev_cmd.complete = NULL;
+						time_left);
 	if (likely(time_left)) {
+		/*
+		 * The caller of this function still owns the @lrbp tag so the
+		 * code below does not trigger any race conditions.
+		 */
+		hba->dev_cmd.complete = NULL;
 		err = ufsf_get_tr_ocs(lrbp);
 		if (!err)
 			err = ufsf_dev_cmd_completion(hba, lrbp);
-	}
-	spin_unlock_irqrestore(hba->host->host_lock, flags);
-
-	if (!time_left) {
+	} else {
 		err = -ETIMEDOUT;
 		dev_dbg(hba->dev, "%s: dev_cmd request timedout, tag %d\n",
 			__func__, lrbp->task_tag);
-		if (!ufsf_clear_cmd(hba, lrbp->task_tag))
+		if (!ufsf_clear_cmd(hba, 1U << lrbp->task_tag)) {
 			/* successfully cleared the command, retry if needed */
 			err = -EAGAIN;
-		/*
-		 * in case of an error, after clearing the doorbell,
-		 * we also need to clear the outstanding_request
-		 * field in hba
-		 */
-		ufsf_outstanding_req_clear(hba, lrbp->task_tag);
+			/*
+			 * Since clearing the command succeeded we also need to
+			 * clear the task tag bit from the outstanding_reqs
+			 * variable.
+			 */
+			if (test_and_clear_bit(lrbp->task_tag,
+					    &hba->outstanding_reqs)) {
+				hba->dev_cmd.complete = NULL;
+			} else {
+				/*
+				 * A race occurred between this function and the
+				 * completion handler.
+				 */
+				time_left = 1;
+				goto retry;
+			}
+		} else {
+			dev_err(hba->dev, "%s: failed to clear tag %d\n", __func__,
+				lrbp->task_tag);
+		}
 	}
-
 	return err;
 }
 
@@ -653,40 +658,28 @@ static inline bool ufsf_valid_tag(struct ufs_hba *hba, int tag)
 	return tag >= 0 && tag < hba->nutrs;
 }
 
+/**
+ * ufsf_exec_dev_cmd - API for sending device management requests
+ * @hba: UFS hba
+ * @cmd_type: specifies the type (NOP, Query...)
+ * @timeout: timeout in milliseconds
+ *
+ * NOTE: Since there is only one available tag for device management commands,
+ * it is expected you hold the hba->dev_cmd.lock mutex.
+ */
 static int ufsf_exec_dev_cmd(struct ufs_hba *hba,
-			     enum dev_cmd_type cmd_type, int timeout)
+		enum dev_cmd_type cmd_type, int timeout)
 {
-	struct request_queue *q = hba->cmd_queue;
-	struct request *req;
+	DECLARE_COMPLETION_ONSTACK(wait);
+	const u32 tag = ufs_hba_add_info(hba)->reserved_slot;
 	struct ufshcd_lrb *lrbp;
 	int err;
-	int tag;
-	struct completion wait;
+
+	/* Protects use of ufs_hba_add_info(hba)->reserved_slot. */
+	lockdep_assert_held(&hba->dev_cmd.lock);
 
 	down_read(&hba->clk_scaling_lock);
 
-	/*
-	 * Get free slot, sleep if slots are unavailable.
-	 * Even though we use wait_event() which sleeps indefinitely,
-	 * the maximum wait time is bounded by SCSI request timeout.
-	 */
-	req = blk_get_request(q, REQ_OP_DRV_OUT, 0);
-	if (IS_ERR(req)) {
-		err = PTR_ERR(req);
-		goto out_unlock;
-	}
-	tag = req->tag;
-	WARN_ON_ONCE(!ufsf_valid_tag(hba, tag));
-	/* Set the timeout such that the SCSI error handler is not activated. */
-	req->timeout = msecs_to_jiffies(2 * timeout);
-	blk_mq_start_request(req);
-
-	if (unlikely(test_bit(tag, &hba->outstanding_reqs))) {
-		err = -EBUSY;
-		goto out;
-	}
-
-	init_completion(&wait);
 	lrbp = &hba->lrb[tag];
 	WARN_ON(lrbp->cmd);
 	err = ufsf_compose_dev_cmd(hba, lrbp, cmd_type, tag);
@@ -702,8 +695,6 @@ static int ufsf_exec_dev_cmd(struct ufs_hba *hba,
 	err = ufsf_wait_for_dev_cmd(hba, lrbp, timeout);
 
 out:
-	blk_put_request(req);
-out_unlock:
 	up_read(&hba->clk_scaling_lock);
 	return err;
 }
@@ -845,9 +836,9 @@ out:
 }
 
 static void ufsf_add_tm_upiu_trace(struct ufs_hba *hba, unsigned int tag,
-		const char *str)
+		enum ufs_trace_str_t str_t)
 {
-	trace_android_vh_ufs_send_tm_command(hba, tag, str);
+	trace_android_vh_ufs_send_tm_command(hba, tag, (int)str_t);
 }
 
 static int __ufsf_issue_tm_cmd(struct ufs_hba *hba,
@@ -891,7 +882,7 @@ static int __ufsf_issue_tm_cmd(struct ufs_hba *hba,
 
 	spin_unlock_irqrestore(host->host_lock, flags);
 
-	ufsf_add_tm_upiu_trace(hba, task_tag, "tm_send");
+	ufsf_add_tm_upiu_trace(hba, task_tag, UFS_TM_SEND);
 
 	/* wait until the task management command is completed */
 	err = wait_for_completion_io_timeout(&wait,
@@ -902,7 +893,7 @@ static int __ufsf_issue_tm_cmd(struct ufs_hba *hba,
 		 * use-after-free.
 		 */
 		req->end_io_data = NULL;
-		ufsf_add_tm_upiu_trace(hba, task_tag, "tm_complete_err");
+		ufsf_add_tm_upiu_trace(hba, task_tag, UFS_TM_ERR);
 		dev_err(hba->dev, "%s: task management cmd 0x%.2x timed-out\n",
 				__func__, tm_function);
 		if (ufsf_clear_tm_cmd(hba, task_tag))
@@ -913,7 +904,7 @@ static int __ufsf_issue_tm_cmd(struct ufs_hba *hba,
 		err = 0;
 		memcpy(treq, hba->utmrdl_base_addr + task_tag, sizeof(*treq));
 
-		ufsf_add_tm_upiu_trace(hba, task_tag, "tm_complete");
+		ufsf_add_tm_upiu_trace(hba, task_tag, UFS_TM_COMP);
 	}
 
 	spin_lock_irqsave(hba->host->host_lock, flags);

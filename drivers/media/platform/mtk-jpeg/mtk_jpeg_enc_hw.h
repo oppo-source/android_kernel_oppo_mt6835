@@ -75,7 +75,9 @@
 #define JPEG_ENC_Q_TBL_ADDR_EXT         0x58C
 #define JPEG_ENC_DEST_ADDR0_EXT         0x590
 #define JPEG_ENC_STALL_ADDR0_EXT        0x594
-
+#define JPEG_ENC_CTRL_RDMA_PADDING_EN           (1 << 20)
+#define JPEG_ENC_CTRL_RDMA_RIGHT_PADDING_EN     (1 << 29)
+#define JPEG_ENC_CTRL_RDMA_PADDING_0_EN         (1 << 30)
 
 
 /**
@@ -88,7 +90,8 @@ struct mtk_jpeg_enc_qlt {
 	u8	hardware_value;
 };
 
-void mtk_jpeg_enc_set_34bits(void __iomem *base, u32 value);
+void mtk_jpeg_enc_set_34bits(struct mtk_jpeg_ctx *ctx, void __iomem *base,
+			struct vb2_buffer *dst_buf);
 void mtk_jpeg_enc_reset(void __iomem *base);
 u32 mtk_jpeg_enc_get_file_size(void __iomem *base);
 void mtk_jpeg_enc_start(void __iomem *enc_reg_base);

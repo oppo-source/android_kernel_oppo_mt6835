@@ -1,0 +1,199 @@
+&mt6377_vio28 {
+	/delete-property/ regulator-always-on;
+};
+
+&irtx_pwm {
+	/delete-property/ pwm-supply;
+};
+
+&mtk_leds {
+	compatible = "mediatek,disp-leds";
+
+	backlight {
+		label = "lcd-backlight";
+		max-brightness = <4095>;
+		max-hw-brightness = <4095>;
+		min-brightness = <1>;
+		min-hw-brightness = <1>;
+		led_mode = <4>;
+		led-bits = <12>;
+		trans-bits = <12>;
+		default-state = "on";
+		apollo-state = "disable";
+	};
+};
+
+&pio {
+    mtkfb_pins_lcm_rst_out1_gpio: lcm_rst_out1_gpio {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO86__FUNC_GPIO86>;
+            slew-rate = <1>;
+            output-high;
+        };
+    };
+
+    mtkfb_pins_lcm_rst_out0_gpio: lcm_rst_out0_gpio {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO86__FUNC_GPIO86>;
+            slew-rate = <1>;
+            output-low;
+        };
+    };
+
+    mtkfb_pins_lcm_dsi_te: lcm_dsi_te {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO85__FUNC_GPIO85>;
+            slew-rate = <0>;
+        };
+    };
+
+    mtkfb_pins_lcm_vci_out1_gpio: lcm_vci_out1_gpio {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO92__FUNC_GPIO92>;
+            slew-rate = <1>;
+            output-high;
+        };
+    };
+
+    mtkfb_pins_lcm_vci_out0_gpio: lcm_vci_out0_gpio {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO92__FUNC_GPIO92>;
+            slew-rate = <1>;
+            output-low;
+        };
+    };
+
+    mtkfb_pins_lcm_vddr_out1_gpio: lcm_vddr_out1_gpio {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO150__FUNC_GPIO150>;
+            slew-rate = <1>;
+            output-high;
+        };
+    };
+
+    mtkfb_pins_lcm_vddr_out0_gpio: lcm_vddr_out0_gpio {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO150__FUNC_GPIO150>;
+            slew-rate = <1>;
+            output-low;
+        };
+    };
+};
+
+&mtkfb {
+    pinctrl-names = "lcm_rst_out1_gpio", "lcm_rst_out0_gpio",
+        "mode_te_te", "lcm_vci_out1_gpio",
+        "lcm_vci_out0_gpio", "lcm_vddr_out1_gpio",
+        "lcm_vddr_out0_gpio", "lcm_vddi_out1_gpio",
+        "lcm_vddi_out0_gpio";
+    pinctrl-0 = <&mtkfb_pins_lcm_rst_out1_gpio>;
+    pinctrl-1 = <&mtkfb_pins_lcm_rst_out0_gpio>;
+    pinctrl-2 = <&mtkfb_pins_lcm_dsi_te>;
+    pinctrl-3 = <&mtkfb_pins_lcm_vci_out1_gpio>;
+    pinctrl-4 = <&mtkfb_pins_lcm_vci_out0_gpio>;
+    pinctrl-5 = <&mtkfb_pins_lcm_vddr_out1_gpio>;
+    pinctrl-6 = <&mtkfb_pins_lcm_vddr_out0_gpio>;
+    status = "okay";
+};
+
+&dispsys_config {
+    pinctrl-names = "lcm_rst_out1_gpio", "lcm_rst_out0_gpio",
+        "mode_te_te", "lcm_vci_out1_gpio",
+        "lcm_vci_out0_gpio", "lcm_vddr_out1_gpio",
+        "lcm_vddr_out0_gpio", "lcm_vddi_out1_gpio",
+        "lcm_vddi_out0_gpio";
+    pinctrl-0 = <&mtkfb_pins_lcm_rst_out1_gpio>;
+    pinctrl-1 = <&mtkfb_pins_lcm_rst_out0_gpio>;
+    pinctrl-2 = <&mtkfb_pins_lcm_dsi_te>;
+    pinctrl-3 = <&mtkfb_pins_lcm_vci_out1_gpio>;
+    pinctrl-4 = <&mtkfb_pins_lcm_vci_out0_gpio>;
+    pinctrl-5 = <&mtkfb_pins_lcm_vddr_out1_gpio>;
+    pinctrl-6 = <&mtkfb_pins_lcm_vddr_out0_gpio>;
+    status = "okay";
+
+    helper-value = <0>, /*MTK_DRM_OPT_STAGE*/
+	  <1>, /*MTK_DRM_OPT_USE_CMDQ*/
+	  <1>, /*MTK_DRM_OPT_USE_M4U*/
+	  <1>, /*MTK_DRM_OPT_MMQOS_SUPPORT*/
+	  <1>, /*MTK_DRM_OPT_MMDVFS_SUPPORT*/
+	  <1>, /*MTK_DRM_OPT_SODI_SUPPORT*/
+	  <1>, /*MTK_DRM_OPT_IDLE_MGR*/
+	  <0>, /*MTK_DRM_OPT_IDLEMGR_SWTCH_DECOUPLE*/
+	  <0>, /*MTK_DRM_OPT_IDLEMGR_BY_REPAINT*/
+	  <0>, /*MTK_DRM_OPT_IDLEMGR_ENTER_ULPS*/
+	  <0>, /*MTK_DRM_OPT_IDLEMGR_KEEP_LP11*/
+	  <1>, /*MTK_DRM_OPT_DYNAMIC_RDMA_GOLDEN_SETTING*/
+	  <1>, /*MTK_DRM_OPT_IDLEMGR_DISABLE_ROUTINE_IRQ*/
+	  <0>, /*MTK_DRM_OPT_MET_LOG*/
+	  <1>, /*MTK_DRM_OPT_USE_PQ*/
+	  <1>, /*MTK_DRM_OPT_ESD_CHECK_RECOVERY*/
+	  <1>, /*MTK_DRM_OPT_ESD_CHECK_SWITCH*/
+	  <1>, /*MTK_DRM_OPT_PRESENT_FENCE*/
+	  <0>, /*MTK_DRM_OPT_RDMA_UNDERFLOW_AEE*/
+	  <0>, /*MTK_DRM_OPT_DSI_UNDERRUN_AEE*/
+	  <1>, /*MTK_DRM_OPT_HRT*/
+	  <1>, /*MTK_DRM_OPT_HRT_MODE*/
+	  <0>, /*MTK_DRM_OPT_DELAYED_TRIGGER*/
+	  <1>, /*MTK_DRM_OPT_OVL_EXT_LAYER*/
+	  <1>, /*MTK_DRM_OPT_AOD*/
+	  <1>, /*MTK_DRM_OPT_RPO*/
+	  <0>, /*MTK_DRM_OPT_DUAL_PIPE*/
+	  <0>, /*MTK_DRM_OPT_DC_BY_HRT*/
+	  <1>, /*MTK_DRM_OPT_OVL_WCG*/
+	  <0>, /*MTK_DRM_OPT_OVL_SBCH*/
+	  <1>, /*MTK_DRM_OPT_COMMIT_NO_WAIT_VBLANK*/
+	  <0>, /*MTK_DRM_OPT_MET*/
+	  <0>, /*MTK_DRM_OPT_REG_PARSER_RAW_DUMP*/
+	  <0>, /*MTK_DRM_OPT_VP_PQ*/
+	  <0>, /*MTK_DRM_OPT_GAME_PQ*/
+	  <0>, /*MTK_DRM_OPT_MMPATH*/
+	  <1>, /*MTK_DRM_OPT_HBM*/
+	  <0>, /*MTK_DRM_OPT_VDS_PATH_SWITCH*/
+	  <0>, /*MTK_DRM_OPT_LAYER_REC*/
+	  <1>, /*MTK_DRM_OPT_CLEAR_LAYER*/
+	  <1>, /*MTK_DRM_OPT_LFR*/
+	  <0>, /*MTK_DRM_OPT_SF_PF*/
+	  <1>, /*MTK_DRM_OPT_DYN_MIPI_CHANGE*/
+	  <0>, /*MTK_DRM_OPT_PRIM_DUAL_PIPE*/
+	  <0>, /*MTK_DRM_OPT_MSYNC2_0*/
+	  <0>, /*MTK_DRM_OPT_MML_PRIMARY*/
+	  <0>, /*MTK_DRM_OPT_DUAL_TE*/
+	  <0>, /*MTK_DRM_OPT_VIRTUAL_DISP*/
+	  <1>, /*MTK_DRM_OPT_SPHRT*/
+	  <0>; /*MTK_DRM_OPT_RES_SWITCH*/
+};
+
+&dsi0 {
+    status = "okay";
+    #address-cells = <1>;
+    #size-cells = <0>;
+    panel1@0 {
+        compatible = "ac176,p,1,a0017,fhd,vdo";
+        reg = <0>;
+        reset-gpios = <&pio 86 0>;
+        vddr-enable-gpios = <&pio 150 0>;
+        vci_3p0-supply = <&mt6377_vio28>;
+        vci-evb-gpios = <&pio 92 0>;
+        vddi_1p8-supply = <&mt6377_vio18>;
+        lcm-esd-err-fg-gpios = <&pio 4 0>;
+        pinctrl-names = "default";
+        port {
+            panel_in1: endpoint {
+                remote-endpoint = <&dsi_out>;
+            };
+        };
+    };
+    ports {
+        port {
+            dsi_out: endpoint {
+                remote-endpoint = <&panel_in1>;
+            };
+        };
+    };
+};
+
+&disp_ccorr0 {
+    oplus_set_ccorr_matrix = <1>;
+};
+
+#include "mediatek/cust_evb6835.dtsi"

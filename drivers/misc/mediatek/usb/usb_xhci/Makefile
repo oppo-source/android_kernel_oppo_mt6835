@@ -7,11 +7,13 @@
 CFLAGS_xhci-trace.o := -I$(src)
 
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/usb/usb_offload
+ccflags-y += -I$(srctree)/sound/usb
 
 xhci-mtk-hcd-v2-y := xhci.o xhci-mem.o xhci-ext-caps.o
 xhci-mtk-hcd-v2-y += xhci-ring.o xhci-hub.o xhci-dbg.o
 xhci-mtk-hcd-v2-y += xhci-trace.o
 xhci-mtk-hcd-v2-y += xhci-mtk.o xhci-mtk-sch.o
+xhci-mtk-hcd-v2-y += quirks.o
 
 ifneq ($(CONFIG_DEBUG_FS),)
 	xhci-mtk-hcd-v2-y		+= xhci-debugfs.o

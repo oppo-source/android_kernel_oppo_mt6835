@@ -304,7 +304,10 @@ static inline void __check_racy_pte_update(struct mm_struct *mm, pte_t *ptep,
 	 * (ptep_set_access_flags safely changes valid ptes without going
 	 * through an invalid entry).
 	 */
-	VM_WARN_ONCE(!pte_young(pte),
+	 /*
+	  * split cont_pte(remove cont bit in pte ) will not change page young
+	  */
+	VM_WARN_ONCE(!pte_young(pte) && !IS_ENABLED(CONFIG_CONT_PTE_HUGEPAGE),
 		     "%s: racy access flag clearing: 0x%016llx -> 0x%016llx",
 		     __func__, pte_val(old_pte), pte_val(pte));
 	VM_WARN_ONCE(pte_write(old_pte) && !pte_dirty(pte),
@@ -340,6 +343,13 @@ static inline void set_pte_at(struct mm_struct *mm, unsigned long addr,
 
 	__check_racy_pte_update(mm, ptep, pte);
 
+#ifdef CONFIG_CONT_PTE_HUGEPAGE
+#define UNALIGNED_CONT_PTE_WARN WARN_ON
+	/* 16 ptes of cont_pte should be set as a whole by copied cset_pte_at */
+	WARN_ON_ONCE((pte_cont(pte) || pte_cont(*ptep)) && current->mm);
+	UNALIGNED_CONT_PTE_WARN(pte_cont(pte) && ((pte_pfn(pte) & (CONT_PTES - 1)) !=
+			((unsigned long)ptep & (sizeof(pte) * CONT_PTES - 1)) / sizeof(pte)));
+#endif
 	set_pte(ptep, pte);
 }
 
@@ -819,6 +829,18 @@ static inline int __ptep_test_and_clear_young(pte_t *ptep)
 	pte = READ_ONCE(*ptep);
 	do {
 		old_pte = pte;
+#ifdef CONFIG_CONT_PTE_HUGEPAGE
+#define UNALIGNED_CONT_PTE_WARN WARN_ON
+		/*
+		 * we have seen a swapentry's bit3, which is AF bit(10) in pte,
+		 * is incorrectly cleared. This sets swapoffset to 0-1-2-3-0-1
+		 * -2-3-8-9-10-11-8-9-10-11 for a hugepage.
+		 */
+		if (!pte_present(pte)) {
+			UNALIGNED_CONT_PTE_WARN(1);
+			return false;
+		}
+#endif
 		pte = pte_mkold(pte);
 		pte_val(pte) = cmpxchg_relaxed(&pte_val(*ptep),
 					       pte_val(old_pte), pte_val(pte));

@@ -25,6 +25,9 @@
 #define VCU_IPIMSG_VENC_SEND_BASE 0x3000
 #define AP_IPIMSG_VENC_ACK_BASE 0x4000
 
+#define VDEC_TF_INFO_OFFSET 0x70000
+#define VENC_TF_INFO_OFFSET 0x7F00
+
 enum mtk_venc_hw_id {
 	MTK_VENC_CORE_0 = 0,
 	MTK_VENC_CORE_1 = 1,
@@ -37,8 +40,9 @@ enum mtk_vdec_hw_id {
 	MTK_VDEC_LAT = 1,
 	MTK_VDEC_CORE1 = 2,
 	MTK_VDEC_LAT1 = 3,
+	MTK_VDEC_HW_NUM = 4,
 	MTK_VDEC_LINE_COUNT = 4,
-	MTK_VDEC_HW_NUM = 5,
+	MTK_VDEC_IRQ_NUM = 5,
 };
 
 enum mtk_fmt_type {
@@ -63,6 +67,38 @@ enum v4l2_vdec_trick_mode {
 	V4L2_VDEC_TRICK_MODE_I
 };
 
+enum mtk_dec_dtsi_m4u_port_idx {
+	VDEC_M4U_PORT_MC,
+	VDEC_M4U_PORT_UFO,
+	VDEC_M4U_PORT_PP,
+	VDEC_M4U_PORT_PRED_RD,
+	VDEC_M4U_PORT_PRED_WR,
+	VDEC_M4U_PORT_PPWRAP,
+	VDEC_M4U_PORT_TILE,
+	VDEC_M4U_PORT_VLD,
+	VDEC_M4U_PORT_VLD2,
+	VDEC_M4U_PORT_AVC_MV,
+	VDEC_M4U_PORT_RG_CTRL_DMA,
+	VDEC_M4U_PORT_UFO_ENC,
+	VDEC_M4U_PORT_LAT0_VLD,
+	VDEC_M4U_PORT_LAT0_VLD2,
+	VDEC_M4U_PORT_LAT0_AVC_MV,
+	VDEC_M4U_PORT_LAT0_PRED_RD,
+	VDEC_M4U_PORT_LAT0_TILE,
+	VDEC_M4U_PORT_LAT0_WDMA,
+	VDEC_M4U_PORT_LAT0_RG_CTRL_DMA,
+	VDEC_M4U_PORT_LAT0_MC,
+	VDEC_M4U_PORT_LAT0_UFO,
+	VDEC_M4U_PORT_LAT0_UFO_C,
+	VDEC_M4U_PORT_VIDEO_UP_SEC,
+	VDEC_M4U_PORT_VIDEO_UP_NOR,
+	VDEC_M4U_PORT_UP_1,
+	VDEC_M4U_PORT_UP_2,
+	VDEC_M4U_PORT_UP_3,
+	VDEC_M4U_PORT_UP_4,
+	NUM_MAX_VDEC_M4U_PORT
+};
+
 /**
  * struct mtk_video_fmt - Structure used to store information about pixelformats
  */
@@ -83,6 +119,13 @@ struct mtk_codec_framesizes {
 	__u32	level;
 	__u32	reserved;
 	struct	v4l2_frmsize_stepwise	stepwise;
+};
+
+struct mtk_tf_info {
+	__u32	hw_id;
+	__u32	port;
+	__u64	tf_mva;
+	__u32	has_tf;
 };
 
 /**
@@ -283,8 +326,9 @@ enum vcodec_mem_type {
 	MEM_TYPE_FOR_UBE_HW,                    /* /< External memory for UBE reserved memory */
 	MEM_TYPE_FOR_SEC_SW,                    /* /< External memory for secure SW */
 	MEM_TYPE_FOR_SEC_HW,                    /* /< External memory for secure HW */
-	MEM_TYPE_FOR_SEC_UBE_HW,                    /* /< External memory for secure UBE */
+	MEM_TYPE_FOR_SEC_UBE_HW,                /* /< External memory for secure UBE */
 	MEM_TYPE_FOR_SHM,                       /* /< External memory for share memory */
+	MEM_TYPE_FOR_SEC_WFD_HW,                /* /< External memory for secure WFD */
 	MEM_TYPE_MAX = 0xFFFFFFFF               /* /< Max memory type */
 };
 

@@ -721,7 +721,7 @@
 
 		avdd1-supply = <&gpio195_regulator>;
 		dovdd-supply = <&gpio204_regulator>;
-		dvdd-supply = <&mt6373_vrf12_aif>;
+		//dvdd-supply = <&mt6373_vrf12_aif>;
 		avdd-supply = <&L3P>;
 		afvdd-supply = <&L7P>;
 		rst-supply = <&gpio201_regulator>;
@@ -806,7 +806,7 @@
 
 		avdd1-supply = <&gpio195_regulator>;
 		dovdd-supply = <&gpio204_regulator>;
-		dvdd-supply = <&mt6373_vrf12_aif>;
+		//dvdd-supply = <&mt6373_vrf12_aif>;
 		avdd-supply = <&L5P>;
 		afvdd-supply = <&L7P>;
 		rst-supply = <&gpio202_regulator>;

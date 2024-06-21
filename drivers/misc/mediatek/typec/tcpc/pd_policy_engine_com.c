@@ -54,6 +54,7 @@ void pe_idle2_entry(struct pd_port *pd_port)
 	pe_data_init(&pd_port->pe_data);
 	pd_set_rx_enable(pd_port, PD_RX_CAP_PE_IDLE);
 	pd_disable_timer(pd_port, PD_TIMER_PE_IDLE_TOUT);
+	pd_disable_timer(pd_port, PD_TIMER_INT_INVAILD);
 	pd_notify_pe_idle(pd_port);
 }
 

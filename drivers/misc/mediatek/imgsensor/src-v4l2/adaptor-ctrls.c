@@ -67,7 +67,11 @@ static int g_pd_pixel_region(struct adaptor_ctx *ctx, struct v4l2_ctrl *ctrl)
 static void dump_perframe_info(struct adaptor_ctx *ctx, struct mtk_hdr_ae *ae_ctrl)
 {
 	dev_info(ctx->dev,
-		"[%s][%s] sensor_idx %d, req id %d, sof_cnt:%u, exposure[LLLE->SSSE] %d %d %d %d %d ana_gain[LLLE->SSSE] %d %d %d %d %d, w(%d/%d/%d/%d/%d,%d/%d/%d/%d/%d) sub_tag:%u, fl:%u, min_fl:%u, flick_en:%u, mode:(line_time:%u, margin:%u, scen:%u; STG:(readout_l:%u, read_margin:%u, ext_fl:%u, fast_mode:%u))\n",
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		"[%s][%s] sensor_idx %d, req id %d, sof_cnt:%u, exposure[LLLE->SSSE] 64bit %llu %llu %llu %llu %llu ana_gain[LLLE->SSSE] %d %d %d %d %d, w(%d/%d/%d/%d/%d,%d/%d/%d/%d/%d) sub_tag:%u, ctx:(fl:(%u,lut:%u/%u/%u)/RG:(%u,%u/%u/%u/%u/%u), min_fl:%u, flick_en:%u, mode:(line_time:%u, margin:%u, scen:%u; STG:(readout_l:%u, read_margin:%u, ext_fl:%u, fast_mode:%u))\n",
+#else
+		"[%s][%s] sensor_idx %d, req id %d, sof_cnt:%u, exposure[LLLE->SSSE] %d %d %d %d %d ana_gain[LLLE->SSSE] %d %d %d %d %d, w(%d/%d/%d/%d/%d,%d/%d/%d/%d/%d) sub_tag:%u, ctx:(fl:(%u,lut:%u/%u/%u)/RG:(%u,%u/%u/%u/%u/%u), min_fl:%u, flick_en:%u, mode:(line_time:%u, margin:%u, scen:%u; STG:(readout_l:%u, read_margin:%u, ext_fl:%u, fast_mode:%u))\n",
+#endif
 		ctx->sd.name,
 		(ctx->subdrv) ? (ctx->subdrv->name) : "null",
 		ctx->idx,
@@ -95,6 +99,15 @@ static void dump_perframe_info(struct adaptor_ctx *ctx, struct mtk_hdr_ae *ae_ct
 		ae_ctrl->w_gain.ssse_gain,
 		ae_ctrl->subsample_tags,
 		ctx->subctx.frame_length,
+		ctx->subctx.frame_length_in_lut[0],
+		ctx->subctx.frame_length_in_lut[1],
+		ctx->subctx.frame_length_in_lut[2],
+		ctx->subctx.frame_length_rg,
+		ctx->subctx.frame_length_in_lut_rg[0],
+		ctx->subctx.frame_length_in_lut_rg[1],
+		ctx->subctx.frame_length_in_lut_rg[2],
+		ctx->subctx.frame_length_in_lut_rg[3],
+		ctx->subctx.frame_length_in_lut_rg[4],
 		ctx->subctx.min_frame_length,
 		ctx->subctx.autoflicker_en,
 		CALC_LINE_TIME_IN_NS(ctx->subctx.pclk, ctx->subctx.line_length),
@@ -248,15 +261,11 @@ static int do_set_ae_ctrl(struct adaptor_ctx *ctx,
 						  struct mtk_hdr_ae *ae_ctrl)
 {
 	union feature_para para;
-	u32 len = 0, exp_count = 0;
-	struct mtk_stagger_info info = {0};
-	int ret = 0;
+	u32 len = 0, exp_count = 0, scenario_exp_cnt = 0;
 
 #if IMGSENSOR_LOG_MORE
 	dev_info(ctx->dev, "[%s]+\n", __func__);
 #endif
-
-	info.scenario_id = SENSOR_SCENARIO_ID_NONE;
 
 	/* update ctx req id */
 	ctx->req_id = ae_ctrl->req_id;
@@ -266,17 +275,12 @@ static int do_set_ae_ctrl(struct adaptor_ctx *ctx,
 		ae_ctrl->exposure.arr[exp_count] != 0)
 		exp_count++;
 
-	/* get exp_cnt */
-	ret = g_stagger_info(ctx, ctx->cur_mode->id, &info);
-	if (!ret) {
-		/* non-stagger mode, the info count would be 0, it's same as 1 */
-		if (info.count == 0)
-			info.count = 1;
-		if (info.count != exp_count) {
-			dev_info(ctx->dev, "warn: scenario_exp_cnt=%u, but ae_exp_count=%u\n",
-				 info.count, exp_count);
-			exp_count = info.count;
-		}
+	/* get scenario exp_cnt */
+	scenario_exp_cnt = g_scenario_exposure_cnt(ctx, ctx->cur_mode->id);
+	if (scenario_exp_cnt != exp_count) {
+		dev_info(ctx->dev, "warn: scenario_exp_cnt=%u, but ae_exp_count=%u\n",
+			 scenario_exp_cnt, exp_count);
+		exp_count = scenario_exp_cnt;
 	}
 	switch (exp_count) {
 	case 3:
@@ -304,7 +308,11 @@ static int do_set_ae_ctrl(struct adaptor_ctx *ctx,
 	case 1:
 	default:
 	{
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		u64 fsync_exp[1] = {0}; /* needed by fsync set_shutter */
+#else
 		u32 fsync_exp[1] = {0}; /* needed by fsync set_shutter */
+#endif
 		int ret = 0;
 		u32 again_exp[IMGSENSOR_STAGGER_EXPOSURE_CNT] = {0};
 		u32 dgain_exp[IMGSENSOR_STAGGER_EXPOSURE_CNT] = {0};
@@ -364,7 +372,11 @@ static int do_set_ae_ctrl(struct adaptor_ctx *ctx,
 		notify_fsync_mgr_set_extend_framelength(ctx, para.u64[0]);
 	}
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	ctx->exposure->val = (u32) ae_ctrl->exposure.le_exposure;
+#else
 	ctx->exposure->val = ae_ctrl->exposure.le_exposure;
+#endif
 	ctx->analogue_gain->val = ae_ctrl->gain.le_gain;
 	ctx->subctx.ae_ctrl_gph_en = 0;
 	dump_perframe_info(ctx, ae_ctrl);
@@ -496,7 +508,8 @@ static int _aov_switch_i2c_bus_scl_aux(struct v4l2_ctrl *ctrl)
 
 	// aux as aux function number corresponding to gpio table.
 	switch (aux) {
-	case SDA4:
+	case SCL4:
+	{
 		ret = pinctrl_select_state(ctx->pinctrl, ctx->state[STATE_SCL_AP]);
 		if (ret < 0) {
 			dev_info(ctx->dev,
@@ -507,8 +520,11 @@ static int _aov_switch_i2c_bus_scl_aux(struct v4l2_ctrl *ctrl)
 		dev_info(ctx->dev,
 			"[%s] select(%s)(correct)\n",
 			__func__, state_names[STATE_SCL_AP]);
+		ctx->aov_i2c_bus_scl_switch_en = 0;
+	}
 		break;
 	case SCL7:
+	{
 		ret = pinctrl_select_state(ctx->pinctrl, ctx->state[STATE_SCL_SCP]);
 		if (ret < 0) {
 			dev_info(ctx->dev,
@@ -519,6 +535,8 @@ static int _aov_switch_i2c_bus_scl_aux(struct v4l2_ctrl *ctrl)
 		dev_info(ctx->dev,
 			"[%s] select(%s)(correct)\n",
 			__func__, state_names[STATE_SCL_SCP]);
+		ctx->aov_i2c_bus_scl_switch_en = 1;
+	}
 		break;
 	default:
 		dev_info(ctx->dev,
@@ -540,28 +558,34 @@ static int _aov_switch_i2c_bus_sda_aux(struct v4l2_ctrl *ctrl)
 	// aux as aux function number corresponding to gpio table.
 	switch (aux) {
 	case SDA4:
+	{
 		ret = pinctrl_select_state(ctx->pinctrl, ctx->state[STATE_SDA_AP]);
 		if (ret < 0) {
 			dev_info(ctx->dev,
 				"[%s] select(%s)(fail)\n",
 				__func__, state_names[STATE_SDA_AP]);
 			return ret;
-		} else
-			dev_info(ctx->dev,
-				"[%s] select(%s)(correct)\n",
-				__func__, state_names[STATE_SDA_AP]);
+		}
+		dev_info(ctx->dev,
+			"[%s] select(%s)(correct)\n",
+			__func__, state_names[STATE_SDA_AP]);
+		ctx->aov_i2c_bus_sda_switch_en = 0;
+	}
 		break;
 	case SDA7:
+	{
 		ret = pinctrl_select_state(ctx->pinctrl, ctx->state[STATE_SDA_SCP]);
 		if (ret < 0) {
 			dev_info(ctx->dev,
 				"[%s] select(%s)(fail)\n",
 				__func__, state_names[STATE_SDA_SCP]);
 			return ret;
-		} else
-			dev_info(ctx->dev,
-				"[%s] select(%s)(correct)\n",
-				__func__, state_names[STATE_SDA_SCP]);
+		}
+		dev_info(ctx->dev,
+			"[%s] select(%s)(correct)\n",
+			__func__, state_names[STATE_SDA_SCP]);
+		ctx->aov_i2c_bus_sda_switch_en = 1;
+	}
 		break;
 	default:
 		dev_info(ctx->dev,
@@ -674,6 +698,49 @@ static int _aov_switch_pm_ops(struct v4l2_ctrl *ctrl)
 	return 0;
 }
 
+static u32 get_line_d(struct adaptor_ctx *ctx, u64 linetime_in_ns_readout, u64 linetime_in_ns)
+{
+	u32 line_d = 0;
+
+	if (linetime_in_ns > 0) {
+		line_d = ((linetime_in_ns_readout / linetime_in_ns) +
+			(linetime_in_ns_readout % linetime_in_ns > 0 ? 1 : 0));
+	}
+	if (!line_d)
+		line_d = 1;
+
+#if IMGSENSOR_LOG_MORE
+	adaptor_logd(ctx, "%llu|%llu|%u\n",
+		linetime_in_ns_readout,
+		linetime_in_ns,
+		line_d);
+#endif
+
+	return line_d;
+}
+
+u32 get_mode_vb(struct adaptor_ctx *ctx, const struct sensor_mode *mode)
+{
+	u32 vb, line_d = 1;
+
+	if (mode->linetime_in_ns_readout > mode->linetime_in_ns) {
+		line_d = get_line_d(ctx, mode->linetime_in_ns_readout, mode->linetime_in_ns);
+
+		vb = (mode->fll / line_d) - mode->height;
+	} else {
+		vb = mode->fll - mode->height;
+	}
+
+	adaptor_logd(ctx, "vb %u|%llu|%llu|%u|%u\n",
+		vb,
+		mode->linetime_in_ns_readout,
+		mode->linetime_in_ns,
+		mode->fll,
+		line_d);
+
+	return vb;
+}
+
 static int ext_ctrl(struct adaptor_ctx *ctx, struct v4l2_ctrl *ctrl, struct sensor_mode *mode)
 {
 	int ret = 0;
@@ -691,7 +758,11 @@ static int ext_ctrl(struct adaptor_ctx *ctx, struct v4l2_ctrl *ctrl, struct sens
 
 			ctrl->val = tmp / 1000;
 		}
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		dev_info(ctx->dev, "[%s][%s] sof timeout value in us %llu|%llu|%d|%d\n",
+#else
 		dev_info(ctx->dev, "[%s][%s] sof timeout value in us %d|%llu|%d|%d\n",
+#endif
 			__func__,
 			(ctx->subdrv) ? (ctx->subdrv->name) : "null",
 			ctx->shutter_for_timeout,
@@ -703,22 +774,7 @@ static int ext_ctrl(struct adaptor_ctx *ctx, struct v4l2_ctrl *ctrl, struct sens
 			ctrl->val = 10000000 / mode->max_framerate;
 		break;
 	case V4L2_CID_VBLANK:
-		if (mode->linetime_in_ns_readout > mode->linetime_in_ns) {
-			ctrl->val = mode->fll - (mode->height *
-				((mode->linetime_in_ns_readout / mode->linetime_in_ns) +
-				(mode->linetime_in_ns_readout % mode->linetime_in_ns > 0 ? 1 : 0)));
-			dev_info(ctx->dev, "[%s] V4L2_CID_VBLANK %d|%d|%d|%d|%d\n",
-				__func__,
-				ctrl->val,
-				mode->linetime_in_ns_readout,
-				mode->linetime_in_ns,
-				mode->fll,
-				(mode->height *
-				((mode->linetime_in_ns_readout / mode->linetime_in_ns) +
-			(mode->linetime_in_ns_readout % mode->linetime_in_ns > 0 ? 1 : 0))));
-		} else {
-			ctrl->val = mode->fll - mode->height;
-		}
+		ctrl->val = get_mode_vb(ctx, mode);
 		break;
 	case V4L2_CID_HBLANK:
 		ctrl->val =
@@ -841,13 +897,7 @@ static int imgsensor_try_ctrl(struct v4l2_ctrl *ctrl)
 
 			info->fps = val / 10;
 
-			if (mode->linetime_in_ns_readout > mode->linetime_in_ns) {
-				info->vblank = mode->fll - mode->height *
-				((mode->linetime_in_ns_readout / mode->linetime_in_ns) +
-				(mode->linetime_in_ns_readout % mode->linetime_in_ns) ? 1 : 0);
-			} else {
-				info->vblank = mode->fll - mode->height;
-			}
+			info->vblank = get_mode_vb(ctx, mode);
 
 			info->hblank =
 				(((mode->linetime_in_ns_readout *
@@ -862,13 +912,11 @@ static int imgsensor_try_ctrl(struct v4l2_ctrl *ctrl)
 			info->grab_w = mode->width;
 		}
 
-#if IMGSENSOR_LOG_MORE
-		dev_dbg(ctx->dev,
-				"%s [scenario %d]:fps: %d vb: %d hb: %d pixelrate: %d cust_pixel_rate: %d, w %d, h %d\n",
-				__func__, info->scenario_id, info->fps, info->vblank,
-				info->hblank, info->pixelrate, info->cust_pixelrate,
-				info->grab_w, info->grab_h);
-#endif
+		adaptor_logd(ctx,
+			"%s [scenario %d]:fps: %d vb: %d hb: %d pixelrate: %d cust_pixel_rate: %d, w %d, h %d\n",
+			__func__, info->scenario_id, info->fps, info->vblank,
+			info->hblank, info->pixelrate, info->cust_pixelrate,
+			info->grab_w, info->grab_h);
 	}
 		break;
 	default:
@@ -904,7 +952,7 @@ static int imgsensor_set_ctrl(struct v4l2_ctrl *ctrl)
 	 */
 	if (pm_runtime_get_if_in_use(dev) == 0)
 		return 0;
-
+	ADAPTOR_SYSTRACE_BEGIN("SensorWorker::%s %d", __func__, ctrl->id);
 	switch (ctrl->id) {
 	case V4L2_CID_UPDATE_SOF_CNT:
 		subdrv_call(ctx, update_sof_cnt, (u64)ctrl->val);
@@ -917,7 +965,14 @@ static int imgsensor_set_ctrl(struct v4l2_ctrl *ctrl)
 		notify_fsync_mgr_vsync(ctx);
 
 		/* update timeout value upon vsync*/
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		if (ctx->ae_memento.exposure.le_exposure)
+			ctx->shutter_for_timeout = ctx->ae_memento.exposure.le_exposure;
+		else
+			ctx->shutter_for_timeout = ctx->exposure->val;
+#else
 		ctx->shutter_for_timeout = ctx->exposure->val;
+#endif
 		if (ctx->cur_mode->fine_intg_line)
 			ctx->shutter_for_timeout /= 1000;
 		break;
@@ -929,7 +984,11 @@ static int imgsensor_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_EXPOSURE:
 		{
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			u64 fsync_exp[1] = {0}; /* needed by fsync set_shutter */
+#else
 			u32 fsync_exp[1] = {0}; /* needed by fsync set_shutter */
+#endif
 
 			para.u64[0] = ctrl->val;
 
@@ -945,20 +1004,28 @@ static int imgsensor_set_ctrl(struct v4l2_ctrl *ctrl)
 		}
 		break;
 	case V4L2_CID_MTK_STAGGER_AE_CTRL:
-		ADAPTOR_SYSTRACE_BEGIN("SensorWorker::s_ae_ctrl");
-		s_ae_ctrl(ctrl);
-		ADAPTOR_SYSTRACE_END();
+		{
+			struct mtk_hdr_ae *ae_ctrl = ctrl->p_new.p;
+
+			ADAPTOR_SYSTRACE_BEGIN("SensorWorker::s_ae_ctrl %d", ae_ctrl->req_id);
+			s_ae_ctrl(ctrl);
+			ADAPTOR_SYSTRACE_END();
+		}
 		break;
 	case V4L2_CID_EXPOSURE_ABSOLUTE:
 		{
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			u64 fsync_exp[1] = {0}; /* needed by fsync set_shutter */
+#else
 			u32 fsync_exp[1] = {0}; /* needed by fsync set_shutter */
+#endif
 			__u32 fine_integ_time = 0;
 
 			para.u64[0] = (u64)(ctrl->val) * 100000;
 			do_div(para.u64[0], ctx->cur_mode->linetime_in_ns);
 
 			/* read fine integ time*/
-			fine_integ_time = g_sensor_fine_integ_line(ctx);
+			fine_integ_time = g_sensor_fine_integ_line(ctx, ctx->cur_mode->id);
 
 			if (fine_integ_time > 0)
 				para.u64[0] = para.u64[0] * 1000;
@@ -976,7 +1043,9 @@ static int imgsensor_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_VBLANK:
 		para.u64[0] = ctx->exposure->val;
-		para.u64[1] = ctx->cur_mode->height + ctrl->val;
+		para.u64[1] = (u32) ((u64)(ctx->cur_mode->height + ctrl->val) *
+			get_line_d(ctx, ctx->cur_mode->linetime_in_ns_readout,
+				   ctx->cur_mode->linetime_in_ns));
 		para.u64[2] = 0;
 		subdrv_call(ctx, feature_control,
 			SENSOR_FEATURE_SET_FRAMELENGTH,
@@ -1042,7 +1111,11 @@ static int imgsensor_set_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_MTK_SHUTTER_GAIN_SYNC:
 		{
 			struct mtk_shutter_gain_sync *info = ctrl->p_new.p;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			u64 fsync_exp[1] = {0}; /* needed by fsync set_shutter */
+#else
 			u32 fsync_exp[1] = {0}; /* needed by fsync set_shutter */
+#endif
 
 			para.u64[0] = info->shutter;
 
@@ -1173,15 +1246,33 @@ static int imgsensor_set_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_START_SEAMLESS_SWITCH:
 		{
 			struct mtk_seamless_switch_param *info = ctrl->p_new.p;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			u64 fsync_exp[5] = {0}; /* preventing drv modified exp value */
+#else
+			u32 fsync_exp[5] = {0}; /* preventing drv modified exp value */
+#endif
+			u32 orig_scen_id = ctx->subctx.current_scenario_id;
+			u32 orig_readout_time_us =
+				(ctx->mode[orig_scen_id].height
+				*ctx->mode[orig_scen_id].linetime_in_ns_readout
+				/1000);
 			u64 time_boot = ktime_get_boottime_ns();
 			u64 time_mono = ktime_get_ns();
+
+			/* copy original input data for fsync using */
+			memcpy(fsync_exp, &info->ae_ctrl[0].exposure.arr, sizeof(fsync_exp));
 
 			para.u64[0] = info->target_scenario_id;
 			para.u64[1] = (uintptr_t)&info->ae_ctrl[0];
 			para.u64[2] = (uintptr_t)&info->ae_ctrl[1];
 
 			dev_info(dev,
-				    "seamless %u s[%u %u %u %u %u] g[%u %u %u %u %u] s1[%u %u %u %u %u] g1[%u %u %u %u %u] %llu|%llu\n",
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+				    "seamless %u s[%llu %llu %llu %llu %llu] g[%u %u %u %u %u] s1[%llu %llu %llu %llu %llu] g1[%u %u %u %u %u] %llu|%llu\n",
+#else
+				    "seamless scen(%u => %u) s[%u %u %u %u %u] g[%u %u %u %u %u] s1[%u %u %u %u %u] g1[%u %u %u %u %u] %llu|%llu\n",
+#endif
+					orig_scen_id,
 					info->target_scenario_id,
 					info->ae_ctrl[0].exposure.arr[0],
 					info->ae_ctrl[0].exposure.arr[1],
@@ -1219,7 +1310,9 @@ static int imgsensor_set_ctrl(struct v4l2_ctrl *ctrl)
 				SENSOR_FEATURE_SEAMLESS_SWITCH,
 				para.u8, &len);
 
-			notify_fsync_mgr_seamless_switch(ctx);
+			notify_fsync_mgr_seamless_switch(ctx,
+				fsync_exp, IMGSENSOR_STAGGER_EXPOSURE_CNT,
+				orig_readout_time_us, info->target_scenario_id);
 
 			/*store ae ctrl for ESD reset*/
 			memset(&ctx->ae_memento, 0, sizeof(ctx->ae_memento));
@@ -1228,6 +1321,9 @@ static int imgsensor_set_ctrl(struct v4l2_ctrl *ctrl)
 			/* update timeout value upon seamless switch*/
 			ctx->exposure->val = info->ae_ctrl[0].exposure.arr[0];
 			ctx->shutter_for_timeout = info->ae_ctrl[0].exposure.arr[0];
+			#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			ctx->is_sensor_scenario_inited = 1;
+			#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 			if (ctx->cur_mode->fine_intg_line)
 				ctx->shutter_for_timeout /= 1000;
 
@@ -1238,7 +1334,7 @@ static int imgsensor_set_ctrl(struct v4l2_ctrl *ctrl)
 					__func__,
 					info->target_scenario_id);
 			}
-
+			ctx->last_framelength = ctx->subctx.frame_length_rg;
 		}
 		break;
 #ifdef IMGSENSOR_DEBUG
@@ -1301,9 +1397,18 @@ static int imgsensor_set_ctrl(struct v4l2_ctrl *ctrl)
 			restore_ae_ctrl(ctx);
 
 			/* update timeout value after reset*/
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			if (ctx->ae_memento.exposure.le_exposure)
+				ctx->shutter_for_timeout = ctx->ae_memento.exposure.le_exposure;
+			else
+				ctx->shutter_for_timeout = ctx->exposure->val;
+#else
 			ctx->shutter_for_timeout = ctx->exposure->val;
+#endif
 			if (ctx->cur_mode->fine_intg_line)
 				ctx->shutter_for_timeout /= 1000;
+
+			ctx->last_framelength = ctx->subctx.frame_length_rg;
 
 			_sensor_reset_s_stream(ctrl);
 			//dev_info(dev, "exit V4L2_CID_MTK_SENSOR_RESET\n");
@@ -1360,8 +1465,22 @@ static int imgsensor_set_ctrl(struct v4l2_ctrl *ctrl)
 		else
 			ctx->aov_mclk_ulposc_flag = 0;
 		break;
+	case V4L2_CID_MTK_SENSOR_RMSC_MODE:
+		{
+			struct mtk_sensor_rmsc_mode *rmsc_mode = ctrl->p_new.p;
+
+			adaptor_logd(ctx,
+				"V4L2_CID_MTK_SENSOR_RMSC_MODE qbc_rmsc_mode = %d\n",
+				rmsc_mode->qbc_rmsc_mode);
+
+			subdrv_call(ctx, feature_control,
+				SENSOR_FEATURE_SET_SENSOR_RMSC_MODE,
+				ctrl->p_new.p, &len);
+		}
+		break;
 	}
 
+	ADAPTOR_SYSTRACE_END();
 	pm_runtime_put(dev);
 
 	return ret;
@@ -1897,6 +2016,17 @@ static const struct v4l2_ctrl_config cfg_mtkcam_aov_switch_mclk_ulposc = {
 	.step = 1,
 };
 
+static struct v4l2_ctrl_config cfg_sensor_rmsc_mode = {
+	.ops = &ctrl_ops,
+	.id = V4L2_CID_MTK_SENSOR_RMSC_MODE,
+	.name = "sensor_rmsc_mode",
+	.type = V4L2_CTRL_TYPE_U32,
+	.flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
+	.max = 0xffffffff,
+	.step = 1,
+	.dims = {sizeof_u32(struct mtk_sensor_rmsc_mode)},
+};
+
 void adaptor_sensor_init(struct adaptor_ctx *ctx)
 {
 #if IMGSENSOR_LOG_MORE
@@ -1972,7 +2102,7 @@ int adaptor_init_ctrls(struct adaptor_ctx *ctx)
 		ctx->hblank->flags |= V4L2_CTRL_FLAG_VOLATILE;
 
 	/* vblank */
-	min = def = cur_mode->fll - cur_mode->height;
+	min = def = get_mode_vb(ctx, cur_mode);
 	max = ctx->subctx.max_frame_length - cur_mode->height;
 	ctx->vblank = v4l2_ctrl_new_std(ctrl_hdlr, &ctrl_ops,
 				V4L2_CID_VBLANK, min, max, 1, def);
@@ -2179,6 +2309,8 @@ int adaptor_init_ctrls(struct adaptor_ctx *ctx)
 	v4l2_ctrl_new_custom(ctrl_hdlr, &cfg_sensor_init, NULL);
 	v4l2_ctrl_new_custom(ctrl_hdlr, &cfg_sensor_reset_s_stream, NULL);
 	v4l2_ctrl_new_custom(ctrl_hdlr, &cfg_sensor_reset_by_user, NULL);
+	v4l2_ctrl_new_custom(ctrl_hdlr, &cfg_sensor_rmsc_mode, NULL);
+
 
 	if (ctrl_hdlr->error) {
 		ret = ctrl_hdlr->error;

@@ -1,0 +1,99 @@
+
+#include "mediatek/oplus-23111-tpfw.dtsi"
+&spi3 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	touchscreen@0 {
+		compatible = "oplus,tp_noflash";
+		reg = <0>;
+		chip-name = "NF_ILI9883C","NF_ILI9883C";
+		status = "ok";
+		chip-num = <2>;
+		project_id = <23111>;
+		spi-max-frequency = <9600000>;    /*4800000,9600000,15000000,19200000*/
+		reset-gpio = <&pio 171 0x00>;
+		interrupt-parent = <&pio>;
+		interrupts = <9  0x0>;
+		irq-gpio = <&pio 9 0x2002>;
+
+		panel_type = <3 19>;  /*type:3 BOE type 19:unknown*/
+		touchpanel,irq_need_dev_resume_time = <500>;
+		touchpanel,max-num-support = <10>;
+		touchpanel,tx-rx-num = <18 32>;			/*hd:18  32*/
+		touchpanel,panel-coords = <2880 6416>;
+		touchpanel,display-coords = <720 1604>;
+		touchpanel,touchmajor-limit = <0 54>;
+
+		platform_support_project = <23111 23112 23113 23301 23306 23305 23302 23304 23307 23303 23887>;
+		platform_support_project_dir = <23111 23111 23111 23111 23111 23111 23111 23111 23111 23111 23111>;
+		platform_support_project_commandline = "ac182_p_3_a0013_vdo_lcm_drv","ac182_p_4_a0013_vdo_lcm_drv";		/* hd*/
+		firmware_name = "AC182BI","AC182tI";
+		pinctrl-names = "default", "pin_cs_high","pin_cs_low";
+		pinctrl-0 = <&ctp_oplus_pins_default>;
+		pinctrl-1 = <&ts_cs_active>;
+		pinctrl-2 = <&ts_cs_suspend &ctp_oplus_int_suspend>;
+
+		touchpanel,smooth-level = <255 5 4 3 2 1>;
+		touchpanel,sensitive-level = <255 1 2 3 4 5>;
+		touchpanel,single-optimized-time = <8>;
+
+		incell_screen;
+		irq_need_dev_resume_ok;
+		fw_edge_limit_support;
+		black_gesture_support;
+		charger_pump_support;
+		//headset_pump_support;
+		esd_handle_support;
+		//spurious_fingerprint_support;
+		//lcd_trigger_fp_check;
+		black_gesture_test_support;
+		noflash_support;
+		smart_gesture_support;
+		pressure_report_support;
+		fw_update_app_support;
+		game_switch_support;
+		drlimit_remove_support;
+		lcd_trigger_load_tp_fw_support;
+		suspend_gesture_cfg;
+		fw_update_in_probe_with_headfile;
+		health_monitor_support;
+		//auto_test_force_pass_support;
+		exception_upload_support;
+		report_rate_white_list_support;
+		touchpanel,button-type = <4>;
+		tp_data_record_support;
+	};
+};
+
+&pio {
+	ctp_oplus_pins_default: pins_default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO68__FUNC_SPI3_CLK>,
+					<PINMUX_GPIO69__FUNC_SPI3_CSB>,
+					<PINMUX_GPIO70__FUNC_SPI3_MO>,
+					<PINMUX_GPIO71__FUNC_SPI3_MI>;
+			bias-disable;
+			drive-strength = <4>;
+		};
+	};
+	ts_cs_active: ts_cs_active {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO69__FUNC_SPI3_CSB>;
+		};
+	};
+	ts_cs_suspend: ts_cs_suspend {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO69__FUNC_SPI3_CSB>;
+			output-low;
+		};
+	};
+	ctp_oplus_int_suspend: int1_suspend {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO9__FUNC_IO_JTAG_TCK>;
+			bias-disable;
+			input-enable;
+		};
+	};
+};
+

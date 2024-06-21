@@ -1854,7 +1854,7 @@ static void ccci_proc_init(void)
 	return;
 
 }
-
+extern int (*exec_ccci_kern_func_fake)(unsigned int id, char *buf, unsigned int len);
 int ccci_port_init(void)
 {
 	ccci_proc_init();
@@ -1863,6 +1863,11 @@ int ccci_port_init(void)
 	if (port_proxyp == NULL) {
 		CCCI_ERROR_LOG(0, TAG, "alloc port_proxy fail\n");
 		return -1;
+	}
+
+	if (exec_ccci_kern_func_fake == NULL) {
+		exec_ccci_kern_func_fake = exec_ccci_kern_func;
+		pr_notice("[%s] hook exec_ccci_kern_func done.\n", __func__);
 	}
 
 	return 0;

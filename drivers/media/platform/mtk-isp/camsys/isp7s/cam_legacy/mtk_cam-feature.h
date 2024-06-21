@@ -66,11 +66,12 @@ static inline void mtk_cam_scen_update_dbg_str(struct mtk_cam_scen *scen)
 	case MTK_CAM_SCEN_NORMAL:
 	case MTK_CAM_SCEN_ODT_NORMAL:
 	case MTK_CAM_SCEN_M2M_NORMAL:
-		snprintf_safe(scen->dbg_str, 15, "%d:%d:%d:%d",
+		snprintf_safe(scen->dbg_str, 15, "%d:%d:%d:%d:%d",
 			      scen->scen.normal.max_exp_num,
 			      scen->scen.normal.exp_num,
 			      scen->scen.normal.w_chn_supported,
-			      scen->scen.normal.frame_order);
+			      scen->scen.normal.frame_order,
+			      scen->scen.normal.stagger_type);
 		break;
 	case MTK_CAM_SCEN_TIMESHARE:
 		snprintf_safe(scen->dbg_str, 15, "%d:%d", scen->id,
@@ -378,6 +379,46 @@ static inline bool mtk_cam_scen_is_rgbw_enabled(struct mtk_cam_scen *scen)
 		return !!(scen->scen.normal.w_chn_enabled);
 
 	return false;
+}
+
+static inline bool mtk_cam_scen_is_dcg(struct mtk_cam_scen *scen)
+{
+	if (!scen)
+		return false;
+
+	if (scen->id == MTK_CAM_SCEN_NORMAL ||
+		scen->id == MTK_CAM_SCEN_ODT_NORMAL ||
+		scen->id == MTK_CAM_SCEN_M2M_NORMAL)
+		return (scen->scen.normal.stagger_type == MTK_CAM_STAGGER_DCG_AP_MERGE) ||
+			(scen->scen.normal.stagger_type == MTK_CAM_STAGGER_DCG_SENSOR_MERGE);
+
+	return false;
+}
+
+static inline bool mtk_cam_scen_is_lbmf(struct mtk_cam_scen *scen)
+{
+	if (!scen)
+		return false;
+
+	if (scen->id == MTK_CAM_SCEN_NORMAL ||
+		scen->id == MTK_CAM_SCEN_ODT_NORMAL ||
+		scen->id == MTK_CAM_SCEN_M2M_NORMAL)
+		return (scen->scen.normal.stagger_type == MTK_CAM_STAGGER_LBMF);
+
+	return false;
+}
+
+static inline int mtk_cam_scen_get_exp_order(struct mtk_cam_scen *scen)
+{
+	if (!scen)
+		return -1;
+
+	if (scen->id == MTK_CAM_SCEN_NORMAL ||
+		scen->id == MTK_CAM_SCEN_ODT_NORMAL ||
+		scen->id == MTK_CAM_SCEN_M2M_NORMAL)
+		return scen->scen.normal.exp_order;
+
+	return -1;
 }
 
 bool mtk_cam_is_hsf(struct mtk_cam_ctx *ctx);

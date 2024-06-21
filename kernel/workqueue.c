@@ -379,9 +379,22 @@ EXPORT_SYMBOL_GPL(system_freezable_power_efficient_wq);
 static int worker_thread(void *__worker);
 static void workqueue_sysfs_unregister(struct workqueue_struct *wq);
 static void show_pwq(struct pool_workqueue *pwq);
+static void show_one_worker_pool(struct worker_pool *pool);
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/workqueue.h>
+#ifdef CONFIG_BLOCKIO_UX_OPT
+extern void _trace_android_vh_record_pcpu_rwsem_starttime(
+	struct task_struct *tsk, unsigned long settime);
+#define VIRTUAL_KWORKER_NICE (-1000)
+#define HOOKS_SET_UX_SIGN (1)
+void set_kworker_light(struct task_struct *task)
+{
+	task->kworker_flag = 1;
+	_trace_android_vh_record_pcpu_rwsem_starttime(task, HOOKS_SET_UX_SIGN);
+	pr_err("IO_SET_UX_0: comm=%-12s pid=%d\n", task->comm, task->pid);
+}
+#endif
 
 EXPORT_TRACEPOINT_SYMBOL_GPL(workqueue_execute_start);
 EXPORT_TRACEPOINT_SYMBOL_GPL(workqueue_execute_end);
@@ -703,12 +716,17 @@ static void clear_work_data(struct work_struct *work)
 	set_work_data(work, WORK_STRUCT_NO_POOL, 0);
 }
 
+static inline struct pool_workqueue *work_struct_pwq(unsigned long data)
+{
+	return (struct pool_workqueue *)(data & WORK_STRUCT_WQ_DATA_MASK);
+}
+
 static struct pool_workqueue *get_work_pwq(struct work_struct *work)
 {
 	unsigned long data = atomic_long_read(&work->data);
 
 	if (data & WORK_STRUCT_PWQ)
-		return (void *)(data & WORK_STRUCT_WQ_DATA_MASK);
+		return work_struct_pwq(data);
 	else
 		return NULL;
 }
@@ -736,8 +754,7 @@ static struct worker_pool *get_work_pool(struct work_struct *work)
 	assert_rcu_or_pool_mutex();
 
 	if (data & WORK_STRUCT_PWQ)
-		return ((struct pool_workqueue *)
-			(data & WORK_STRUCT_WQ_DATA_MASK))->pool;
+		return work_struct_pwq(data)->pool;
 
 	pool_id = data >> WORK_OFFQ_POOL_SHIFT;
 	if (pool_id == WORK_OFFQ_POOL_NONE)
@@ -758,8 +775,7 @@ static int get_work_pool_id(struct work_struct *work)
 	unsigned long data = atomic_long_read(&work->data);
 
 	if (data & WORK_STRUCT_PWQ)
-		return ((struct pool_workqueue *)
-			(data & WORK_STRUCT_WQ_DATA_MASK))->pool->id;
+		return work_struct_pwq(data)->pool->id;
 
 	return data >> WORK_OFFQ_POOL_SHIFT;
 }
@@ -1964,18 +1980,32 @@ static struct worker *create_worker(struct worker_pool *pool)
 
 	worker->id = id;
 
+#ifdef CONFIG_BLOCKIO_UX_OPT
+	if (pool->cpu >= 0)
+		snprintf(id_buf, sizeof(id_buf), "%d:%d%s", pool->cpu, id,
+			(pool->attrs->nice == -1000) ? "X" : pool->attrs->nice < 0  ? "H" : "");
+	else
+		snprintf(id_buf, sizeof(id_buf), "%s%d:%d", (pool->attrs->nice == -1000) ? "X" : "u", pool->id, id);
+#else
 	if (pool->cpu >= 0)
 		snprintf(id_buf, sizeof(id_buf), "%d:%d%s", pool->cpu, id,
 			 pool->attrs->nice < 0  ? "H" : "");
 	else
 		snprintf(id_buf, sizeof(id_buf), "u%d:%d", pool->id, id);
-
+#endif
 	worker->task = kthread_create_on_node(worker_thread, worker, pool->node,
 					      "kworker/%s", id_buf);
 	if (IS_ERR(worker->task))
 		goto fail;
-
+#ifdef CONFIG_BLOCKIO_UX_OPT
+	if (pool->attrs->nice == VIRTUAL_KWORKER_NICE) {
+		set_kworker_light(worker->task);
+		set_user_nice(worker->task, MIN_NICE);
+	} else
+		set_user_nice(worker->task, pool->attrs->nice);
+#else
 	set_user_nice(worker->task, pool->attrs->nice);
+#endif
 	kthread_bind_mask(worker->task, pool->attrs->cpumask);
 
 	/* successful, attach the worker to the pool */
@@ -2211,6 +2241,12 @@ __acquires(&pool->lock)
 	bool cpu_intensive = pwq->wq->flags & WQ_CPU_INTENSIVE;
 	unsigned long work_data;
 	struct worker *collision;
+#if IS_ENABLED(CONFIG_MTK_PANIC_ON_WARN)
+		work_func_t toolong_func = work->func;
+		unsigned long start_time = 0;
+		unsigned long end_time = 0;
+		unsigned int diff = 0;
+#endif
 #ifdef CONFIG_LOCKDEP
 	/*
 	 * It is permissible to free the struct work_struct from
@@ -2310,7 +2346,14 @@ __acquires(&pool->lock)
 	 */
 	lockdep_invariant_state(true);
 	trace_workqueue_execute_start(work);
+#if IS_ENABLED(CONFIG_MTK_PANIC_ON_WARN)
+	start_time = jiffies;
+#endif
 	worker->current_func(work);
+#if IS_ENABLED(CONFIG_MTK_PANIC_ON_WARN)
+	end_time = jiffies;
+	diff = jiffies_to_msecs(end_time - start_time);
+#endif
 	/*
 	 * While we must be careful to not use "work" after this, the trace
 	 * point will only record its address.
@@ -2319,6 +2362,12 @@ __acquires(&pool->lock)
 	lock_map_release(&lockdep_map);
 	lock_map_release(&pwq->wq->lockdep_map);
 
+#if IS_ENABLED(CONFIG_MTK_PANIC_ON_WARN)
+	if (diff > 20000) {
+		pr_info("WQ_long: workqueue long function:dur=%u,str=%lu,end=%lu,[<%p>] %pS\n",
+		diff, start_time, end_time, toolong_func, toolong_func);
+	}
+#endif
 	if (unlikely(in_atomic() || lockdep_depth(current) > 0)) {
 		pr_err("BUG: workqueue leaked lock or atomic: %s/0x%08x/%d\n"
 		       "     last function: %ps\n",
@@ -3093,10 +3142,8 @@ static bool __flush_work(struct work_struct *work, bool from_cancel)
 	if (WARN_ON(!work->func))
 		return false;
 
-	if (!from_cancel) {
-		lock_map_acquire(&work->lockdep_map);
-		lock_map_release(&work->lockdep_map);
-	}
+	lock_map_acquire(&work->lockdep_map);
+	lock_map_release(&work->lockdep_map);
 
 	if (start_flush_work(work, &barr, from_cancel)) {
 		wait_for_completion(&barr.done);
@@ -4009,6 +4056,10 @@ apply_wqattrs_prepare(struct workqueue_struct *wq,
 	 * the default pwq covering whole @attrs->cpumask.  Always create
 	 * it even if we don't use it immediately.
 	 */
+#ifdef CONFIG_BLOCKIO_UX_OPT
+	if (wq->flags & WQ_UX)
+		new_attrs->nice = VIRTUAL_KWORKER_NICE;
+#endif
 	ctx->dfl_pwq = alloc_unbound_pwq(wq, new_attrs);
 	if (!ctx->dfl_pwq)
 		goto out_free;
@@ -4027,6 +4078,10 @@ apply_wqattrs_prepare(struct workqueue_struct *wq,
 	/* save the user configured attrs and sanitize it. */
 	copy_workqueue_attrs(new_attrs, attrs);
 	cpumask_and(new_attrs->cpumask, new_attrs->cpumask, cpu_possible_mask);
+#ifdef CONFIG_BLOCKIO_UX_OPT
+	if (wq->flags & WQ_UX)
+		new_attrs->nice = VIRTUAL_KWORKER_NICE;
+#endif
 	ctx->attrs = new_attrs;
 
 	ctx->wq = wq;
@@ -4466,7 +4521,7 @@ void destroy_workqueue(struct workqueue_struct *wq)
 			raw_spin_unlock_irq(&pwq->pool->lock);
 			mutex_unlock(&wq->mutex);
 			mutex_unlock(&wq_pool_mutex);
-			show_workqueue_state();
+			show_one_workqueue(wq);
 			return;
 		}
 		raw_spin_unlock_irq(&pwq->pool->lock);
@@ -4816,96 +4871,119 @@ static void show_pwq(struct pool_workqueue *pwq)
 }
 
 /**
- * show_workqueue_state - dump workqueue state
+ * show_one_workqueue - dump state of specified workqueue
+ * @wq: workqueue whose state will be printed
+ */
+void show_one_workqueue(struct workqueue_struct *wq)
+{
+	struct pool_workqueue *pwq;
+	bool idle = true;
+	unsigned long flags;
+
+	for_each_pwq(pwq, wq) {
+		if (pwq->nr_active || !list_empty(&pwq->inactive_works)) {
+			idle = false;
+			break;
+		}
+	}
+	if (idle) /* Nothing to print for idle workqueue */
+		return;
+
+	pr_info("workqueue %s: flags=0x%x\n", wq->name, wq->flags);
+
+	for_each_pwq(pwq, wq) {
+		raw_spin_lock_irqsave(&pwq->pool->lock, flags);
+		if (pwq->nr_active || !list_empty(&pwq->inactive_works)) {
+			/*
+			 * Defer printing to avoid deadlocks in console
+			 * drivers that queue work while holding locks
+			 * also taken in their write paths.
+			 */
+			printk_deferred_enter();
+			show_pwq(pwq);
+			printk_deferred_exit();
+		}
+		raw_spin_unlock_irqrestore(&pwq->pool->lock, flags);
+		/*
+		 * We could be printing a lot from atomic context, e.g.
+		 * sysrq-t -> show_all_workqueues(). Avoid triggering
+		 * hard lockup.
+		 */
+		touch_nmi_watchdog();
+	}
+
+}
+
+/**
+ * show_one_worker_pool - dump state of specified worker pool
+ * @pool: worker pool whose state will be printed
+ */
+static void show_one_worker_pool(struct worker_pool *pool)
+{
+	struct worker *worker;
+	bool first = true;
+	unsigned long flags;
+	unsigned long hung = 0;
+
+	raw_spin_lock_irqsave(&pool->lock, flags);
+	if (pool->nr_workers == pool->nr_idle)
+		goto next_pool;
+
+	/* How long the first pending work is waiting for a worker. */
+	if (!list_empty(&pool->worklist))
+		hung = jiffies_to_msecs(jiffies - pool->watchdog_ts) / 1000;
+
+	/*
+	 * Defer printing to avoid deadlocks in console drivers that
+	 * queue work while holding locks also taken in their write
+	 * paths.
+	 */
+	printk_deferred_enter();
+	pr_info("pool %d:", pool->id);
+	pr_cont_pool_info(pool);
+	pr_cont(" hung=%lus workers=%d", hung, pool->nr_workers);
+	if (pool->manager)
+		pr_cont(" manager: %d",
+			task_pid_nr(pool->manager->task));
+	list_for_each_entry(worker, &pool->idle_list, entry) {
+		pr_cont(" %s%d", first ? "idle: " : "",
+			task_pid_nr(worker->task));
+		first = false;
+	}
+	pr_cont("\n");
+	printk_deferred_exit();
+next_pool:
+	raw_spin_unlock_irqrestore(&pool->lock, flags);
+	/*
+	 * We could be printing a lot from atomic context, e.g.
+	 * sysrq-t -> show_all_workqueues(). Avoid triggering
+	 * hard lockup.
+	 */
+	touch_nmi_watchdog();
+
+}
+
+/**
+ * show_all_workqueues - dump workqueue state
  *
  * Called from a sysrq handler or try_to_freeze_tasks() and prints out
  * all busy workqueues and pools.
  */
-void show_workqueue_state(void)
+void show_all_workqueues(void)
 {
 	struct workqueue_struct *wq;
 	struct worker_pool *pool;
-	unsigned long flags;
 	int pi;
 
 	rcu_read_lock();
 
 	pr_info("Showing busy workqueues and worker pools:\n");
 
-	list_for_each_entry_rcu(wq, &workqueues, list) {
-		struct pool_workqueue *pwq;
-		bool idle = true;
+	list_for_each_entry_rcu(wq, &workqueues, list)
+		show_one_workqueue(wq);
 
-		for_each_pwq(pwq, wq) {
-			if (pwq->nr_active || !list_empty(&pwq->inactive_works)) {
-				idle = false;
-				break;
-			}
-		}
-		if (idle)
-			continue;
-
-		pr_info("workqueue %s: flags=0x%x\n", wq->name, wq->flags);
-
-		for_each_pwq(pwq, wq) {
-			raw_spin_lock_irqsave(&pwq->pool->lock, flags);
-			if (pwq->nr_active || !list_empty(&pwq->inactive_works)) {
-				/*
-				 * Defer printing to avoid deadlocks in console
-				 * drivers that queue work while holding locks
-				 * also taken in their write paths.
-				 */
-				printk_deferred_enter();
-				show_pwq(pwq);
-				printk_deferred_exit();
-			}
-			raw_spin_unlock_irqrestore(&pwq->pool->lock, flags);
-			/*
-			 * We could be printing a lot from atomic context, e.g.
-			 * sysrq-t -> show_workqueue_state(). Avoid triggering
-			 * hard lockup.
-			 */
-			touch_nmi_watchdog();
-		}
-	}
-
-	for_each_pool(pool, pi) {
-		struct worker *worker;
-		bool first = true;
-
-		raw_spin_lock_irqsave(&pool->lock, flags);
-		if (pool->nr_workers == pool->nr_idle)
-			goto next_pool;
-		/*
-		 * Defer printing to avoid deadlocks in console drivers that
-		 * queue work while holding locks also taken in their write
-		 * paths.
-		 */
-		printk_deferred_enter();
-		pr_info("pool %d:", pool->id);
-		pr_cont_pool_info(pool);
-		pr_cont(" hung=%us workers=%d",
-			jiffies_to_msecs(jiffies - pool->watchdog_ts) / 1000,
-			pool->nr_workers);
-		if (pool->manager)
-			pr_cont(" manager: %d",
-				task_pid_nr(pool->manager->task));
-		list_for_each_entry(worker, &pool->idle_list, entry) {
-			pr_cont(" %s%d", first ? "idle: " : "",
-				task_pid_nr(worker->task));
-			first = false;
-		}
-		pr_cont("\n");
-		printk_deferred_exit();
-	next_pool:
-		raw_spin_unlock_irqrestore(&pool->lock, flags);
-		/*
-		 * We could be printing a lot from atomic context, e.g.
-		 * sysrq-t -> show_workqueue_state(). Avoid triggering
-		 * hard lockup.
-		 */
-		touch_nmi_watchdog();
-	}
+	for_each_pool(pool, pi)
+		show_one_worker_pool(pool);
 
 	rcu_read_unlock();
 }
@@ -5536,7 +5614,13 @@ static ssize_t wq_nice_show(struct device *dev, struct device_attribute *attr,
 	int written;
 
 	mutex_lock(&wq->mutex);
+#ifdef CONFIG_BLOCKIO_UX_OPT
+	written = scnprintf(buf, PAGE_SIZE, "%d\n",
+			wq->unbound_attrs->nice == VIRTUAL_KWORKER_NICE ?
+				MIN_NICE : wq->unbound_attrs->nice);
+#else
 	written = scnprintf(buf, PAGE_SIZE, "%d\n", wq->unbound_attrs->nice);
+#endif
 	mutex_unlock(&wq->mutex);
 
 	return written;
@@ -5910,11 +5994,11 @@ static void wq_watchdog_timer_fn(struct timer_list *unused)
 	rcu_read_unlock();
 
 	if (lockup_detected)
-		show_workqueue_state();
+		show_all_workqueues();
 #if IS_ENABLED(CONFIG_MTK_PANIC_ON_WARN)
 	if (lockup_detected && lockup_func) {
 		pr_err("WQ_lockup: [<%px>] %pS\n", lockup_func, lockup_func);
-		BUG();
+		//BUG();
 	}
 #endif
 	wq_watchdog_reset_touched();

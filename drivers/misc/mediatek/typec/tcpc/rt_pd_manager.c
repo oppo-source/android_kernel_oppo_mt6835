@@ -10,6 +10,7 @@
 #include <linux/power_supply.h>
 #include <linux/usb/typec.h>
 #include <linux/usb/typec_mux.h>
+#include <linux/workqueue.h>
 
 #include "inc/tcpci_typec.h"
 #if IS_ENABLED(CONFIG_MTK_CHARGER)
@@ -64,6 +65,7 @@ struct rt_pd_manager_data {
 	struct typec_partner *partner;
 	struct typec_partner_desc partner_desc;
 	struct usb_pd_identity partner_identity;
+	struct delayed_work check_delay_work;
 };
 
 void __weak usb_dpdm_pulldown(bool enable)
@@ -341,9 +343,11 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 					    __func__);
 #if IS_ENABLED(CONFIG_MTK_CHARGER)
 			val.intval = 0;
-			power_supply_set_property(rpmd->chg_psy,
-						  POWER_SUPPLY_PROP_VOLTAGE_MAX,
-						  &val);
+			if (rpmd->chg_psy) {
+				power_supply_set_property(rpmd->chg_psy,
+							POWER_SUPPLY_PROP_VOLTAGE_MAX,
+							&val);
+			}
 #endif /* CONFIG_MTK_CHARGER */
 		} else {
 			usb_dpdm_pulldown(true);
@@ -353,9 +357,11 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 					    __func__);
 #if IS_ENABLED(CONFIG_MTK_CHARGER)
 			val.intval = 1;
-			power_supply_set_property(rpmd->chg_psy,
-						  POWER_SUPPLY_PROP_VOLTAGE_MAX,
-						  &val);
+			if (rpmd->chg_psy) {
+				power_supply_set_property(rpmd->chg_psy,
+							POWER_SUPPLY_PROP_VOLTAGE_MAX,
+							&val);
+			}
 #endif /* CONFIG_MTK_CHARGER */
 		}
 		break;
@@ -606,6 +612,22 @@ static int typec_init(struct rt_pd_manager_data *rpmd)
 	return ret;
 }
 
+static void check_work_handler(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct rt_pd_manager_data *rpmd = container_of(dwork, struct rt_pd_manager_data, check_delay_work);
+	static int retry = 2;
+
+	rpmd->chg_psy = power_supply_get_by_name("mtk-master-charger");
+	if (!rpmd->chg_psy && retry>0) {
+		retry--;
+		dev_notice(rpmd->dev, "%s get chg psy fail\n", __func__);
+		schedule_delayed_work(&rpmd->check_delay_work, 5 * HZ);
+	} else {
+		dev_notice(rpmd->dev, "%s get chg psy success\n", __func__);
+	}
+}
+
 static int rt_pd_manager_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -632,7 +654,8 @@ static int rt_pd_manager_probe(struct platform_device *pdev)
 	if (!rpmd->chg_psy) {
 		dev_notice(rpmd->dev, "%s get chg psy fail\n", __func__);
 		ret = -ENODEV;
-		goto err_get_chg_psy;
+		INIT_DELAYED_WORK(&rpmd->check_delay_work, check_work_handler);
+		schedule_delayed_work(&rpmd->check_delay_work, 5 * HZ);
 	}
 #endif /* CONFIG_WATER_DETECTION */
 #endif /* CONFIG_MTK_CHARGER */
@@ -662,6 +685,10 @@ static int rt_pd_manager_probe(struct platform_device *pdev)
 	if (ret < 0) {
 		dev_notice(rpmd->dev, "%s init typec fail(%d)\n",
 				      __func__, ret);
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+		ret = -EPROBE_DEFER;
+#endif
 		goto err_init_typec;
 	}
 
@@ -693,8 +720,9 @@ err_init_typec:
 err_get_tcpc_dev:
 #if IS_ENABLED(CONFIG_MTK_CHARGER)
 #if CONFIG_WATER_DETECTION
-	power_supply_put(rpmd->chg_psy);
-err_get_chg_psy:
+	if (rpmd->chg_psy) {
+		power_supply_put(rpmd->chg_psy);
+	}
 #endif /* CONFIG_WATER_DETECTION */
 err_get_chg_dev:
 #endif /* CONFIG_MTK_CHARGER */
@@ -718,7 +746,9 @@ static int rt_pd_manager_remove(struct platform_device *pdev)
 	typec_unregister_port(rpmd->typec_port);
 #if IS_ENABLED(CONFIG_MTK_CHARGER)
 #if CONFIG_WATER_DETECTION
-	power_supply_put(rpmd->chg_psy);
+	if (rpmd->chg_psy) {
+		power_supply_put(rpmd->chg_psy);
+	}
 #endif /* CONFIG_WATER_DETECTION */
 #endif /* CONFIG_MTK_CHARGER */
 

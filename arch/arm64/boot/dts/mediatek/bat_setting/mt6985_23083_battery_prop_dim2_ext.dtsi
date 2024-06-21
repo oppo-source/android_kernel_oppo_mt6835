@@ -1,0 +1,104 @@
+/*
+ * Copyright (C) 2018 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ */
+
+/*vboot voltage for gauge 0%*/
+g_PMIC_MIN_VOL_row = <4>;
+g_PMIC_MIN_VOL_col = <10>;
+g_PMIC_MIN_VOL =
+<
+	35000  35000  35000  35000
+	34500  34500  34500  34500
+	34500  34500  34500  34500
+	34500  34500  34500  34500
+	34500  34500  34500  34500
+	31000  31000  31000  31000
+	31000  31000  31000  31000
+	31000  31000  31000  31000
+	31000  31000  31000  31000
+	31000  31000  31000  31200
+>;
+/*boot_up current for gauge 0%*/
+g_PON_SYS_IBOOT_row = <4>;
+g_PON_SYS_IBOOT_col = <10>;
+g_PON_SYS_IBOOT =
+<
+	5000  5000  5000  5000
+	5000  5000  5000  5000
+	5000  5000  5000  5000
+	5000  5000  5000  5000
+	5000  5000  5000  5000
+	5000  5000  5000  5000
+	5000  5000  5000  5000
+	5000  5000  5000  5000
+	5000  5000  5000  5000
+	5000  5000  5000  5000
+>;
+/*Pseudo1 hide percentage*/
+g_QMAX_SYS_VOL_row = <4>;
+g_QMAX_SYS_VOL_col = <10>;
+g_QMAX_SYS_VOL =
+<
+	36000  36000  36000  36000
+	35500  35500  35500  35500
+	34000  34000  34000  34000
+	33800  33800  33800  33800
+	33500  33500  33500  33500
+	32800  32800  32800  32800
+	32800  32800  32800  32800
+	32800  32800  32800  32800
+	32800  32800  32800  32800
+	32800  32800  32800  32800
+>;
+/*Pseudo100 percentage setting*/
+/*
+oplus fix for Charger power_sel:0,
+C1 As BAT_ID0 only use the first column
+The second column is for BAT_ID1, and so on
+*/
+g_FG_PSEUDO100_row = <4>;
+g_FG_PSEUDO100_col = <10>;
+g_FG_PSEUDO100 =
+<
+	94   94   94   94
+	94   94   94   94
+	94   94   94   94
+	94   94   94   94
+	94   94   94   94
+	100  100  100  100
+	100  100  100  100
+	100  100  100  100
+	100  100  100  100
+	100  100  100  100
+>;
+/*Customized Charge_Pseudo100*/
+/*
+oplus add for Fast Charger
+The first column is for SVOOC as power_sel:1
+The second column is for PD\QC\VOOC\UFCS\PPS as power_sel:2
+The third column is for UFCS\PPS as power_sel:3
+*/
+g_FG_charge_PSEUDO100_row = <4>;
+g_FG_charge_PSEUDO100_col = <10>;
+g_FG_charge_PSEUDO100 =
+<
+	94  92  92  92
+	94  92  92  92
+	94  92  92  92
+	94  92  92  92
+	94  90  90  90
+	100  100  100  100
+	100  100  100  100
+	100  100  100  100
+	100  100  100  100
+	100  100  100  100
+>;

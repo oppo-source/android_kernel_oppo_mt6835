@@ -1,0 +1,122 @@
+#include "mediatek/oplus-23706-tpfw.dtsi"
+&spi6 {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	touchscreen@0 {
+		compatible = "oplus,tp_noflash";
+		reg = <0>;
+		chip-name = "NF_ILI7807S","NF_FT8057P";
+		status = "ok";
+		chip-num = <2>;
+
+		project_id = <23706>;
+		spi-max-frequency = <9600000>;    /*4800000,9600000,15000000,19200000*/
+		reset-gpio = <&pio 171 0x00>;
+		interrupt-parent = <&pio>;
+		interrupts = <9  0x0>;
+		irq-gpio = <&pio 9 0x2002>;
+
+		panel_type = <15 3>;  /*type:20 HUIKE type:19 TONGXINGDA*/
+		touchpanel,irq_need_dev_resume_time = <500>;
+		touchpanel,max-num-support = <10>;
+		touchpanel,tx-rx-num = <18 32>;			/*hd:18  32*/
+		touchpanel,panel-coords = <720 1604>;
+		touchpanel,display-coords = <720 1604>;	/*hd:720 1612*/
+		touchpanel,touchmajor-limit = <0 54>;
+		platform_support_project = <23706 23681 23620 23621 23628>;
+		platform_support_project_dir = <23706 23706 23706 23706 23706>;
+		platform_support_project_commandline = "oplus23706_hkc_ili9883c_hd_dsi_vdo","oplus23706_txd_ft8057p_hd_dsi_vdo_lcm_drv";		/*hd*/
+		firmware_name = "HKCILI01","TXDFT01";
+
+		pinctrl-names = "default", "pin_cs_high","pin_cs_low";
+		pinctrl-0 = <&ctp_oplus_pins_default>;
+		pinctrl-1 = <&ts_cs_active>;
+		pinctrl-2 = <&ts_cs_suspend>;
+
+		touchpanel,smooth-level = <255 5 4 3 2 1>;
+		touchpanel,sensitive-level = <255 1 2 3 4 5>;
+		touchpanel,single-optimized-time = <8>;
+
+		incell_screen;
+		irq_need_dev_resume_ok;
+		fw_edge_limit_support;
+		black_gesture_support;
+		charger_pump_support;
+		headset_pump_support;
+		esd_handle_support;
+		black_gesture_test_support;
+		game_switch_support;
+		noflash_support;
+		lcd_trigger_load_tp_fw_support;
+		smart_gesture_support;
+		pressure_report_support;
+		fw_update_app_support;
+		health_monitor_v2_support;
+		//fw_update_in_probe_with_headfile;
+		touchpanel,button-type = <4>;
+		palm_to_sleep_support;
+		report_rate_white_list_support;
+		NF_ILI7807S {
+
+		};
+
+		NF_FT8057P {
+
+		};
+		NF_ILI7807S_PANEL15 {
+			reset-gpio = <&pio 171 0x00>;
+			interrupts = <9  0x0>;
+			irq-gpio = <&pio 9 0x2002>;
+
+			touchpanel,irq_need_dev_resume_time = <500>;
+			touchpanel,max-num-support = <10>;
+			touchpanel,tx-rx-num = <18 32>;			/*hd:18  32*/
+			touchpanel,panel-coords = <720 1604>;
+			touchpanel,display-coords = <720 1604>;	/*hd:720 1612*/
+			touchpanel,touchmajor-limit = <0 54>;
+			touchpanel,smooth-level = <255 5 4 3 2 1>;
+			touchpanel,sensitive-level = <255 1 2 3 4 5>;
+			touchpanel,single-optimized-time = <8>;
+		};
+
+		NF_FT8057P_PANEL3 {
+			interrupts = <9  0x0>;
+			irq-gpio = <&pio 9 0x2002>;
+			reset-gpio = <&pio 171 0x00>;
+
+			touchpanel,irq_need_dev_resume_time = <500>;
+			touchpanel,max-num-support = <10>;
+			touchpanel,tx-rx-num = <18 32>;			/*hd:18  32*/
+			touchpanel,panel-coords = <720 1604>;
+			touchpanel,display-coords = <720 1604>;	/*hd:720 1612*/
+			touchpanel,touchmajor-limit = <0 54>;
+			touchpanel,smooth-level = <255 0 96 192 223 254>;
+			touchpanel,sensitive-level = <255 40 38 35 20 10>;
+			touchpanel,single-optimized-time = <8>;
+		};
+	};
+};
+&pio {
+	ctp_oplus_pins_default: pins_default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO40__FUNC_SPI6_CLK>,
+					<PINMUX_GPIO41__FUNC_SPI6_CSB>,
+					<PINMUX_GPIO42__FUNC_SPI6_MO>,
+					<PINMUX_GPIO92__FUNC_SPI6_MI>;
+			bias-disable;
+			drive-strength = <4>;
+		};
+	};
+	ts_cs_active: ts_cs_active {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO41__FUNC_SPI6_CSB>;
+		};
+	};
+	ts_cs_suspend: ts_cs_suspend {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO41__FUNC_SPI6_CSB>;
+			output-low;
+		};
+	};
+};

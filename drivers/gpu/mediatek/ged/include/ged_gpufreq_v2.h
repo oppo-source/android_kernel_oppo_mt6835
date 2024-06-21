@@ -16,6 +16,7 @@ int ged_get_cur_oppidx(void);
 int ged_get_max_oppidx(void);
 int ged_get_min_oppidx(void);
 int ged_get_min_oppidx_real(void);
+unsigned int ged_get_all_available_opp_num(void);
 int ged_get_opp_num(void);
 int ged_get_opp_num_real(void);
 unsigned int ged_get_freq_by_idx(int oppidx);
@@ -40,5 +41,7 @@ void ged_gpufreq_print_tables(void);
 
 unsigned int ged_gpufreq_get_power_state(void);
 int ged_get_max_freq_in_opp(void);
+
+unsigned int ged_gpufreq_get_segment_id(void);
 
 #endif /* __GED_GPUFREQ_V2_H__ */

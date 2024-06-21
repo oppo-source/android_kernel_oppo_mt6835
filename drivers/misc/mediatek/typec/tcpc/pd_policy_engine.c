@@ -1078,9 +1078,19 @@ static inline bool pd_try_get_vdm_event(
 {
 	bool ret = false;
 	struct pd_port *pd_port = &tcpc->pd_port;
+	int rv = 0;
+	uint32_t chip_id, chip_pid;
+	rv = tcpci_get_chip_id(tcpc, &chip_id);
+	rv |= tcpci_get_chip_pid(tcpc, &chip_pid);
 
 	switch (pd_port->pe_pd_state) {
 #if CONFIG_USB_PD_PE_SINK
+	case PE_SNK_TRANSITION_SINK:
+		if (!rv && SC2150A_DID == chip_id && 
+				SC2150A_PID == chip_pid)  {
+			ret = pd_get_vdm_event(tcpc, pd_event);
+		}
+		break;
 	case PE_SNK_READY:
 #endif	/* CONFIG_USB_PD_PE_SINK */
 #if CONFIG_USB_PD_PE_SOURCE

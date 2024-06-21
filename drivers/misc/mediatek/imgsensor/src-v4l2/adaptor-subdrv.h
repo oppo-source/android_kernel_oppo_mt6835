@@ -169,6 +169,12 @@ struct subdrv_mode_struct {
 	u32 dig_gain_min;
 	u32 dig_gain_max;
 	u32 dig_gain_step;
+	u32 exposure_order_in_lbmf;
+	u32 mode_type_in_lbmf;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	u8  exposure_margin;
+	struct SENSOR_SETTING_INFO_STRUCT sensor_setting_info;
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 };
 
 #define REG_ADDR_MAXCNT 3
@@ -232,25 +238,43 @@ struct subdrv_static_ctx {
 	u16 reg_addr_stream;
 	u16 reg_addr_mirror_flip;
 	struct reg_ reg_addr_exposure[IMGSENSOR_STAGGER_EXPOSURE_CNT];
+	struct reg_ reg_addr_exposure_in_lut[IMGSENSOR_STAGGER_EXPOSURE_CNT];
 	u16 long_exposure_support;
 	u16 reg_addr_exposure_lshift;
 	struct reg_ reg_addr_ana_gain[IMGSENSOR_STAGGER_EXPOSURE_CNT];
+	struct reg_ reg_addr_ana_gain_in_lut[IMGSENSOR_STAGGER_EXPOSURE_CNT];
 	struct reg_ reg_addr_dig_gain[IMGSENSOR_STAGGER_EXPOSURE_CNT];
+	struct reg_ reg_addr_dig_gain_in_lut[IMGSENSOR_STAGGER_EXPOSURE_CNT];
 	struct reg_ reg_addr_frame_length;
+	struct reg_ reg_addr_frame_length_in_lut[IMGSENSOR_STAGGER_EXPOSURE_CNT];
 	u16 reg_addr_temp_en;
 	u16 reg_addr_temp_read;
 	u16 reg_addr_auto_extend;
 	u16 reg_addr_frame_count;
 	u16 reg_addr_fast_mode;
+	u16 reg_addr_fast_mode_in_lbmf;
+	u16 reg_addr_stream_in_lbmf;
 
 	u16 *init_setting_table;
 	u32 init_setting_len;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	u16 *aonhemd_setting_table;
+	u32 aonhemd_setting_len;
+	u16 *aonhemd_clear_setting_table;
+	u32 aonhemd_clear_setting_len;
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 	struct subdrv_mode_struct *mode;
 	u32 sensor_mode_num;
 	struct subdrv_feature_control *list;
 	u32 list_len;
+	#ifndef OPLUS_FEATURE_CAMERA_COMMON
 	u8 chk_s_off_sta;
 	u8 chk_s_off_end;
+	#else /*OPLUS_FEATURE_CAMERA_COMMON*/
+	u8 chk_s_off_before_s_on;
+	u8 chk_s_off_before_control;
+	u8 chk_s_off_after_s_off;
+	#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 
 	u32 checksum_value;
 };
@@ -308,7 +332,10 @@ struct subdrv_ctx {
 	u32 shutter; /* current shutter */
 	u32 gain; /* current gain */
 	u32 pclk; /* current pclk */
+	u32 frame_length_rg; /* current framelength in RG */
+	u32 frame_length_in_lut_rg[IMGSENSOR_STAGGER_EXPOSURE_CNT]; /* current lbmf framelength in RG */
 	u32 frame_length; /* current framelength */
+	u32 frame_length_in_lut[IMGSENSOR_STAGGER_EXPOSURE_CNT]; /* current lbmf framelength */
 	u32 line_length; /* current linelength */
 	u32 min_frame_length; /* current framelength limitation */
 	u8 margin; /* current (mode's) exp margin */
@@ -390,6 +417,12 @@ struct subdrv_entry {
 	const struct subdrv_pw_seq_entry *pw_seq;
 	const struct subdrv_ops *ops;
 	int pw_seq_cnt;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	const struct subdrv_pw_seq_entry *aon_pw_seq;
+	int aon_pw_seq_cnt;
+	const struct subdrv_pw_seq_entry *pw_off_seq;
+	int pw_off_seq_cnt;
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 };
 
 #define subdrv_call(ctx, o, args...) \
