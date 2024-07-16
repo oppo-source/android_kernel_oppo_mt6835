@@ -68,6 +68,7 @@ static int pt_is_low(int pt_low_vol, int pt_low_bat, int pt_over_cur);
 #endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 const struct flashlight_device_id *flashlight_id;
 extern const struct flashlight_device_id flashlight_id_avatarl5[];
+extern const struct flashlight_device_id flashlight_id_avatarb5[];
 extern const struct flashlight_device_id flashlight_id_23281[];
 int flashlight_device_num = 0;
 
@@ -347,8 +348,11 @@ int flashlight_dev_register(
 	if (is_project(23281) || is_project(23282)) {
 		flashlight_id = flashlight_id_23281;
 		flashlight_device_num = 1;
+	} else if (is_project(24031) || is_project(24231) || is_project(24232) || is_project(24234)) {
+		flashlight_id = flashlight_id_avatarb5;
+		flashlight_device_num = 1;
 	} else if (is_project(23111) || is_project(23112) || is_project(23113) || is_project(23301) || is_project(23302) ||
-	           is_project(23303) || is_project(23304) || is_project(23305) || is_project(23306) || is_project(23887)) {
+			is_project(23303) || is_project(23304) || is_project(23305) || is_project(23306) || is_project(23887)) {
 		flashlight_id = flashlight_id_avatarl5;
 		flashlight_device_num = 1;
 	}

@@ -473,6 +473,7 @@ struct mtk_panel_params {
 #endif /* OPLUS_FEATURE_DISPLAY */
 	struct mtk_ddic_dsi_cmd send_cmd_to_ddic;
 	unsigned int cust_esd_check;
+	unsigned int cust_esd_check_gpio;
 	unsigned int esd_check_enable;
 	struct esd_check_item lcm_esd_check_table[ESD_CHECK_NUM];
 	unsigned int ssc_enable;
@@ -770,6 +771,7 @@ struct mtk_panel_funcs {
 	int (*lcm_demura_set_bl)(void *dsi, dcs_write_gce_pack cb, void *handle, int bl_demura_mode);
 	void (*cabc_switch)(void *dsi_drv, dcs_write_gce cb,void *handle, unsigned int cabc_mode);
 	int (*lcm_set_hbm_max)(void *dsi, dcs_write_gce_pack cb, void *handle, unsigned int en);
+	int (*lcm_set_hbm_max_vdo)(void *dsi, dcs_write_gce cb, void *handle, unsigned int en);
 #endif /* OPLUS_FEATURE_DISPLAY */
 };
 

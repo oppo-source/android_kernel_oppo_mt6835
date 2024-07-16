@@ -9,36 +9,34 @@
 #include <dt-bindings/phy/phy.h>
 #include <dt-bindings/pinctrl/mt6835-pinfunc.h>
 #include "mediatek/mt6835_6377.dtsi"
-#include "mediatek/cust_mt6835_ac182_lcd_760x1612.dtsi"
-#include "mediatek/cust_mt6835_camera_23301.dtsi"
-#include "mediatek/oplus_nfc_23304.dtsi"
+#include "mediatek/cust_mt6835_ab5_lcd_760x1612.dtsi"
+#include "mediatek/cust_mt6835_camera_24031.dtsi"
 /* #ifdef OPLUS_FEATURE_CHG_BASIC */
 /* Add for DX-2 charge device-tree */
 /*#include "mediatek/oplus_charge_23661.dtsi"*/
 /* #endif */
 
 /* #ifdef CONFIG_UFF_FINGERPRINT */
-#include "mediatek/oplus_uff_23111.dtsi"
+#include "mediatek/oplus_uff_24031.dtsi"
 /* #endif CONFIG_UFF_FINGERPRINT */
 
 //#ifdef OPLUS_FEATURE_SENSOR
-#include "mediatek/oplus_sensor_23302.dtsi"
-#include "mediatek/oplus_charge_AvatarL5_45w.dtsi"
-#include "mediatek/oplus_charge_AvatarL5_PPS.dtsi"
+#include "mediatek/oplus_sensor_24031.dtsi"
+#include "mediatek/oplus_charge_AvatarB5_45w.dtsi"
+#include "mediatek/oplus_charge_AvatarB5_PPS.dtsi"
+#include "mediatek/oplus_nfc_24232.dtsi"
 //#endif
 //#ifdef OPLUS_FEATURE_AUDIO
-#include "mediatek/mt6835-sia81xx-avatar-L5.dtsi"
+#include "mediatek/mt6835-aw87xxx-avatar-B5.dtsi"
 //#endif
-#include "mediatek/oplus_tp_23111.dtsi"
-
-// BEGIN gongzhanxiang.BSP.Security.Basic, 2024/01/19, disable TEE
+#include "mediatek/oplus_tp_24031.dtsi"
 
 /* Trustonic Mobilecore real driver */
 &mobicore{
        trustonic,real-drv = <1>;
 };
 
-// END gongzhanxiang.BSP.Security.Basic, 2024/01/19, disable TEE
+
 
 &odm {
 /* Add for sim detect */
@@ -46,6 +44,44 @@
         compatible = "oplus, sim_detect";
         Hw,sim_det = <&pio 48 0x00>;
     };
+};
+
+&scp {
+	reg =	<0 0x1c400000 0 0x100000>, /* tcm */
+			<0 0x1c724000 0 0x1000>, /* cfg */
+			<0 0x1c721000 0 0x1000>, /* clk*/
+			<0 0x1c730000 0 0x1000>, /* cfg core0 */
+			<0 0x1c740000 0 0x1000>, /* cfg core1 */
+			<0 0x1c752000 0 0x1000>, /* bus tracker */
+			<0 0x1c760000 0 0x40000>, /* llc */
+			<0 0x1c7a5000 0 0x4>, /* cfg_sec */
+			<0 0x1c7fb000 0 0x100>, /* mbox0 base */
+			<0 0x1c7fb100 0 0x4>, /* mbox0 set */
+			<0 0x1c7fb10c 0 0x4>, /* mbox0 clr */
+			<0 0x1c7a5020 0 0x4>, /* mbox0 init */
+			<0 0x1c7fc000 0 0x100>, /* mbox1 base */
+			<0 0x1c7fc100 0 0x4>, /* mbox1 set */
+			<0 0x1c7fc10c 0 0x4>, /* mbox1 clr */
+			<0 0x1c7a5024 0 0x4>, /* mbox1 init */
+			<0 0x1c7fd000 0 0x100>, /* mbox2 base */
+			<0 0x1c7fd100 0 0x4>, /* mbox2 set */
+			<0 0x1c7fd10c 0 0x4>, /* mbox2 clr */
+			<0 0x1c7a5028 0 0x4>, /* mbox2 init */
+			<0 0x1c7fe000 0 0x100>, /* mbox3 base */
+			<0 0x1c7fe100 0 0x4>, /* mbox3 set */
+			<0 0x1c7fe10c 0 0x4>, /* mbox3 clr */
+			<0 0x1c7a502c 0 0x4>, /* mbox3 init */
+			<0 0x1c7ff000 0 0x100>, /* mbox4 base */
+			<0 0x1c7ff100 0 0x4>, /* mbox4 set */
+			<0 0x1c7ff10c 0 0x4>, /* mbox4 clr */
+			<0 0x1c7a5030 0 0x4>; /* mbox4 init */
+	scp-sramsize = <0x100000>;
+	secure-dump-size = <0x500000>;
+	memorydump = <0x100000>, /* l2tcm */
+				     <0x03c000>, /* l1c */
+				     <0x003c00>, /* regdump */
+				     <0x000400>, /* trace buffer */
+				     <0x300000>; /* dram */
 };
 
 /* usb typec mux start */
@@ -210,7 +246,7 @@
 
 	oplus_boardid:oplus_boardid {
 		compatible = "oplus,oplus_boardid";
-		oplus_boardid,dtsino="23304";//only one u32
+		oplus_boardid,dtsino="24232";//only one u32
 		oplus_boardid,pcbmask="0xffff";//all mask 0xffff
 	};
 
@@ -225,9 +261,9 @@
 			use_tristate_gpio;
 			compatible = "hw-match, main-sub";
 			aboard-gpio0 = <&pio 111 0x00>;
-			aboard-patterns = <0 0 0 2 2 2 1 1 1 1 1>;        /*0[high-resistance] 1[pull-down] 2[pull-up]*/
+			aboard-patterns = <2 2 1 2>;        /*0[high-resistance] 1[pull-down] 2[pull-up]*/
 			/*main board*/
-			match-projects = <23111 23112 23113 23301 23306 23305 23302 23304 23307 23303 23887>;
+			match-projects = <24031 24231 24232 24234>;
 		};
 	};
 
@@ -323,7 +359,11 @@
 	//#endif  /*OPLUS_VENDOR_SWTP*/
 };
 
-#include <oplus6835_23304/cust.dtsi>
+&mmc0 {
+	status = "okay";
+};
+
+#include <oplus6835_24232/cust.dtsi>
 #include "mediatek/cust_mt6835_avatarl5_thermal.dtsi"
 /*#include "mediatek/cust_mt6985_luna_thermal.dtsi"*/
 /*End of this file, DO NOT ADD ANYTHING HERE*/

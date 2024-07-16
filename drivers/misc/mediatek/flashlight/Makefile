@@ -22,6 +22,7 @@ obj-$(CONFIG_MTK_FLASHLIGHT_DUMMY_GPIO)  += flashlights-dummy-gpio.o
 obj-$(CONFIG_MTK_FLASHLIGHT_BARLEY)      += flashlights-barley.o
 ifeq ($(CONFIG_OPLUS_CHARGER_MTK6835T),y)
 obj-$(CONFIG_MTK_FLASHLIGHT_AVATARL5)    += flashlights-avatarl5.o
+obj-$(CONFIG_MTK_FLASHLIGHT_AVATARB5)    += flashlights-avatarb5.o
 obj-$(CONFIG_MTK_FLASHLIGHT_23281)       += flashlights-23281.o
 endif
 ccflags-$(CONFIG_MTK_FLASHLIGHT_DEBUG)     := -DDEBUG

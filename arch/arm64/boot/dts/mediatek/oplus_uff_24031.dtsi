@@ -1,0 +1,129 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+* Copyright (C) 2021-2025 Oplus. All rights reserved.
+*/
+#include <dt-bindings/iio/mt635x-auxadc.h>
+#include <dt-bindings/pinctrl/mt6835-pinfunc.h>
+#include <dt-bindings/pinctrl/mt65xx.h>
+
+/* UFF dts config at 2024.01.23
+ *
+ * fp vendor:
+ *   silead: gsl 6193
+ *   jiiov: 0103
+*/
+
+&spi1 {
+#address-cells = <1>;
+#size-cells = <0>;
+status = "okay";
+
+oplus_fp: fingerprint@0 {
+    /* UFF especial */
+    compatible = "oplus,fp_spi";
+
+    reg = <0>;
+    spi-max-frequency = <52000000>;
+    spi-id = <1>;
+    spi-irq = <15>;
+    spi-reg = <11011000>;
+
+    /* UFF gpio begin */
+    /* UFF gpio irq */
+    uff,gpio_irq = <&pio 15 0x00>;
+
+    /* UFF gpio rst */
+    uff,gpio_reset = <&pio 7 0x00>;
+
+    /* UFF gpio cs */
+    uff,gpio_cs = <&pio 61 0x00>;
+
+    pinctrl-names = "default", "fp_spi_driver", "fp_cs_func", "gpio_cs_pull_down";
+    pinctrl-0 = <&gpio_uff_irq_default>, <&gpio_uff_reset_default>, <&gpio_uff_cs_default>;
+    pinctrl-1 = <&gpio_uff_clk_6mA>, <&gpio_uff_mosi_6mA>, <&uff_gpio_miso_6mA>, <&uff_gpio_cs_6mA>;
+    pinctrl-2 = <&gpio_uff_cs_func>;
+    pinctrl-3 = <&gpio_uff_cs_pull_down>;
+
+    dvdd-supply = <&mt6377_vfp>;
+    dvdd-config = <3300000 3300000 150000>;
+    power-num = <1>;
+    status = "okay";
+    power_source_1 {
+        power-mode = <1>;
+        power-name = "dvdd";
+        power-config = "dvdd-config";
+        delay-time = <0>;
+    };
+};
+};
+
+&pio{
+    gpio_uff_reset_default: gpio_uff_reset_default {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO7__FUNC_GPIO7>;
+            slew-rate = <1>;
+            output-low;
+        };
+    };
+
+    gpio_uff_irq_default: gpio_uff_irq_default {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO15__FUNC_GPIO15>;
+            slew-rate = <0>;
+            bias-disable;
+            output-low;
+        };
+    };
+
+    gpio_uff_cs_default: gpio_uff_cs_default {
+        pins_cmd_dat {
+             pinmux = <PINMUX_GPIO61__FUNC_GPIO61>;
+             slew-rate = <1>;
+             bias-disable;
+             output-low;
+        };
+    };
+
+    gpio_uff_clk_6mA: gpio_uff_clk_6mA {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO60__FUNC_SPI1_CLK>;
+            drive-strength = <2>;
+        };
+    };
+
+    gpio_uff_mosi_6mA: gpio_uff_mosi_6mA {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO62__FUNC_SPI1_MO>;
+            drive-strength = <2>;
+        };
+    };
+
+    uff_gpio_miso_6mA: uff_gpio_miso_6mA {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO63__FUNC_SPI1_MI>;
+            drive-strength = <2>;
+        };
+    };
+
+    uff_gpio_cs_6mA: uff_gpio_cs_6mA{
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO61__FUNC_SPI1_CSB>;
+            drive-strength = <2>;
+        };
+    };
+
+    gpio_uff_cs_func: gpio_uff_cs_func {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO61__FUNC_SPI1_CSB>;
+            drive-strength = <2>;
+        };
+    };
+
+    gpio_uff_cs_pull_down: gpio_uff_cs_pull_down {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO61__FUNC_GPIO61>;
+            slew-rate = <1>;
+            output-low;
+        };
+    };
+};

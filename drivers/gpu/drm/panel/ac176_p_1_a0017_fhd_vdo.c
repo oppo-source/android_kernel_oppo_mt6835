@@ -66,8 +66,8 @@ extern unsigned int oplus_display_brightness;
 static int esd_brightness;
 extern unsigned int last_backlight;
 extern unsigned int get_PCB_Version(void);
+extern int oplus_display_panel_dbv_probe(struct device *dev);
 
-static unsigned int osc_mipi_hopping_status = 0;
 static unsigned int temp_seed_mode = 0;
 /* whether enter hbm brightness level or not */
 
@@ -284,38 +284,10 @@ static int get_mode_enum(struct drm_display_mode *m)
 		ret = FHD_SDC60;
 	} else if (m_vrefresh == 120) {
 		ret = FHD_SDC120;
-	} else if (m_vrefresh == 30) {
-		ret = FHD_SDC30;
 	} else {
 		ret = FHD_SDC60;
 	}
 	return ret;
-}
-
-static int panel_osc_freq_change(void *dsi, dcs_write_gce cb, void *handle, bool en)
-{
-	char level2_key_en[] = {0xF0, 0x5A, 0x5A};
-	char level3_key_en[] = {0xFC, 0x5A, 0x5A};
-	char osc_tb1[] = {0xDF, 0x09, 0x30, 0x95, 0x4E, 0x29, 0x4E, 0X29};	/* OSC=96.3MHz@MIPI Speed=0.998Gbps */
-	char osc_tb2[] = {0xDF, 0x09, 0x30, 0x95, 0x4D, 0x5F, 0x4D, 0X5F};	/* OSC=95.33MHz@MIPI Speed=0.998Gbps */
-	char level2_key_disable[] = {0xF0, 0xA5, 0xA5};
-	char level3_key_disable[] = {0xFC, 0xA5, 0xA5};
-
-	pr_info("AC176 debug for %s, %d\n", __func__, en);
-
-	cb(dsi, handle, level2_key_en, ARRAY_SIZE(level2_key_en));
-	cb(dsi, handle, level3_key_en, ARRAY_SIZE(level3_key_en));
-
-	if (en == 0) {
-		cb(dsi, handle, osc_tb1, ARRAY_SIZE(osc_tb1));
-	} else if (en == 1) {
-		cb(dsi, handle, osc_tb2, ARRAY_SIZE(osc_tb2));
-	}
-	cb(dsi, handle, level2_key_disable, ARRAY_SIZE(level2_key_disable));
-	cb(dsi, handle, level3_key_disable, ARRAY_SIZE(level3_key_disable));
-
-	osc_mipi_hopping_status = en;
-	return 0;
 }
 
 static void lcm_panel_init(struct lcm *ctx)
@@ -333,12 +305,6 @@ static void lcm_panel_init(struct lcm *ctx)
 			pr_info("%s, default fhd_dsi_on_cmd_sdc120\n", __func__);
 			push_table(ctx, dsi_on_cmd_sdc120, sizeof(dsi_on_cmd_sdc120) / sizeof(struct LCM_setting_table));
 		break;
-	}
-
-	if (osc_mipi_hopping_status == 0) {
-		push_table(ctx, osc_mode0, sizeof(osc_mode0) / sizeof(struct LCM_setting_table));    // OSC=96.3MHz@MIPI Speed=0.998Gbps
-	} else if (osc_mipi_hopping_status == 1) {
-		push_table(ctx, osc_mode1, sizeof(osc_mode1) / sizeof(struct LCM_setting_table));    // OSC=95.33MHz@MIPI Speed=0.998Gbps
 	}
 
 	DISP_INFO("%s, restore seed_mode:%d\n", __func__, temp_seed_mode);
@@ -433,18 +399,12 @@ static int lcm_enable(struct drm_panel *panel)
 #define FRAME_WIDTH             (1080)
 #define FRAME_HEIGHT            (2400)
 #define HFP                     (60)
-#define HFP_30HZ                (1770)
 #define HBP                     (60)
-#define HBP_30HZ                (60)
 #define HSA                     (12)
-#define HSA_30HZ                (12)
 #define VFP_60HZ                (2448)
-#define VFP_30HZ                (16)
 #define VFP_120HZ               (16)
 #define VBP                     (14)
-#define VBP_30HZ                (14)
 #define VSA                     (2)
-#define VSA_30HZ                (2)
 
 static const struct drm_display_mode display_mode[MODE_NUM] = {
 	//sdc_120_mode
@@ -473,19 +433,6 @@ static const struct drm_display_mode display_mode[MODE_NUM] = {
 		.vtotal = FRAME_HEIGHT + VFP_60HZ + VSA + VBP,
 		.hskew = SDC_MFR,
 	},
-	//sdc_30_mode
-	{
-		.clock = 213189, // ((FRAME_WIDTH + HFP_30HZ + HBP_30HZ + HSA_30HZ) * (FRAME_HEIGHT + VFP_30HZ + VBP_30HZ + VSA_30HZ) * 30) / 1000
-		.hdisplay = FRAME_WIDTH,
-		.hsync_start = FRAME_WIDTH + HFP_30HZ,
-		.hsync_end = FRAME_WIDTH + HFP_30HZ + HSA_30HZ,
-		.htotal = FRAME_WIDTH + HFP_30HZ + HSA_30HZ + HBP_30HZ,
-		.vdisplay = FRAME_HEIGHT,
-		.vsync_start = FRAME_HEIGHT + VFP_30HZ,
-		.vsync_end = FRAME_HEIGHT + VFP_30HZ + VSA_30HZ,
-		.vtotal = FRAME_HEIGHT + VFP_30HZ + VSA_30HZ + VBP_30HZ,
-		.hskew = SDC_ADFR,
-	},
 };
 
 #if defined(CONFIG_MTK_PANEL_EXT)
@@ -500,6 +447,7 @@ static struct mtk_panel_params ext_params[MODE_NUM] = {
 	.change_fps_by_vfp_send_cmd = 1,
 	.cust_esd_check = 1,
 	.esd_check_enable = 1,
+	.cust_esd_check_gpio = 1,
 	.esd_check_multi = 0,
 	.oplus_serial_para0 = 0xD8,
 	.vendor = "AC176",
@@ -560,8 +508,8 @@ static struct mtk_panel_params ext_params[MODE_NUM] = {
 	.oplus_ofp_hbm_on_delay = 0,
 	.oplus_ofp_pre_hbm_off_delay = 0,
 	.oplus_ofp_hbm_off_delay = 0,
-	.oplus_ofp_need_to_sync_data_in_aod_unlocking = true,
-	.oplus_ofp_aod_off_insert_black = 4,
+	.oplus_ofp_need_to_sync_data_in_aod_unlocking = false,
+	.oplus_ofp_aod_off_insert_black = 0,
 	.oplus_ofp_aod_off_black_frame_total_time = 42,
 #endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 	.dyn_fps = {
@@ -599,6 +547,7 @@ static struct mtk_panel_params ext_params[MODE_NUM] = {
 	.change_fps_by_vfp_send_cmd = 1,
 	.cust_esd_check = 1,
 	.esd_check_enable = 1,
+	.cust_esd_check_gpio = 1,
 	.esd_check_multi = 0,
 	.oplus_serial_para0 = 0xD8,
 	.vendor = "AC176",
@@ -659,8 +608,8 @@ static struct mtk_panel_params ext_params[MODE_NUM] = {
 	.oplus_ofp_hbm_on_delay = 0,
 	.oplus_ofp_pre_hbm_off_delay = 0,
 	.oplus_ofp_hbm_off_delay = 0,
-	.oplus_ofp_need_to_sync_data_in_aod_unlocking = true,
-	.oplus_ofp_aod_off_insert_black = 4,
+	.oplus_ofp_need_to_sync_data_in_aod_unlocking = false,
+	.oplus_ofp_aod_off_insert_black = 0,
 	.oplus_ofp_aod_off_black_frame_total_time = 42,
 #endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 	.dyn_fps = {
@@ -676,101 +625,6 @@ static struct mtk_panel_params ext_params[MODE_NUM] = {
 		.data_rate = 988,
 		.hfp = 55,
 		.vfp = 2448,
-	},
-	.physical_width_um = PHYSICAL_WIDTH,
-	.physical_height_um = PHYSICAL_HEIGHT,
-	.panel_bpp = 8,
-/* #ifdef CONFIG_MTK_ROUND_CORNER_SUPPORT */
-	.round_corner_en = 1,
-	.corner_pattern_height = ROUND_CORNER_H_TOP,
-	.corner_pattern_height_bot = ROUND_CORNER_H_BOT,
-	.corner_pattern_tp_size = sizeof(top_rc_pattern),
-	.corner_pattern_lt_addr = (void *)top_rc_pattern,
-/* #endif */
-	},
-	//fhd_sdc_30_mode
-	{
-	.pll_clk = 499,
-	.phy_timcon = {
-		.hs_trail = 10,
-		.clk_trail = 10,
-	},
-	.change_fps_by_vfp_send_cmd = 1,
-	.cust_esd_check = 1,
-	.esd_check_enable = 1,
-	.esd_check_multi = 0,
-	.oplus_serial_para0 = 0xD8,
-	.vendor = "AC176",
-	.manufacture = "P_1",
-	.lane_swap_en = 0,
-	.lane_swap[0][MIPITX_PHY_LANE_0] = MIPITX_PHY_LANE_0,
-	.lane_swap[0][MIPITX_PHY_LANE_1] = MIPITX_PHY_LANE_1,
-	.lane_swap[0][MIPITX_PHY_LANE_2] = MIPITX_PHY_LANE_3,
-	.lane_swap[0][MIPITX_PHY_LANE_3] = MIPITX_PHY_LANE_2,
-	.lane_swap[0][MIPITX_PHY_LANE_CK] = MIPITX_PHY_LANE_CK,
-	.lane_swap[0][MIPITX_PHY_LANE_RX] = MIPITX_PHY_LANE_0,
-	.lane_swap[1][MIPITX_PHY_LANE_0] = MIPITX_PHY_LANE_0,
-	.lane_swap[1][MIPITX_PHY_LANE_1] = MIPITX_PHY_LANE_1,
-	.lane_swap[1][MIPITX_PHY_LANE_2] = MIPITX_PHY_LANE_3,
-	.lane_swap[1][MIPITX_PHY_LANE_3] = MIPITX_PHY_LANE_2,
-	.lane_swap[1][MIPITX_PHY_LANE_CK] = MIPITX_PHY_LANE_CK,
-	.lane_swap[1][MIPITX_PHY_LANE_RX] = MIPITX_PHY_LANE_0,
-	.lcm_color_mode = MTK_DRM_COLOR_MODE_DISPLAY_P3,
-	.output_mode = MTK_PANEL_DSC_SINGLE_PORT,
-	.dsc_params = {
-		.enable = 1,
-		.ver = 17,
-		.slice_mode = 1,
-		.rgb_swap = 0,
-		.dsc_cfg = 34,
-		.rct_on = 1,
-		.bit_per_channel = 8,
-		.dsc_line_buf_depth = 9,
-		.bp_enable = 1,
-		.bit_per_pixel = 128,
-		.pic_height = 2400,
-		.pic_width = 1080,
-		.slice_height = 40,
-		.slice_width = 540,
-		.chunk_size = 540,
-		.xmit_delay = 512,
-		.dec_delay = 526,
-		.scale_value = 32,
-		.increment_interval = 989,
-		.decrement_interval = 7,
-		.line_bpg_offset = 12,
-		.nfl_bpg_offset = 631,
-		.slice_bpg_offset = 651,
-		.initial_offset = 6144,
-		.final_offset = 4336,
-		.flatness_minqp = 3,
-		.flatness_maxqp = 12,
-		.rc_model_size = 8192,
-		.rc_edge_factor = 6,
-		.rc_quant_incr_limit0 = 11,
-		.rc_quant_incr_limit1 = 11,
-		.rc_tgt_offset_hi = 3,
-		.rc_tgt_offset_lo = 3,
-		},
-	.data_rate = 998,
-#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
-	.oplus_ofp_need_keep_apart_backlight = false,
-	.oplus_ofp_hbm_on_delay = 0,
-	.oplus_ofp_pre_hbm_off_delay = 0,
-	.oplus_ofp_hbm_off_delay = 0,
-	.oplus_ofp_need_to_sync_data_in_aod_unlocking = true,
-	.oplus_ofp_aod_off_insert_black = 4,
-	.oplus_ofp_aod_off_black_frame_total_time = 42,
-#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
-	.dyn_fps = {
-		.switch_en = 1, .vact_timing_fps = 30,
-		},
-	.dyn = {
-		.switch_en = 0,
-		.pll_clk = 499,
-		.data_rate = 998,
-		.hfp = 1770,
-		.vfp = 16,
 	},
 	.physical_width_um = PHYSICAL_WIDTH,
 	.physical_height_um = PHYSICAL_HEIGHT,
@@ -801,8 +655,6 @@ static int mtk_panel_ext_param_get(struct drm_panel *panel,
 		*ext_param = &ext_params[0];
 	} else if (mode_id == FHD_SDC60) {
 		*ext_param = &ext_params[1];
-	} else if (mode_id == FHD_SDC30) {
-		*ext_param = &ext_params[2];
 	} else {
 		*ext_param = &ext_params[0];
 	}
@@ -830,8 +682,6 @@ static int mtk_panel_ext_param_set(struct drm_panel *panel,
 		ext->params = &ext_params[0];
 	} else if (mode_id == FHD_SDC60) {
 		ext->params = &ext_params[1];
-	} else if (mode_id == FHD_SDC30) {
-		ext->params = &ext_params[2];
 	} else {
 		ext->params = &ext_params[0];
 	}
@@ -876,14 +726,14 @@ static int lcm_setbacklight_cmdq(void *dsi, dcs_write_gce cb, void *handle,
 		DISP_INFO("[INFO][%s:%d]filter backlight %d setting\n", __func__, __LINE__, level);
 		return 0;
 	} else if (level <= 2047) {
-		DISP_INFO("[%s:%d]esd_brightness =  %d setting\n", __func__, __LINE__, level);
+		DISP_INFO("[%s:%d]backlight =  %d setting, flag_hbm = %d\n", __func__, __LINE__, level, flag_hbm);
 		if (flag_hbm == 1) {
 			bl_tb1[1] = 0x20;
 			cb(dsi, handle, bl_tb1, ARRAY_SIZE(bl_tb1));
 			flag_hbm = 0;
 		}
 	}  else if (level > 2047 && level <= 4095) {
-		DISP_INFO("[%s:%d]esd_brightness =  %d setting\n", __func__, __LINE__, level);
+		DISP_INFO("[%s:%d]backlight =  %d setting, flag_hbm = %d\n", __func__, __LINE__, level, flag_hbm);
 		if (flag_hbm == 0) {
 			bl_tb1[1] = 0xE0;
 			cb(dsi, handle, bl_tb1, ARRAY_SIZE(bl_tb1));
@@ -1065,6 +915,7 @@ static int panel_hbm_set_cmdq(struct drm_panel *panel, void *dsi,
 	}
 
 	if (!en) {
+		flag_hbm = 0;
 		lcm_setbacklight_cmdq(dsi, cb, handle, oplus_display_brightness);
 	}
 
@@ -1303,6 +1154,7 @@ static int lcm_panel_poweroff(struct drm_panel *panel)
 	if (ret < 0)
 		lcm_unprepare(panel);
 	usleep_range(70000, 70100);
+	flag_hbm = 0;
 	DISP_INFO("%s-\n", __func__);
 	return 0;
 }
@@ -1401,6 +1253,39 @@ static int lcm_esd_gpio_read(struct drm_panel *panel)
 	return ret;
 }
 
+static int oplus_display_panel_set_hbm_max(void *dsi, dcs_write_gce cb, void *handle, unsigned int en)
+{
+	unsigned int lcm_cmd_count = 0;
+	unsigned int i = 0;
+	struct LCM_setting_table *table = NULL;
+	unsigned int level = oplus_display_brightness;
+
+	DISP_ERR("[DISP][INFO][%s: en=%d\n", __func__, en);
+	if (!dsi || !cb) {
+		pr_err("Invalid params\n");
+		return -EINVAL;
+	}
+
+
+	if (en) {
+		table = dsi_switch_hbm_apl_on;
+		lcm_cmd_count = sizeof(dsi_switch_hbm_apl_on) / sizeof(struct LCM_setting_table);
+		for (i = 0; i < lcm_cmd_count; i++) {
+			cb(dsi, handle, table[i].para_list, table[i].count);
+		}
+		DISP_ERR("[DISP][INFO]Enter hbm max mode, set last_backlight as %d", last_backlight);
+	} else if (!en) {
+		table = dsi_switch_hbm_apl_off;
+		lcm_cmd_count = sizeof(dsi_switch_hbm_apl_off) / sizeof(struct LCM_setting_table);
+		for (i = 0; i < lcm_cmd_count; i++) {
+			cb(dsi, handle, table[i].para_list, table[i].count);
+		}
+		DISP_ERR("[DISP][INFO][%s: hbm_max off, restore bl:%d\n", __func__, level);
+	}
+
+	return 0;
+}
+
 static struct mtk_panel_funcs ext_funcs = {
 	.reset = panel_ext_reset,
 	.set_backlight_cmdq = lcm_setbacklight_cmdq,
@@ -1411,9 +1296,9 @@ static struct mtk_panel_funcs ext_funcs = {
 	.ext_param_set = mtk_panel_ext_param_set,
 	.ext_param_get = mtk_panel_ext_param_get,
 	.esd_backlight_recovery = oplus_esd_backlight_recovery,
-	.lcm_osc_change = panel_osc_freq_change,
 	.set_seed = panel_set_seed,
 	.esd_read_gpio = lcm_esd_gpio_read,
+	.lcm_set_hbm_max_vdo = oplus_display_panel_set_hbm_max,
 /* #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 	.set_hbm = lcm_set_hbm,
 	.hbm_set_cmdq = panel_hbm_set_cmdq,
@@ -1561,7 +1446,7 @@ static int lcm_probe(struct mipi_dsi_device *dsi)
 		return ret;
 
 #endif
-
+	oplus_display_panel_dbv_probe(dev);
 	register_device_proc("lcd", "AC176_P_1_A0017", "P_1");
 /* #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 	oplus_ofp_set_fp_type(&fp_type);

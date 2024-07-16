@@ -157,6 +157,10 @@ static int speaker_mute_put_status(struct snd_kcontrol *kcontrol, struct snd_ctl
 #endif /* OPLUS_FEATURE_SPEAKER_MUTE */
 
 #if IS_ENABLED(CONFIG_SND_SOC_OPLUS_PA_MANAGER)
+//#ifdef OPLUS_ARCH_EXTENDS
+/* 2024/5/28, add for dual PA special dapm handle to resolve pop sound when PA closing */
+static bool need_special_dapm;
+//#endif
 static int rcv_amp_mode;
 static const char *rcv_amp_type_str[] = {"SPEAKER_MODE", "RECIEVER_MODE"};
 static const struct soc_enum rcv_amp_type_enum =
@@ -261,6 +265,16 @@ static int mt6835_mt6377_spk_amp_event(struct snd_soc_dapm_widget *w,
 		kspk_enable_spk_pa_state = 0;
 	#endif /* OPLUS_FEATURE_SPEAKER_MUTE */
 #if IS_ENABLED(CONFIG_SND_SOC_OPLUS_PA_MANAGER)
+		//#ifdef OPLUS_ARCH_EXTENDS
+		/* 2024/5/28, add for dual PA special dapm handle to resolve pop sound when PA closing */
+		if (need_special_dapm) {
+			if(rcv_amp_mode == 1) {
+				oplus_ext_amp_recv_l_enable(false);
+			} else {
+				oplus_ext_amp_l_enable(false);
+			}
+		}
+		//#endif
 		oplus_ext_amp_r_enable(false);
 #endif  /*CONFIG_SND_SOC_OPLUS_PA_MANAGER*/
 		break;
@@ -1510,6 +1524,10 @@ static int mt6835_mt6377_dev_probe(struct platform_device *pdev)
 	struct snd_soc_card *card = &mt6835_mt6377_soc_card;
 	struct device_node *platform_node, *spk_node;
 	int ret, i;
+	//#ifdef OPLUS_ARCH_EXTENDS
+	/* 2024/5/28, add for dual PA special dapm handle to resolve pop sound when PA closing */
+	int special_dapm_status = 0;
+	//#endif
 	struct snd_soc_dai_link *dai_link;
 #if IS_ENABLED(CONFIG_MTK_SCP_AUDIO)
 	struct device_node *scp_audio_node;
@@ -1524,6 +1542,19 @@ static int mt6835_mt6377_dev_probe(struct platform_device *pdev)
 			__func__);
 		return -EINVAL;
 	}
+
+	//#ifdef OPLUS_ARCH_EXTENDS
+	/* 2024/5/28, add for dual PA special dapm handle to resolve pop sound when PA closing */
+	ret = of_property_read_u32(pdev->dev.of_node,
+			"oplus,special-pa-dapm", &special_dapm_status);
+	if (ret) {
+		dev_info(&pdev->dev, "%s() read prop special-pa-dapm fail\n", __func__);
+		need_special_dapm = false;
+	} else {
+		dev_info(&pdev->dev, "%s() read prop special-pa-dapm %d\n", __func__, special_dapm_status);
+		need_special_dapm = special_dapm_status;
+	}
+	//#endif
 
 	/* get platform node */
 	platform_node = of_parse_phandle(pdev->dev.of_node,

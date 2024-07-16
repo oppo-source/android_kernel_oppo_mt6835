@@ -464,42 +464,27 @@ static void write_shutter(kal_uint32 shutter)
     // Framelength should be an even number
     shutter = (shutter >> 1) << 1;
     imgsensor.frame_length = (imgsensor.frame_length >> 1) << 1;
+    LOG_INF("write_shutter _is_binning_size %d shutter %d lastshutter %d %d frame_length %d",
+        _is_binning_size, shutter, imgsensor.lastshutter, imgsensor.shutter, imgsensor.frame_length);
+
+    if(_is_binning_size) {
+        if ((imgsensor.lastshutter <= imgsensor.frame_length) && (imgsensor.frame_length <= (imgsensor.lastshutter+3))) {
+           imgsensor.frame_length = imgsensor.lastshutter+4;
+        }
+    } else {
+        if ((imgsensor.lastshutter <= imgsensor.frame_length) && (imgsensor.frame_length <= (imgsensor.lastshutter+6))) {
+            imgsensor.frame_length = imgsensor.lastshutter+8;
+        }
+    }
+
     if (imgsensor.autoflicker_en) {
         realtime_fps = imgsensor.pclk / imgsensor.line_length * 10 / imgsensor.frame_length;
         if (realtime_fps >= 297 && realtime_fps <= 305)
             set_max_framerate(296, 0);
         else if (realtime_fps >= 147 && realtime_fps <= 150)
             set_max_framerate(146, 0);
-        else {
-             // Extend frame length
-             write_cmos_sensor(0x3208, 0x00);
-             if (_is_binning_size){
-                 write_cmos_sensor(0x3840, imgsensor.frame_length*2 >> 16);
-                 write_cmos_sensor(0x380e, imgsensor.frame_length*2 >>  8);
-                 write_cmos_sensor(0x380f, imgsensor.frame_length*2 & 0xFF);
-             }else{
-                 write_cmos_sensor(0x3840, imgsensor.frame_length >> 16);
-                 write_cmos_sensor(0x380e, imgsensor.frame_length >>  8);
-                 write_cmos_sensor(0x380f, imgsensor.frame_length & 0xFF);
-             }
-              write_cmos_sensor(0x3208, 0x10);
-              write_cmos_sensor(0x3208, 0xa0);
-        }
-    } else {
-        // Extend frame length
-        write_cmos_sensor(0x3208, 0x00);
-            if (_is_binning_size){
-                write_cmos_sensor(0x3840, imgsensor.frame_length*2 >> 16);
-                write_cmos_sensor(0x380e, imgsensor.frame_length*2 >>  8);
-                write_cmos_sensor(0x380f, imgsensor.frame_length*2 & 0xFF);
-            }else{
-                write_cmos_sensor(0x3840, imgsensor.frame_length >> 16);
-                write_cmos_sensor(0x380e, imgsensor.frame_length >>  8);
-                write_cmos_sensor(0x380f, imgsensor.frame_length & 0xFF);
-            }
-        write_cmos_sensor(0x3208, 0x10);
-        write_cmos_sensor(0x3208, 0xa0);
     }
+
     // Update Shutter
     write_cmos_sensor(0x3208, 0x01);
     if (_is_binning_size){
@@ -519,9 +504,11 @@ static void write_shutter(kal_uint32 shutter)
     }
     write_cmos_sensor(0x3208, 0x11);
     write_cmos_sensor(0x3208, 0xa1);
+    imgsensor.lastshutter = shutter;
     LOG_INF("shutter =%d, framelength =%d, realtime_fps =%d\n",
             shutter, imgsensor.frame_length, realtime_fps);
 }
+
 static void set_shutter(kal_uint32 shutter)  //should not be kal_uint16 -- can't reach long exp
 {
     unsigned long flags;

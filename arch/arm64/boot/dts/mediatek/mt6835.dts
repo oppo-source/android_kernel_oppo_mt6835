@@ -70,7 +70,7 @@
 			    8250.nr_uarts=2 \
                             log_buf_len=4m \
 				firmware_class.path=/odm/etc/wifi,/vendor/firmware pelt=8 \
-				androidboot.hardware=mt6835";
+				androidboot.hardware=mt6835 loop.max_part=7";
 		kaslr-seed = <0 0>;
 	};
 
@@ -7523,6 +7523,16 @@
                 ct = <0>;
                 part = <0>;
     	};
+	};
+
+	flashlights_avatarb5: flashlights_avatarb5 {
+		compatible = "mediatek,flashlights_avatarb5";
+		decouple = <1>;
+		channel@1 {
+			type = <0>;
+			ct = <0>;
+			part = <0>;
+		};
 	};
 
 	flashlights_23281: flashlights_23281 {

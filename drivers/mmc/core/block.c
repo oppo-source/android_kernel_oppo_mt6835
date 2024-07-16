@@ -782,9 +782,9 @@ static int mmc_blk_ioctl(struct block_device *bdev, fmode_t mode,
 		mmc_blk_put(md);
 		return ret;
 	case MMC_IOC_MULTI_CMD:
-		ret = mmc_blk_check_blkdev(bdev);
+		/*ret = mmc_blk_check_blkdev(bdev);
 		if (ret)
-			return ret;
+			return ret;*/
 		md = mmc_blk_get(bdev->bd_disk);
 		if (!md)
 			return -EINVAL;

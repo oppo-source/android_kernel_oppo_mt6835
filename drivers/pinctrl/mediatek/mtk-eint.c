@@ -544,12 +544,13 @@ static void mtk_eint_irq_handler(struct irq_desc *desc)
 
 				dual_edge = eint->pins[eint_num].dual_edge;
 				if (dual_edge) {
+#ifndef OPLUS_FEATURE_CHG_BASIC
 					/*
 					 * Clear soft-irq in case we raised it last
 					 * time.
 					 */
 					mtk_eint_soft_clr(eint, eint_num);
-
+#endif
 					start_level =
 					eint->gpio_xlate->get_gpio_state(eint->pctl,
 									 eint_num);
@@ -564,13 +565,17 @@ static void mtk_eint_irq_handler(struct irq_desc *desc)
 					 * If level changed, we might lost one edge
 					 * interrupt, raised it through soft-irq.
 					 */
-					if (start_level != curr_level)
+					if (start_level != curr_level) {
 						mtk_eint_soft_set(eint, eint_num);
+#ifdef OPLUS_FEATURE_CHG_BASIC
+						/* Clear soft-irq here to avoid pending=0/soft=1 */
+						mtk_eint_soft_clr(eint, eint_num);
+#endif
+					}
 				}
 
 				if (eint->pins[eint_num].debounce)
 					mtk_eint_debounce_process(eint, eint_num);
-
 			}
 		}
 	}

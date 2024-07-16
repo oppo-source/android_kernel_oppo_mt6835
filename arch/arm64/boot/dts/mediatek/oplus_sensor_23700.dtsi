@@ -142,14 +142,14 @@
 			eint_num = <18>;
 			low_step = <300>;
 			high_step = <400>;
-			low_limit = <400>;
-			high_limit = <600>;
+			low_limit = <1000>;
+			high_limit = <1500>;
 			dirty_low_step = <200>;
 			dirty_high_step = <300>;
 			ps_dirty_limit = <1020>;
-			ps_ir_limit = <2000>;
+			ps_ir_limit = <8>;
 			ps_adjust_min = <0>;
-			ps_adjust_max = <1850>;
+			ps_adjust_max = <2500>;
 			sampling_count = <5>;
 			step_max = <400>;
 			step_min = <100>;
@@ -161,8 +161,11 @@
 			offset_range_min = <0>;
 			offset_range_max = <65534>;
 			force_cali_limit = <2000>;
-			cali_jitter_limit = <20>;
+			cali_jitter_limit = <50>;
 			cal_offset_margin = <3000>;
+			/* The bright light increment is set to a multiple of 100,
+			   and the multiple is configured in the device tree. */
+			hight_light_deala = <10>;
 		};
 		proximity_2: proximity_2 {
 			status = "okay";
@@ -173,14 +176,14 @@
 			eint_num = <18>;
 			low_step = <300>;
 			high_step = <400>;
-			low_limit = <250>;
-			high_limit = <350>;
+			low_limit = <1000>;
+			high_limit = <1500>;
 			dirty_low_step = <200>;
 			dirty_high_step = <300>;
 			ps_dirty_limit = <1020>;
-			ps_ir_limit = <2000>;
+			ps_ir_limit = <200000>;
 			ps_adjust_min = <0>;
-			ps_adjust_max = <1850>;
+			ps_adjust_max = <6000>;
 			sampling_count = <5>;
 			step_max = <400>;
 			dynamic_cali_max = <3000>;
@@ -191,6 +194,9 @@
 			force_cali_limit = <2000>;
 			cali_jitter_limit = <50>;
 			cal_offset_margin = <3000>;
+			/* The bright light increment is set to a multiple of 100,
+			   and the multiple is configured in the device tree. */
+			hight_light_deala = <20>;
 		};
 		ps_panel_nt36672c_2: ps_panel_nt36672c_2 {
 			status = "okay";
@@ -482,6 +488,22 @@
 		oplus_fusion: oplus_fusion {
 			status = "okay";
 			set_mag_10ms = <1>;
+		};
+		palm_detect: palm_detect{
+			status = "okay";
+			is_available = <1>;
+			fold_type = <2>;
+			prox_type = <0>;
+			x_limit = <1>;
+			y_limit = <6>;
+			z_limit = <6>;
+			delta_ms_limit = <5000>;
+			delta_ms_low = <200>;
+			x_gyro_limit = <300000>;
+			y_gyro_limit = <300000>;
+			z_gyro_limit = <300000>;
+			move_limit = <8>;
+			als_limit = <3>;
 		};
 	};
 /* sensor end */

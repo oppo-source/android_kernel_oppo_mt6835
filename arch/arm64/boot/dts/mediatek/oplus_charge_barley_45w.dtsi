@@ -55,6 +55,7 @@
 	RBAT_PULL_UP_VOLT = <(2800)>;
 	USE_MORE_PRECISE_NTC_TABLE = <(1)>;
 	//NTC_SERIES_R = <(5100)>;
+	COM_FG_METER_RESISTANCE = <(20)>;
 	FG_METER_RESISTANCE = <(45)>; /* The resistance of PCB */
 	CAR_TUNE_VALUE = <(99)>; /* Tune value for current measurement */
 	BATT_ID_FAST_CHECK = <(1)>;
@@ -76,19 +77,19 @@
     //IS_SUBBOARD_TEMP_SUPPORT = <(1)>;
 	Enable_Is_Force_Full = <(1)>;
 	DIM2_TABLE_DISTINGUISH = <(1)>;
-	#include "mediatek/bat_setting/mt6835_chongqing_battery_table_33w.dtsi"
-	#include "mediatek/bat_setting/mt6835_chongqing_battery_prop_dim2_ext_33w.dtsi"
+	#include "mediatek/bat_setting/mt6835_barley_battery_table_45w.dtsi"
+	#include "mediatek/bat_setting/mt6835_barley_battery_prop_dim2_ext_45w.dtsi"
 };
 
 &u2port0 {
-    mediatek,eye-vrt = <5>;
-    mediatek,eye-term = <6>;
-    mediatek,eye-term-host = <6>;
+    mediatek,eye-vrt = <7>;
+    mediatek,eye-term = <4>;
+    mediatek,eye-term-host = <4>;
     mediatek,rev4 = <1>;
-    mediatek,discth = <9>;
+    mediatek,rev6 = <3>;
+    mediatek,discth = <10>;
     mediatek,rx-sqth = <5>;
 };
-
 
 &uart0 {
 	pinctrl-names = "uart0_rx_gpio", "uart0_tx_gpio";
@@ -136,9 +137,8 @@
 	charger = <&sy6974b>;
 
 	//for oplus chg framework:
-	qcom,pd_disable;
 	qcom,pps_support_type = <0>;
-	qcom,pd_input_current_charger_ma = <2000>;
+	qcom,pd_input_current_charger_ma = <3000>;
 	qcom,qc_input_current_charger_ma = <2000>;
 	qcom,input_current_charger_ma = <2200>;
 	qcom,input_current_usb_ma = <500>;
@@ -151,7 +151,7 @@
 	qcom,input_current_led_ma = <1200>;
 	qcom,input_current_led_ma_high = <1200>;
 	qcom,input_current_led_ma_warm = <1500>;
-	qcom,input_current_led_ma_normal = <2000>;
+	qcom,input_current_led_ma_normal = <3000>;
 	qcom,input_current_led_ma_forcmcc = <500>;
 	qcom,input_current_led_ma_limit_high = <1200>;
 
@@ -189,8 +189,8 @@
 	qcom,temp_little_cold_fastchg_current_ma = <2000>;
 	qcom,qc_temp_little_cold_fastchg_current_ma_high = <2594>;
 	qcom,qc_temp_little_cold_fastchg_current_ma_low = <3300>;
-	qcom,pd_temp_little_cold_fastchg_current_ma_high = <2594>;
-	qcom,pd_temp_little_cold_fastchg_current_ma_low = <3300>;
+	qcom,pd_temp_little_cold_fastchg_current_ma_high = <3000>;
+	qcom,pd_temp_little_cold_fastchg_current_ma_low = <2196>;
 
 	qcom,cool_bat_decidegc = <50>;  /* 5C ~ 12C */
 	qcom,temp_cool_vfloat_mv = <4465>;
@@ -216,7 +216,7 @@
 	qcom,warm_bat_decidegc = <450>;         /* 45C ~ 53C */ /*8pin Bat Vooc project need add 3 degree C*/
 	qcom,temp_warm_vfloat_mv = <4130>;
 	qcom,temp_warm_fastchg_current_ma = <2200>;
-	qcom,pd_temp_warm_fastchg_current_ma = <1300>;
+	qcom,pd_temp_warm_fastchg_current_ma = <2684>;
 	qcom,qc_temp_warm_fastchg_current_ma = <1300>;
 	qcom,temp_warm_fastchg_current_ma_led_on = <1000>;
 
@@ -274,7 +274,7 @@
 	qcom,ffc2_normal_fastchg_ma = <800>;/*12C~35c*/
 	qcom,ffc2_warm_fastchg_ma = <900>;	/* 35C ~ 40c */
 	qcom,ffc2_temp_warm_decidegc = <350>;
-	qcom,ffc2_temp_high_decidegc = <400>;
+	qcom,ffc2_temp_high_decidegc = <430>;
 	qcom,ffc2_temp_low_decidegc = <120>;
 	qcom,ffc2_exit_step_ma = <650>;
 	qcom,ffc2_warm_exit_step_ma = <750>;
@@ -305,8 +305,14 @@
 	qcom,vbatt_pdqc_to_5v_thr = <4500>;
 	qcom,vbatt_pdqc_to_9v_thr = <4500>;
 
+	//for PD or QC control
+	qcom,qc_not_support;
+	qcom,pd_disable;
+	qcom,pd_not_support = <1>;
+
 	//for control:
 	//qcom,suspend_after_full;
+	qcom,support_abnormal_adapter;
 	qcom,check_batt_full_by_sw;
 	qcom,chg_ctrl_by_lcd;
 	qcom,chg_ctrl_by_camera;
@@ -314,6 +320,28 @@
 	qcom,sw_vfloat_over_protect_enable;
 	qcom,usbtemp_dischg_by_platpmic;
 	qcom,support_usbtemp_protect_v2;
+	qcom,usbtemp_batt_temp_low = <50>;
+	qcom,usbtemp_batt_temp_high = <50>;
+	qcom,usbtemp_ntc_temp_low = <57>;
+	qcom,usbtemp_ntc_temp_high = <69>;
+	qcom,usbtemp_temp_gap_low_with_batt_temp = <7>;
+	qcom,usbtemp_temp_gap_high_with_batt_temp = <12>;
+	qcom,usbtemp_temp_gap_low_without_batt_temp = <12>;
+	qcom,usbtemp_temp_gap_high_without_batt_temp = <24>;
+	qcom.usbtemp_rise_fast_temp_low = <3>;
+	qcom.usbtemp_rise_fast_temp_high = <3>;
+	qcom.usbtemp_rise_fast_temp_count_low = <30>;
+	qcom.usbtemp_rise_fast_temp_count_high = <20>;
+
+	qcom,usbtemp_cool_down_ntc_low = <54>;
+	qcom,usbtemp_cool_down_ntc_high = <65>;
+	qcom,usbtemp_cool_down_gap_low = <12>;
+	qcom,usbtemp_cool_down_gap_high = <20>;
+	qcom,usbtemp_cool_down_recover_ntc_low = <48>;
+	qcom,usbtemp_cool_down_recover_ntc_high = <60>;
+	qcom,usbtemp_cool_down_recover_gap_low = <6>;
+	qcom,usbtemp_cool_down_recover_gap_high = <15>;
+
 	qcom,ffc_support;
 	qcom,chargerid_vol_disable;
 	qcom,support_ntc_01c_precision;
@@ -383,6 +411,7 @@
 		compatible = "oplus,sc8547a-ufcs";
 		reg = <0x6F 0>;
 		ocp_reg = <0xE>;
+		ovp_reg = <0x16>;
 
 		qcom,irq_gpio = <&pio 6 0x00>;/*CP1_EINT*/
 		interrupt-parent = <&pio>;
@@ -406,6 +435,7 @@
 
 		qcom,svooc_cool_down_current_limit = <82 20 20 24 30 34 40 44 50 54 82>;
 		qcom,vooc_cool_down_current_limit = <30 20 20 24 30>;
+		qcom,abnormal_adapter_current = <122 100 80 60 40>;
 
 		qcom,vooc_multistep_initial_batt_temp = <1000>;
 
@@ -463,11 +493,11 @@
 						450 4480
 						350 4470
 						250 4460>;
-		qcom,range2_low_curr_full = <750 4480
-						650 4475
-						550 4460
-						450 4450
-						350 4440>;
+		qcom,range2_low_curr_full = <750 4500
+						650 4495
+						550 4480
+						450 4470
+						350 4460>;
 
 		svooc_batt_sys_curve = <0 1 0 1 0 0 0	// 4000mA
 					1 1 1 1 0 0 0	// 4604mV
@@ -498,14 +528,14 @@
 								 4500 10 1 0 0>;
 				strategy_temp_normal_low =	<4230 41 0 60 0
 								 4230 30 0 1200 0 //min*60*1000/500
-								 4430 25 0 1200 0 //min*60*1000/500
+								 4460 25 0 1200 0 //min*60*1000/500
 								 4460 23 0 0 0
 								 4460 20 0 0 0
 								 4490 17 0 0 0
 								 4490 15 0 0 0
 								 4500 10 1 0 0>;
 				strategy_temp_normal_high =	<4230 41 0 60 0
-								 4200 30 0 1200 0 //min*60*1000/500
+								 4230 30 0 1200 0 //min*60*1000/500
 								 4460 25 0 1200 0 //min*60*1000/500
 								 4460 23 0 0 0
 								 4460 20 0 0 0
@@ -544,7 +574,7 @@
 				strategy_temp_little_cool =	<4500 10 1 0 0>;
 				strategy_temp_normal_low =	<4490 15 0 0 0
 								 4500 10 1 0 0>;
-				strategy_temp_normal_high =	<4490 15 0 0
+				strategy_temp_normal_high =	<4490 15 0 0 0
 								 4500 10 1 0 0>;
 				strategy_temp_warm =		<4130 10 1 0 0>;
 			};
@@ -705,11 +735,6 @@
 	status = "okay";
 };
 
-#include "mediatek/tcpc_rt1715.dtsi"
-&rt1715_typec {
-	charger = <&sy6974b>;
-	status = "okay";
-};
 
 &sgm7220_typec {
 	charger = <&sy6974b>;
@@ -725,7 +750,11 @@
 		track,wired_max_power = <33000>;
 		track,wired_fast_chg_scheme = <4>;
 	};
+
+	oplus_battery_log: oplus,battery_log {
+		compatible = "oplus,battery_log";
+		oplus,battery_log_support;
+	};
 };
 
 /* chagrge end */
-

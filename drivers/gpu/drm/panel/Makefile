@@ -8,6 +8,8 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/    \
              -I$(srctree)/drivers/misc/mediatek/slbc/
 #/* #endif OPLUS_FEATURE_DISPLAY */
 
+obj-$(CONFIG_DRM_PANEL_TD4160_HX_AB5_VDO_LCM_DRV) += td4160_hx_ab5_vdo_lcm_drv.o
+obj-$(CONFIG_DRM_PANEL_ILI9883C_TXD_AB5_VDO_LCM_DRV) += ili9883c_txd_ab5_vdo_lcm_drv.o
 obj-$(CONFIG_DRM_PANEL_AC182_P_3_A0013_VDO_LCM_DRV) += ac182_p_3_a0013_vdo_lcm_drv.o
 obj-$(CONFIG_DRM_PANEL_AC182_P_4_A0013_VDO_LCM_DRV) += ac182_p_4_a0013_vdo_lcm_drv.o
 obj-$(CONFIG_DRM_PANEL_AC176_P_1_A0017_FHD_VDO) += ac176_p_1_a0017_fhd_vdo.o
@@ -16,6 +18,8 @@ obj-$(CONFIG_DRM_PANEL_OPLUS23700_TM_NT36672C_FHD_DSI_VDO) += oplus23700_tm_nt36
 obj-$(CONFIG_DRM_PANEL_OPLUS23700_CSOT_TD4377_FHD_DSI_VDO) += oplus23700_csot_td4377_fhd_dsi_vdo.o
 obj-$(CONFIG_DRM_PANEL_OPLUS23706_HKC_ILI9883C_HD_DSI_VDO) += oplus23706_hkc_ili9883c_hd_dsi_vdo.o
 obj-$(CONFIG_DRM_PANEL_OPLUS23706_TXD_FT8057P_HD_DSI_VDO) += oplus23706_txd_ft8057p_hd_dsi_vdo.o
+obj-$(CONFIG_DRM_PANEL_OPLUS24605_CSOT_TD4377_FHD_DSI_VDO) += oplus24605_csot_td4377_fhd_dsi_vdo.o
+obj-$(CONFIG_DRM_PANEL_OPLUS24605_DS_ILI7807S_FHD_DSI_VDO) += oplus24605_ds_ili7807s_fhd_dsi_vdo.o
 obj-$(CONFIG_DRM_PANEL_ABT_Y030XX067A) += panel-abt-y030xx067a.o
 obj-$(CONFIG_DRM_PANEL_ARM_VERSATILE) += panel-arm-versatile.o
 obj-$(CONFIG_DRM_PANEL_ASUS_Z00T_TM5P5_NT35596) += panel-asus-z00t-tm5p5-n35596.o

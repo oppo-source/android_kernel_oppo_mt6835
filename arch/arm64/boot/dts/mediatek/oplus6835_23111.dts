@@ -207,7 +207,7 @@
 
 	oplus_boardid:oplus_boardid {
 		compatible = "oplus,oplus_boardid";
-		oplus_boardid,dtsino="23111";//only one u32
+		oplus_boardid,dtsino="23111,23112,23113";//only one u32
 		oplus_boardid,pcbmask="0xffff";//all mask 0xffff
 	};
 

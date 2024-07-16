@@ -702,7 +702,6 @@ static void pmif_hwinf_cmd_vio_0_irq_handler(int irq, void *data)
 	spmi_dump_wdt_reg();
 	spmi_dump_pmif_all_reg();
 	pr_notice("[PMIF]:HWINF_CMD_VIO_0 IRQ HANDLER DONE\n");
-	// BUG_ON(1);
 }
 
 static irqreturn_t pmif_event_0_irq_handler(int irq, void *data)

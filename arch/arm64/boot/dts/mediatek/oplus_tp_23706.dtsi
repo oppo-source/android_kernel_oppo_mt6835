@@ -21,7 +21,7 @@
 		touchpanel,irq_need_dev_resume_time = <500>;
 		touchpanel,max-num-support = <10>;
 		touchpanel,tx-rx-num = <18 32>;			/*hd:18  32*/
-		touchpanel,panel-coords = <720 1604>;
+		touchpanel,panel-coords = <2880 6416>;
 		touchpanel,display-coords = <720 1604>;	/*hd:720 1612*/
 		touchpanel,touchmajor-limit = <0 54>;
 		platform_support_project = <23706 23681 23620 23621 23628>;
@@ -52,7 +52,7 @@
 		smart_gesture_support;
 		pressure_report_support;
 		fw_update_app_support;
-		health_monitor_v2_support;
+		health_monitor_support;
 		//fw_update_in_probe_with_headfile;
 		touchpanel,button-type = <4>;
 		palm_to_sleep_support;
@@ -72,7 +72,7 @@
 			touchpanel,irq_need_dev_resume_time = <500>;
 			touchpanel,max-num-support = <10>;
 			touchpanel,tx-rx-num = <18 32>;			/*hd:18  32*/
-			touchpanel,panel-coords = <720 1604>;
+			touchpanel,panel-coords = <2880 6416>;
 			touchpanel,display-coords = <720 1604>;	/*hd:720 1612*/
 			touchpanel,touchmajor-limit = <0 54>;
 			touchpanel,smooth-level = <255 5 4 3 2 1>;

@@ -2204,6 +2204,6 @@ static struct i2c_driver bu24721_i2c_driver = {
 
 module_i2c_driver(bu24721_i2c_driver);
 
-MODULE_AUTHOR("Dont have <dc.@oplus.com>");
+MODULE_AUTHOR("Dont have");
 MODULE_DESCRIPTION("BU24721 OIS driver");
 MODULE_LICENSE("GPL v2");

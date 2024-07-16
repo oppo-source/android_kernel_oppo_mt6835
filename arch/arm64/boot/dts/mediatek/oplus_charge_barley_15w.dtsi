@@ -76,8 +76,8 @@
     //IS_SUBBOARD_TEMP_SUPPORT = <(1)>;
 	Enable_Is_Force_Full = <(1)>;
 	DIM2_TABLE_DISTINGUISH = <(1)>;
-	#include "mediatek/bat_setting/mt6835_barley_battery_table_15w.dtsi"
-	#include "mediatek/bat_setting/mt6835_barley_battery_prop_dim2_ext_15w.dtsi"
+	#include "mediatek/bat_setting/mt6835_chongqing_battery_table_18w.dtsi"
+	#include "mediatek/bat_setting/mt6835_chongqing_battery_prop_dim2_ext_18w.dtsi"
 };
 
 &u2port0 {

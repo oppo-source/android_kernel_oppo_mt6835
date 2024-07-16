@@ -4094,6 +4094,12 @@ static void ufs_mtk_fixup_dev_quirks(struct ufs_hba *hba)
 
 	ufs_mtk_install_tracepoints(hba);
 
+	/* give more time for H8 */
+	if (STR_PRFX_EQUAL("KLUFG4LHGC-B0E1", dev_info->model)) {
+		hba->rpm_lvl = UFS_PM_LVL_1;
+		hba->spm_lvl = UFS_PM_LVL_1;
+	}
+
 #if IS_ENABLED(CONFIG_UFSFEATURE)
 	if (hba->dev_info.wmanufacturerid == UFS_VENDOR_SAMSUNG) {
 		host->ufsf.hba = hba;

@@ -2648,7 +2648,7 @@ irqreturn_t mtk_dsi_irq_status(int irq, void *dev_id)
 
 #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
 			if (oplus_ofp_is_support()) {
-				if (mtk_crtc_is_frame_trigger_mode(&mtk_crtc->base)) {
+				if (!oplus_ofp_video_mode_aod_fod_is_enabled()) {
 					oplus_ofp_pressed_icon_status_update(OPLUS_OFP_TE_RDY);
 					oplus_ofp_aod_off_hbm_on_delay_check(mtk_crtc);
 					/* send ui ready */
@@ -2919,9 +2919,6 @@ static void mtk_output_en_doze_switch(struct mtk_dsi *dsi)
 	struct mtk_panel_funcs *panel_funcs;
 	#ifdef OPLUS_FEATURE_DISPLAY
 	int prj_id = 0;
-	unsigned int refresh_rate = 0;
-	struct cmdq_pkt *handle;
-	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(dsi->encoder.crtc);
 	#endif
 
 	if (!dsi->output_en)
@@ -2944,21 +2941,10 @@ static void mtk_output_en_doze_switch(struct mtk_dsi *dsi)
 			mipi_dsi_dcs_write_gce2, NULL);
 	else if (!doze_enabled && panel_funcs->doze_disable) {
 #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
-		if ((oplus_ofp_get_aod_state() == true) && !oplus_ofp_video_mode_aod_fod_is_enabled()) {
+		if (oplus_ofp_get_aod_state() == true) {
 			oplus_ofp_doze_status_handle(doze_enabled, dsi->encoder.crtc, dsi->ext, dsi->panel, dsi, mipi_dsi_dcs_write_gce2, NULL);
-			if (mtk_crtc_is_frame_trigger_mode(&mtk_crtc->base)) {
-				panel_funcs->doze_disable(dsi->panel, dsi,
-					mipi_dsi_dcs_write_gce2, NULL);
-			} else {
-				mtk_crtc_pkt_create(&handle, &mtk_crtc->base,
-						mtk_crtc->gce_obj.client[CLIENT_DSI_CFG]);
-				printk("%s:debug for lcm doze_disable+\n", __func__);
-				panel_funcs->doze_disable(dsi->panel, dsi,
-						mipi_dsi_dcs_write_gce2, handle);
-				cmdq_pkt_flush(handle);
-				cmdq_pkt_destroy(handle);
-				printk("%s:debug for lcm doze_disable-\n", __func__);
-			}
+			panel_funcs->doze_disable(dsi->panel, dsi,
+				mipi_dsi_dcs_write_gce2, NULL);
 		}
 #else
 		panel_funcs->doze_disable(dsi->panel, dsi,
@@ -3028,18 +3014,15 @@ static void mtk_output_en_doze_switch(struct mtk_dsi *dsi)
 
 	if (doze_enabled && panel_funcs->doze_enable) {
 #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
-		refresh_rate = drm_mode_vrefresh(&mtk_crtc->base.state->adjusted_mode);
-		if (!oplus_ofp_video_mode_aod_fod_is_enabled()
-					|| (oplus_ofp_video_mode_aod_fod_is_enabled() && (refresh_rate == 30))) {
-			/* aod status handle */
-			oplus_ofp_doze_status_handle(doze_enabled, dsi->encoder.crtc, dsi->ext, dsi->panel, dsi, mipi_dsi_dcs_write_gce2, NULL);
-			panel_funcs->doze_enable(dsi->panel, dsi,
-				mipi_dsi_dcs_write_gce2, NULL);
-			oplus_ofp_set_aod_light_mode_after_doze_enable(dsi->ext, dsi, mipi_dsi_dcs_write_gce2);
-		}
-#else
+		/* aod status handle */
+		oplus_ofp_doze_status_handle(doze_enabled, dsi->encoder.crtc, dsi->ext, dsi->panel, dsi, mipi_dsi_dcs_write_gce2, NULL);
+#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
+
 		panel_funcs->doze_enable(dsi->panel, dsi,
 			mipi_dsi_dcs_write_gce2, NULL);
+
+#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
+		oplus_ofp_set_aod_light_mode_after_doze_enable(dsi->ext, dsi, mipi_dsi_dcs_write_gce2);
 #endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 	}
 
@@ -3866,7 +3849,6 @@ static void mtk_output_dsi_enable(struct mtk_dsi *dsi,
 	unsigned int crtc_idx;
 	#ifdef OPLUS_FEATURE_DISPLAY
 	int prj_id = 0;
-	unsigned int refresh_rate = 0;
 	#endif
 
 	DDPMSG("%s +\n", __func__);
@@ -3971,17 +3953,15 @@ static void mtk_output_dsi_enable(struct mtk_dsi *dsi,
 			if (ext && ext->funcs
 				&& ext->funcs->doze_enable) {
 #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
-				refresh_rate = drm_mode_vrefresh(&mtk_crtc->base.state->adjusted_mode);
-				if (!oplus_ofp_video_mode_aod_fod_is_enabled()
-					|| (oplus_ofp_video_mode_aod_fod_is_enabled() && (refresh_rate == 30))) {
-					/* aod status handle */
-					oplus_ofp_doze_status_handle(new_doze_state, crtc, ext, dsi->panel, dsi, mipi_dsi_dcs_write_gce2, NULL);
-					ext->funcs->doze_enable(dsi->panel, dsi, mipi_dsi_dcs_write_gce2, NULL);
-					oplus_ofp_set_aod_light_mode_after_doze_enable(ext, dsi, mipi_dsi_dcs_write_gce2);
-				}
-#else
+				/* aod status handle */
+				oplus_ofp_doze_status_handle(new_doze_state, crtc, ext, dsi->panel, dsi, mipi_dsi_dcs_write_gce2, NULL);
+#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
+
 				ext->funcs->doze_enable(dsi->panel, dsi,
 					mipi_dsi_dcs_write_gce2, NULL);
+
+#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
+				oplus_ofp_set_aod_light_mode_after_doze_enable(ext, dsi, mipi_dsi_dcs_write_gce2);
 #endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 			}
 			if (ext && ext->funcs
@@ -3993,7 +3973,7 @@ static void mtk_output_dsi_enable(struct mtk_dsi *dsi,
 			if (ext && ext->funcs
 				&& ext->funcs->doze_disable) {
 #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
-				if ((oplus_ofp_get_aod_state() == true) && !oplus_ofp_video_mode_aod_fod_is_enabled()) {
+				if (oplus_ofp_get_aod_state() == true) {
 					oplus_ofp_doze_status_handle(new_doze_state, crtc, ext, dsi->panel, dsi, mipi_dsi_dcs_write_gce2, NULL);
 					ext->funcs->doze_disable(dsi->panel, dsi,
 						mipi_dsi_dcs_write_gce2, NULL);
@@ -9493,11 +9473,6 @@ static void mtk_dsi_vdo_timing_change(struct mtk_dsi *dsi,
 			     mtk_crtc->gce_obj.event[EVENT_CMD_EOF]);
 		/*1.1 send cmd: stop vdo mode*/
 		mtk_dsi_stop_vdo_mode(dsi, handle);
-#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
-		if (oplus_ofp_is_support()) {
-			oplus_ofp_video_mode_aod_handle(dsi->encoder.crtc, dsi->ext, dsi->panel, dsi, mipi_dsi_dcs_write_gce_dyn, handle);
-		}
-#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 		/* for crtc first enable,dyn fps fail*/
 		if (dsi->data_rate == 0) {
 			dsi->data_rate = mtk_dsi_default_rate(dsi);
@@ -9961,10 +9936,6 @@ static int mtk_dsi_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
 	struct drm_display_mode **mode;
 	bool *enable;
 	unsigned int vfp_low_power = 0;
-	struct mtk_drm_crtc *mtk_crtc = comp->mtk_crtc;
-#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
-	unsigned int refresh_rate = 0;
-#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 
 	switch (cmd) {
 	case REQ_PANEL_EXT:
@@ -9980,6 +9951,16 @@ static int mtk_dsi_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
 		break;
 	case ESD_CHECK_READ:
 		mtk_dsi_esd_read(comp, handle, params);
+		break;
+	case ESD_CHECK_READ_GPIO:
+	{
+		struct mtk_dsi *dsi =
+			container_of(comp, struct mtk_dsi, ddp_comp);
+		panel_ext = mtk_dsi_get_panel_ext(comp);
+		if (panel_ext && panel_ext->funcs
+			&& panel_ext->funcs->esd_read_gpio)
+		*(int *)params = panel_ext->funcs->esd_read_gpio(dsi->panel);
+	}
 		break;
 	case ESD_CHECK_CMP:
 		panel_ext = mtk_dsi_get_panel_ext(comp);
@@ -10530,11 +10511,7 @@ static int mtk_dsi_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
 
 		if (doze_en) {
 			if ((panel_ext && panel_ext->funcs && panel_ext->funcs->doze_enable)) {
-				refresh_rate = drm_mode_vrefresh(&mtk_crtc->base.state->adjusted_mode);
-				if (!oplus_ofp_video_mode_aod_fod_is_enabled()
-					|| (oplus_ofp_video_mode_aod_fod_is_enabled() && (refresh_rate == 30))) {
-					panel_ext->funcs->doze_enable(dsi->panel, dsi, mipi_dsi_dcs_write_gce, handle);
-				}
+				panel_ext->funcs->doze_enable(dsi->panel, dsi, mipi_dsi_dcs_write_gce, handle);
 			}
 		} else {
 			if ((panel_ext && panel_ext->funcs && panel_ext->funcs->doze_disable)) {
@@ -11281,6 +11258,12 @@ static int mtk_dsi_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
 			&& panel_ext->funcs->lcm_set_hbm_max) {
 			DDPINFO("%s dsi set hbm apl state\n", __func__);
 			panel_ext->funcs->lcm_set_hbm_max(dsi, mtk_dsi_cmdq_pack_gce, handle, *(unsigned int *)params);
+		}
+		/*vdo mode*/
+		if (panel_ext && panel_ext->funcs
+			&& panel_ext->funcs->lcm_set_hbm_max_vdo) {
+			DDPINFO("%s dsi set hbm apl state\n", __func__);
+			panel_ext->funcs->lcm_set_hbm_max_vdo(dsi, mipi_dsi_dcs_write_gce, handle, *(unsigned int *)params);
 		}
 	}
 		break;

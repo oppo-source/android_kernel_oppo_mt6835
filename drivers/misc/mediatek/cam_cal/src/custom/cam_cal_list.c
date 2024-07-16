@@ -58,6 +58,9 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{OV50C40_SENSOR_ID_BARLEY, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
 	{OV08D10_SENSOR_ID_BARLEY, 0xA2, Common_read_region},
 	{SC820CS_SENSOR_ID_BARLEY, 0xA8, Common_read_region},
+	{S5KJN1_SENSOR_ID_23706, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
+	{OV50C40_SENSOR_ID_23706, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
+	{OV08D10_SENSOR_ID_23706, 0xA2, Common_read_region},
 #ifdef OPLUS_FEATURE_CAMERA_COMMON
 	{IMX709LUNA_SENSOR_ID, 0xA8, Common_read_region, MAX_EEPROM_SIZE_16K},
 	{IMX766LUNA_SENSOR_ID, 0xA0, Common_read_region, MAX_EEPROM_SIZE_32K},
@@ -74,6 +77,10 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{GC32E2_SENSOR_ID_AVATARL5, 0xA0, Common_read_region, MAX_EEPROM_SIZE_8K},
 	{GC32E1_SENSOR_ID_AVATARL5, 0xA0, Common_read_region, MAX_EEPROM_SIZE_8K},
 	{GC08A8_SENSOR_ID_AVATARL5, 0xA0, Common_read_region, MAX_EEPROM_SIZE_8K},
+	/*AB5*/
+	{OV50D40_SENSOR_ID_AVATARB5, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
+	{OV08D10_SENSOR_ID_AVATARB5, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
+	{SC520CS_SENSOR_ID_AVATARB5, 0x6C, sc520cs_read_region, MAX_EEPROM_SIZE_16K},
 /*  ADD before this line */
 	{0, 0, 0}       /*end of list */
 };

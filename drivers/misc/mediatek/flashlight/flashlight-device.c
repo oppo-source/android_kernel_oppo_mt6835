@@ -108,6 +108,12 @@ const struct flashlight_device_id flashlight_id_avatarl5[] = {
 	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
 	{0, 0, 0, "flashlights-avatarl5", 0, 1},
 };
+
+const struct flashlight_device_id flashlight_id_avatarb5[] = {
+	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
+	{0, 0, 0, "flashlights-avatarb5", 0, 1},
+};
+
 const struct flashlight_device_id flashlight_id_23281[] = {
 	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
 	{0, 0, 0, "flashlights_23281", 0, 1},

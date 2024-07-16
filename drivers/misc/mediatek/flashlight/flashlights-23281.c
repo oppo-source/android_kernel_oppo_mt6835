@@ -224,6 +224,7 @@ static int amg_enable_ch1(void)
 		if (amg_charge_enable == 0){
 			oplus_chg_set_camera_on(1);
 			amg_charge_enable = 1;
+			pr_info("oplus_chg_set_camera_on set amg_charge_enable 1");
 		}
 		amg_reg_enable = AMG_ENABLE_LED1_FLASH;
 	}
@@ -299,9 +300,10 @@ static int amg_disable(int channel)
 		return -1;
 	}
 
-	if (amg_flash_mode == 4 && amg_charge_enable == 1) {
+	if (amg_charge_enable == 1) {
 		oplus_chg_set_camera_on(0);
 		amg_charge_enable = 0;
+		pr_info("oplus_chg_set_camera_on set amg_charge_enable 0");
 	} else if (amg_flash_mode == 3 && amg_charge_mode == 1 && amg_charge_enable == 0) {
 		oplus_chg_set_camera_on(1);
 		amg_charge_enable = 1;
@@ -600,6 +602,7 @@ static int amg_set_driver(int set)
 		if (amg_charge_enable == 1) {
 			oplus_chg_set_camera_on(0);
 			amg_charge_enable = 0;
+			pr_info("oplus_chg_set_camera_on set amg_charge_enable 0");
 		}
 		pr_info("Unset driver: %d\n", use_count);
 	}
@@ -709,7 +712,7 @@ static int amg_i2c_probe(struct i2c_client *client, const struct i2c_device_id *
 {
 	struct amg_chip_data *chip;
 	struct amg_platform_data *pdata = client->dev.platform_data;
-	int err;
+	int err = 0;
 	int i;
 	bool curProject = false;
 	pr_info("amg_i2c_probe Probe start.\n");

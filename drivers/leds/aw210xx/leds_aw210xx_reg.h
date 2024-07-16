@@ -171,6 +171,10 @@ static AW_COLOR_STRUCT br_notify_fadeh[] = {
 	{ 0,255,200}, // default green
 };
 
+int notify_breath_cycle[] = {
+    ((0x07 << 4) |  (0x00)),((0x07 << 4) |  (0x08)),
+};
+
 static AW_COLOR_STRUCT rgb_incall_list[] = {
 	{ 0,201, 128}, // default green
 };
@@ -260,24 +264,24 @@ static  AW_MULTI_BREATH_DATA_STRUCT charger_stage2_effect_data[] = {
 
 static  AW_MULTI_BREATH_DATA_STRUCT incall_effect_data1[] = {
 	//effect2:moving
-	{20, {400, 200, 800, 200,0, 400}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
-	{20, {600, 200, 800, 200,0,200}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
-	{20, {600, 200, 800, 200,0, 200}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
-	{20, {400, 200, 800, 200,0, 400}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
-	{20, {200, 200, 800, 200,0, 600}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
-	{20, {0, 200, 800, 200,0, 800}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
-	{20, {0, 200, 800, 200,0, 800}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
-	{20, {200, 200, 800, 200,0, 600}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
+	{1, {20, 10, 40, 10,0, 20}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
+	{1, {30, 10, 40, 10,0,10}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
+	{1, {30, 10, 40, 10,0, 10}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
+	{1, {20, 10, 40, 10,0, 20}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
+	{1, {10, 10, 40, 10,0, 30}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
+	{1, {0, 10, 40, 10,0, 40}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
+	{1, {0, 10, 40, 10,0, 40}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
+	{1, {10, 10, 40, 10,0, 30}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
 
 	//effect2:moving
-	{20, {200, 200, 800, 200,0, 600}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
-	{20, {0, 200, 800, 200,0, 800}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
-	{20, {0, 200, 800, 200,0, 800}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
-	{20, {200, 200, 800, 200,0, 600}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
-	{20, {400, 200, 800, 200,0, 400}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
-	{20, {600, 200, 800, 200,0, 200}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
-	{20, {600, 200, 800, 200,0,200}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
-	{20, {400, 200, 800, 200,0, 400}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
+	{1, {10, 10, 40, 10,0, 30}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
+	{1, {0, 10, 40, 10,0, 40}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
+	{1, {0, 10, 40, 10,0, 40}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
+	{1, {10, 10, 40, 10,0, 30}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
+	{1, {20, 10, 40, 10,0, 20}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
+	{1, {30, 10, 40, 10,0, 10}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
+	{1, {30, 10, 40, 10,0,10}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
+	{1, {20, 10, 40, 10,0, 20}, 1, 1, rgb_incall_list, br_incall_fadeh, br_fadel},
 };
 
 static  AW_MULTI_BREATH_DATA_STRUCT poweron_effect_data1[] = {
@@ -325,14 +329,14 @@ static  AW_MULTI_BREATH_DATA_STRUCT gameenter_effect_data1[] = {
 	{1, {0, 0, 1, 0,0, 1}, 8, 9, rgb_multi_game_racing, br_game_fadeh, br_fadel},
 	{1, {0, 0, 1, 0,0, 1}, 8, 9, rgb_multi_game_racing, br_game_fadeh, br_fadel},
 
-	{1, {12,1,3,1,0,2}, 5, sizeof(rgb_multi_game_lap)/sizeof(AW_COLOR_STRUCT), rgb_multi_game_lap, br_game_fadeh, br_fadel},
-	{1, {14,1,3,1,0,0}, 5, sizeof(rgb_multi_game_lap)/sizeof(AW_COLOR_STRUCT), rgb_multi_game_lap, br_game_fadeh, br_fadel},
-	{1, {0,1,3,1,0,14}, 5, sizeof(rgb_multi_game_lap)/sizeof(AW_COLOR_STRUCT), rgb_multi_game_lap, br_game_fadeh, br_fadel},
 	{1, {2,1,3,1,0,12}, 5, sizeof(rgb_multi_game_lap)/sizeof(AW_COLOR_STRUCT), rgb_multi_game_lap, br_game_fadeh, br_fadel},
-	{1, {4,1,3,1,0,10}, 5, sizeof(rgb_multi_game_lap)/sizeof(AW_COLOR_STRUCT), rgb_multi_game_lap, br_game_fadeh, br_fadel},
-	{1, {6,1,3,1,0,8}, 5, sizeof(rgb_multi_game_lap)/sizeof(AW_COLOR_STRUCT), rgb_multi_game_lap, br_game_fadeh, br_fadel},
-	{1, {8,1,3,1,0,6}, 5, sizeof(rgb_multi_game_lap)/sizeof(AW_COLOR_STRUCT), rgb_multi_game_lap, br_game_fadeh, br_fadel},
+	{1, {0,1,3,1,0,14}, 5, sizeof(rgb_multi_game_lap)/sizeof(AW_COLOR_STRUCT), rgb_multi_game_lap, br_game_fadeh, br_fadel},
+	{1, {14,1,3,1,0,0}, 5, sizeof(rgb_multi_game_lap)/sizeof(AW_COLOR_STRUCT), rgb_multi_game_lap, br_game_fadeh, br_fadel},
+	{1, {12,1,3,1,0,2}, 5, sizeof(rgb_multi_game_lap)/sizeof(AW_COLOR_STRUCT), rgb_multi_game_lap, br_game_fadeh, br_fadel},
 	{1, {10,1,3,1,0,4}, 5, sizeof(rgb_multi_game_lap)/sizeof(AW_COLOR_STRUCT), rgb_multi_game_lap, br_game_fadeh, br_fadel},
+	{1, {8,1,3,1,0,6}, 5, sizeof(rgb_multi_game_lap)/sizeof(AW_COLOR_STRUCT), rgb_multi_game_lap, br_game_fadeh, br_fadel},
+	{1, {6,1,3,1,0,8}, 5, sizeof(rgb_multi_game_lap)/sizeof(AW_COLOR_STRUCT), rgb_multi_game_lap, br_game_fadeh, br_fadel},
+	{1, {4,1,3,1,0,10}, 5, sizeof(rgb_multi_game_lap)/sizeof(AW_COLOR_STRUCT), rgb_multi_game_lap, br_game_fadeh, br_fadel},
 
 	{1, {0, 0, 1, 0,0, 1}, 8, 9, rgb_multi_game_racing, br_game_fadeh, br_fadel},
 	{1, {0, 0, 1, 0,0, 1}, 8, 9, rgb_multi_game_racing, br_game_fadeh, br_fadel},

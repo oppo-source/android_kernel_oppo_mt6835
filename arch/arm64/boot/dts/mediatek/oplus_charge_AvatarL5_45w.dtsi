@@ -399,6 +399,7 @@
 		sc,vpmid-ovp-otg-dis = <0>;
 		sc,vbat-ovp-buck-dis = <0>;
 		sc,ibat-ocp = <1>;    /* 0:12A , 1:16A */
+		ovp_reg = <0x36>; /* 4850mv */
 		ocp_reg = <0xf>;    /* 4.75A*/
 		sc,charge-detect-enable;
 		sc,disable-qc;
@@ -429,8 +430,8 @@
 					     600 4490
 					     500 4480>;
 		qcom,range2_low_curr_full = <950 4520
-					     800 4515
-					     700 4500
+					     850 4515
+					     750 4500
 					     650 4490
 					     550 4480>;
 
@@ -486,6 +487,8 @@
 		qcom,voocphy_freq_maxcore = <1543000>;
 		qcom,voocphy_current_change_timeout = <100>;
 
+		oplus,workaround_for_100w;
+
 		svooc_batt_sys_curve = <0 1 0 1 0 0 1	// 4100mA
 					0 0 0 0 0 0 1	// 3414mV
 					0 0 1 0 1 0 0	// 2000mA
@@ -500,17 +503,17 @@
 					0 0 0 1 0 1 0	// 1000mA
 					1 1 1 1 1 1 0>;	// 4664mV
 
-	    	svooc_charge_strategy {
+		svooc_charge_strategy {
 			strategy_soc_0_to_50 {
 				strategy_temp_little_cold =	<4150 16 0 0 0
 								 4150 15 0 0 0
-								 4470 11 0 0 0
-								 4480 10 1 0 0>;
+								 4460 11 0 0 0
+								 4470 10 1 0 0>;
 				strategy_temp_cool =		<4150 23 0 0 0
 								 4150 20 0 0 0
-								 4470 16 0 0 0
-								 4470 15 0 0 0
-								 4480 10 1 0 0>;
+								 4460 16 0 0 0
+								 4460 15 0 0 0
+								 4470 10 1 0 0>;
 				strategy_temp_little_cool = 	<4150 35 0 0 0
 								 4150 30 0 0 0
 								 4480 28 0 0 0
@@ -544,9 +547,9 @@
 			};
 
 			strategy_soc_50_to_75 {
-				strategy_temp_little_cold =	<4480 10 1 0 0>;
-				strategy_temp_cool =		<4470 15 0 0 0
-								 4480 10 1 0 0>;
+				strategy_temp_little_cold =	<4470 10 1 0 0>;
+				strategy_temp_cool =		<4460 15 0 0 0
+								 4470 10 1 0 0>;
 				strategy_temp_little_cool = 	<4480 20 0 0 0
 								 4510 18 0 0 0
 								 4510 15 0 0 0
@@ -565,8 +568,8 @@
 			};
 
 			strategy_soc_75_to_85 {
-				strategy_temp_little_cold = 	<4480 10 1 0 0>;
-				strategy_temp_cool =		<4480 10 1 0 0>;
+				strategy_temp_little_cold = 	<4470 10 1 0 0>;
+				strategy_temp_cool =		<4470 10 1 0 0>;
 				strategy_temp_little_cool =	<4510 15 0 0 0
 								 4520 10 1 0 0>;
 				strategy_temp_normal_low =	<4510 15 0 0 0
@@ -577,8 +580,8 @@
 			};
 
 			strategy_soc_85_to_90 {
-				strategy_temp_little_cold = 	<4480 10 1 0 0>;
-				strategy_temp_cool =		<4480 10 1 0 0>;
+				strategy_temp_little_cold = 	<4470 10 1 0 0>;
+				strategy_temp_cool =		<4470 10 1 0 0>;
 				strategy_temp_little_cool =	<4520 10 1 0 0>;
 				strategy_temp_normal_low =	<4520 10 1 0 0>;
 				strategy_temp_normal_high =	<4520 10 1 0 0>;
@@ -589,10 +592,10 @@
 		vooc_charge_strategy {
 			strategy_soc_0_to_50 {
 				strategy_temp_little_cold =	<4150 30 0 0 0
-								 4470 22 0 0 0
-								 4480 20 1 0 0>;
-				strategy_temp_cool =		<4470 30 0 0 0
-								 4480 20 1 0 0>;
+								 4460 22 0 0 0
+								 4470 20 1 0 0>;
+				strategy_temp_cool =		<4460 30 0 0 0
+								 4470 20 1 0 0>;
 				strategy_temp_little_cool =	<4510 30 0 0 0
 								 4520 20 1 0 0>;
 				strategy_temp_normal_low =	<4510 30 0 0 0
@@ -603,9 +606,9 @@
 			};
 
 			strategy_soc_50_to_75 {
-				strategy_temp_little_cold =	<4480 20 1 0 0>;
-				strategy_temp_cool =		<4470 30 0 0 0
-								 4480 20 1 0 0>;
+				strategy_temp_little_cold =	<4470 20 1 0 0>;
+				strategy_temp_cool =		<4460 30 0 0 0
+								 4470 20 1 0 0>;
 				strategy_temp_little_cool =	<4510 30 0 0 0
 								 4520 20 1 0 0>;
 				strategy_temp_normal_low =	<4510 30 0 0 0
@@ -616,8 +619,8 @@
 			};
 
 			strategy_soc_75_to_85 {
-				strategy_temp_little_cold =	<4480 20 1 0 0>;
-				strategy_temp_cool =		<4480 20 1 0 0>;
+				strategy_temp_little_cold =	<4470 20 1 0 0>;
+				strategy_temp_cool =		<4470 20 1 0 0>;
 				strategy_temp_little_cool =	<4510 30 0 0 0
 								 4520 20 1 0 0>;
 				strategy_temp_normal_low =	<4510 30 0 0 0
@@ -628,8 +631,8 @@
 			};
 
 			strategy_soc_85_to_90 {
-				strategy_temp_little_cold =	<4480 20 1 0 0>;
-				strategy_temp_cool =		<4480 20 1 0 0>;
+				strategy_temp_little_cold =	<4470 20 1 0 0>;
+				strategy_temp_cool =		<4470 20 1 0 0>;
 				strategy_temp_little_cool =	<4520 20 1 0 0>;
 				strategy_temp_normal_low =	<4520 20 1 0 0>;
 				strategy_temp_normal_high =	<4520 20 1 0 0>;

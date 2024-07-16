@@ -670,6 +670,15 @@
 #define SENSOR_DRVNAME_GC02M1B_MIPI_MONO_AVATARL5         "gc02m1b_mipi_mono_avatarl5"
 /////////////////// AL5 end /////////////////////////////////////////////////////
 
+/////////////////// AB5 start /////////////////////////////////////////////////////
+#define OV50D40_SENSOR_ID_AVATARB5                         0x565044
+#define SENSOR_DRVNAME_OV50D40_MIPI_RAW_AVATARB5           "ov50d40_mipi_raw_avatarb5"
+#define OV08D10_SENSOR_ID_AVATARB5                         (0x56084700 + 0x1c)
+#define SENSOR_DRVNAME_OV08D10_MIPI_RAW_AVATARB5           "ov08d10_mipi_raw_avatarb5"
+#define SC520CS_SENSOR_ID_AVATARB5                      0xee4b //(0XEE4B)
+#define SENSOR_DRVNAME_SC520CS_MIPI_RAW_AVATARB5        "sc520cs_mipi_raw_avatarb5"
+/////////////////// AB5 end /////////////////////////////////////////////////////
+
 #ifdef OPLUS_FEATURE_CAMERA_COMMON
 #define S5KHM6S_SENSOR_ID_BARLEY                       0x1ad8
 #define SENSOR_DRVNAME_S5KHM6S_MIPI_RAW_BARLEY        "s5khm6s_mipi_raw_barley"
@@ -691,6 +700,14 @@
 #define SENSOR_DRVNAME_OV50C40_MIPI_RAW_BARLEY            "ov50c40_mipi_raw_barley"
 #define GC08A8_SENSOR_ID_BARLEY                        0x8a3
 #define SENSOR_DRVNAME_GC08A8_MIPI_RAW_BARLEY         "gc08a8_mipi_raw_barley"
+//add for barley-C
+#define SENSOR_ID_OFFSET_23706                          0x2C2                                           //706
+#define S5KJN1_SENSOR_ID_23706                          (0x38E2 + SENSOR_ID_OFFSET_23706)               //0x3BA4
+#define SENSOR_DRVNAME_S5KJN1_MIPI_RAW_23706            "s5kjn1_mipi_raw_23706"
+#define OV50C40_SENSOR_ID_23706                         (0x565043 + SENSOR_ID_OFFSET_23706)             //0x565305
+#define SENSOR_DRVNAME_OV50C40_MIPI_RAW_23706           "ov50c40_mipi_raw_23706"
+#define OV08D10_SENSOR_ID_23706                         (0x56084700 + 0x1e + SENSOR_ID_OFFSET_23706)    //0x560849E0
+#define SENSOR_DRVNAME_OV08D10_MIPI_RAW_23706           "ov08d10_mipi_raw_23706"
 #endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 
 #ifdef OPLUS_FEATURE_CAMERA_COMMON

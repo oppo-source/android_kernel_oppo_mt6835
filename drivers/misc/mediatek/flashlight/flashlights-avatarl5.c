@@ -608,8 +608,9 @@ static int avatarl5_set_driver(int set)
     return ret;
 }
 
-static ssize_t avatarl5_strobe_store(struct flashlight_arg arg)
+static ssize_t avatarl5_strobe_store()
 {
+    struct flashlight_arg arg = {0};
     avatarl5_set_driver(1);
     avatarl5_set_level(arg.channel, arg.level);
     avatarl5_timeout_ms[arg.channel] = 0;

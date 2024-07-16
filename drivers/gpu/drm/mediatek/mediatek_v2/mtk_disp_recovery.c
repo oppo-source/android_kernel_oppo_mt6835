@@ -498,6 +498,8 @@ static int mtk_drm_request_eint(struct drm_crtc *crtc)
 static int mtk_drm_esd_check(struct drm_crtc *crtc)
 {
 	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
+	struct mtk_ddp_comp *output_comp;
+	int gpio_state;
 	struct mtk_panel_ext *panel_ext;
 	struct mtk_drm_esd_ctx *esd_ctx = mtk_crtc->esd_ctx;
 	int ret = 0;
@@ -506,7 +508,11 @@ static int mtk_drm_esd_check(struct drm_crtc *crtc)
 	#endif
 
 	CRTC_MMP_EVENT_START(drm_crtc_index(crtc), esd_check, 0, 0);
-
+	output_comp = mtk_ddp_comp_request_output(mtk_crtc);
+	if (unlikely(!output_comp)) {
+		DDPPR_ERR("%s:invalid output comp\n", __func__);
+		return -EINVAL;
+	}
 	if (mtk_crtc->enabled == 0) {
 		CRTC_MMP_MARK(drm_crtc_index(crtc), esd_check, 0, 99);
 		DDPINFO("[ESD] CRTC %d disable. skip esd check\n",
@@ -526,6 +532,11 @@ static int mtk_drm_esd_check(struct drm_crtc *crtc)
 	    esd_ctx->chk_mode == READ_EINT) {
 		CRTC_MMP_MARK(drm_crtc_index(crtc), esd_check, 1, 0);
 		ret = _mtk_esd_check_eint(crtc);
+	} else if (panel_ext->params->cust_esd_check_gpio == 1) { /* READ GPIO  */
+		CRTC_MMP_MARK(drm_crtc_index(crtc), esd_check, 0, 6);
+		mtk_ddp_comp_io_cmd(output_comp, NULL, ESD_CHECK_READ_GPIO,
+							&gpio_state);
+		ret = gpio_state;
 	} else { /* READ LCM CMD  */
 		CRTC_MMP_MARK(drm_crtc_index(crtc), esd_check, 2, 0);
 		ret = _mtk_esd_check_read(crtc);

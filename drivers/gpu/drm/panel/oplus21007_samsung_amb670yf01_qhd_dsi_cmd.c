@@ -1103,6 +1103,6 @@ static struct mipi_dsi_driver lcm_driver = {
 
 module_mipi_dsi_driver(lcm_driver);
 
-MODULE_AUTHOR("lianghao <lianghao1@oppo.com>");
+MODULE_AUTHOR("lianghao");
 MODULE_DESCRIPTION("lcm amb670 yf01 Panel Driver");
 MODULE_LICENSE("GPL v2");

@@ -981,6 +981,10 @@ static int rt1711_set_cc(struct tcpc_device *tcpc, int pull)
 		}
 	}
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	data = rt1711_i2c_read8(tcpc, TCPC_V10_REG_ROLE_CTRL);
+	pr_err("%s data = 0x%x\n", __func__, data);
+#endif
 	return 0;
 }
 
@@ -1096,6 +1100,11 @@ static int rt1711_tcpc_deinit(struct tcpc_device *tcpc)
 #if CONFIG_TCPC_SHUTDOWN_CC_DETACH
 	rt1711_set_cc(tcpc, TYPEC_CC_DRP);
 	rt1711_set_cc(tcpc, TYPEC_CC_OPEN);
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	/* Add delay after CC open for some third party adapters to consider as proper plugout for compatibility on reboot */
+	pr_err("%s-Setting cc open for 350ms during shutdown", __func__);;
+	msleep(350);
+#endif
 
 	rt1711_i2c_write8(tcpc,
 		RT1711H_REG_I2CRST_CTRL,

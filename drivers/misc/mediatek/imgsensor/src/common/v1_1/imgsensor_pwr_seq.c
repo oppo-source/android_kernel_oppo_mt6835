@@ -11,6 +11,47 @@
 
 /* Legacy design */
 struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
+#if defined(OV50D40_MIPI_RAW_AVATARB5)
+    {
+        SENSOR_DRVNAME_OV50D40_MIPI_RAW_AVATARB5,
+        {
+            {RST,        Vol_Low,  1},
+            {DOVDD,      Vol_1800, 3},
+            {AVDD,       Vol_High, 1},
+            {DVDD,       Vol_High, 1},
+            {AFVDD,      Vol_2800, 1},
+            {SensorMCLK, Vol_High, 2},
+            {RST,        Vol_High, 5},
+        },
+    },
+#endif
+#if defined(OV08D10_MIPI_RAW_AVATARB5)
+    {
+        SENSOR_DRVNAME_OV08D10_MIPI_RAW_AVATARB5,
+        {
+            {RST,        Vol_Low, 1},
+            {DOVDD,      Vol_1800, 1},
+            {AVDD,       Vol_High, 1},
+            {DVDD,       Vol_High, 6},
+            {AFVDD,      Vol_2800, 1},
+            {RST,        Vol_High, 1},
+            {SensorMCLK, Vol_High, 9},
+        },
+    },
+#endif
+#if defined(SC520CS_MIPI_RAW_AVATARB5)
+    {
+        SENSOR_DRVNAME_SC520CS_MIPI_RAW_AVATARB5,
+        {
+            {RST,        Vol_Low, 1},
+            {DOVDD,      Vol_1800, 1},
+            {DVDD,       Vol_High, 2},
+            {AVDD,       Vol_High, 2},
+            {RST,        Vol_High, 2},
+            {SensorMCLK, Vol_High, 5},
+        },
+    },
+#endif
 #if defined(OV50D40_MIPI_RAW_AVATARL5)
     {
         SENSOR_DRVNAME_OV50D40_MIPI_RAW_AVATARL5,
@@ -297,6 +338,21 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
         },
     },
 #endif
+#if defined(S5KJN1_MIPI_RAW_23706)
+    {
+        SENSOR_DRVNAME_S5KJN1_MIPI_RAW_23706,
+        {
+            {RST, Vol_Low, 1},
+            {DOVDD, Vol_1800, 1},
+            {AVDD1_GPIO, Vol_High, 2},
+            {DVDD, Vol_1050, 1},
+            {AVDD, Vol_2800, 5},
+            {AFVDD, Vol_2800, 3},
+            {RST, Vol_High, 2},
+            {SensorMCLK, Vol_High, 10},
+        },
+    },
+#endif
 #if defined(OV13B10_MIPI_RAW_BARLEY)
     {
         SENSOR_DRVNAME_OV13B10_MIPI_RAW_BARLEY,
@@ -326,6 +382,20 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
         },
     },
 #endif
+#if defined(OV08D10_MIPI_RAW_23706)
+    {
+        SENSOR_DRVNAME_OV08D10_MIPI_RAW_23706,
+        {
+            {RST, Vol_Low, 0},
+            {DOVDD, Vol_1800, 1},
+            {AVDD, Vol_2800, 1},
+            {DVDD, Vol_1200, 6},
+            {RST, Vol_High, 6},
+            {SensorMCLK, Vol_High, 8},
+            {AVDD1_GPIO, Vol_High, 2},
+        },
+    },
+#endif
 #if defined(OV50C40_MIPI_RAW_BARLEY)
     {
         SENSOR_DRVNAME_OV50C40_MIPI_RAW_BARLEY,
@@ -337,6 +407,21 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
             {RST, Vol_High, 5},
             {AFVDD, Vol_2800, 3},
             {SensorMCLK, Vol_High, 10},
+            {AVDD1_GPIO, Vol_High, 0},
+        },
+    },
+#endif
+#if defined(OV50C40_MIPI_RAW_23706)
+    {
+        SENSOR_DRVNAME_OV50C40_MIPI_RAW_23706,
+        {
+            {RST, Vol_Low, 2},
+            {AVDD, Vol_2800, 1},
+            {DOVDD, Vol_1800, 1},
+            {DVDD, Vol_1200, 1},
+            {SensorMCLK, Vol_High, 10},
+            {RST, Vol_High, 5},
+            {AFVDD, Vol_2800, 3},
             {AVDD1_GPIO, Vol_High, 0},
         },
     },

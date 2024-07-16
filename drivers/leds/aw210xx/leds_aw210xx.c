@@ -37,6 +37,10 @@
 #include <mt-plat/mtk_boot_common.h>
 #endif
 */
+#include <soc/oplus/boot/boot_mode.h>
+/* copy mtk_boot_common.h */
+#define KERNEL_POWER_OFF_CHARGING_BOOT 8
+#define LOW_POWER_OFF_CHARGING_BOOT 9
 
 #include "leds_aw210xx.h"
 //#include "leds_aw210xx_reg.h"
@@ -135,7 +139,7 @@ static int aw210xx_i2c_read(struct aw210xx *aw210xx,
 			AW_ERR("i2c_read fail cnt=%d ret=%d addr=0x%x id:%x \n", cnt, ret, reg_addr, aw210xx->aw210xx_led_id);
 		} else {
 			*reg_data = ret;
-			AW_ERR("i2c_read suc cnt=%d ret=%d addr=0x%x id:%x \n", cnt, ret, reg_addr, aw210xx->aw210xx_led_id);
+			//AW_ERR("i2c_read suc cnt=%d ret=%d addr=0x%x id:%x \n", cnt, ret, reg_addr, aw210xx->aw210xx_led_id);
 			break;
 		}
 		cnt++;
@@ -798,13 +802,18 @@ int check_effect_state(effect_select_t effect)
 	return -1;
 }
 
-void brightness_sbmd_setup(br_pwm_t br_pwm) {
+void brightness_sbmd_setup(br_pwm_t br_pwm, bool enable) {
+	static bool br_enable = true;
 	int led_groups_num = aw210xx_g_chip[0][0]->pdata->led->led_groups_num;
 
 	//AW_ERR("  entry br_pwm = %d\n", br_pwm);
-	if(aw210xx_g_chip[0][0]->br_res == br_pwm ){
-		//AW_ERR("  already set\n");
+	if( (aw210xx_g_chip[0][0]->br_res == br_pwm ) && (br_enable == enable) ){
+		//AW_ERR(" already set\n");
 		return;
+	}
+	else {
+		//AW_ERR(" not set\n");
+		br_enable = enable;
 	}
 
 	if(br_pwm == BR_RESOLUTION_8BIT) {
@@ -812,25 +821,25 @@ void brightness_sbmd_setup(br_pwm_t br_pwm) {
 		aw210xx_g_chip[0][0]->br_res = BR_RESOLUTION_8BIT;
 		aw210xx_br_res_set(aw210xx_g_chip[0][0]);
 		/* sbmd disable */
-		aw210xx_sbmd_set(aw210xx_g_chip[0][0], false);
+		aw210xx_sbmd_set(aw210xx_g_chip[0][0], enable);
 
 		if (led_groups_num == 8) {
 			aw210xx_g_chip[1][0]->br_res = BR_RESOLUTION_8BIT;
 			aw210xx_br_res_set(aw210xx_g_chip[1][0]);
 				/* sbmd disable */
-			aw210xx_sbmd_set(aw210xx_g_chip[1][0], false);
+			aw210xx_sbmd_set(aw210xx_g_chip[1][0], enable);
 		}
 	}
 	else if(br_pwm == BR_RESOLUTION_9_AND_3_BIT){
 		aw210xx_g_chip[0][0]->br_res = BR_RESOLUTION_9_AND_3_BIT;
 		aw210xx_br_res_set(aw210xx_g_chip[0][0]);
 		/* sbmd disable */
-		aw210xx_sbmd_set(aw210xx_g_chip[0][0], false);
+		aw210xx_sbmd_set(aw210xx_g_chip[0][0], enable);
 
 		if (led_groups_num == 8) {
 			aw210xx_g_chip[1][0]->br_res = BR_RESOLUTION_9_AND_3_BIT;
 			aw210xx_br_res_set(aw210xx_g_chip[1][0]);
-			aw210xx_sbmd_set(aw210xx_g_chip[1][0], false);
+			aw210xx_sbmd_set(aw210xx_g_chip[1][0], enable);
 		}
 	}
 	else{
@@ -854,7 +863,7 @@ void run_alwayson_effect(struct aw210xx *aw210xx){
 			AW_ERR(" frame entry \n");
 		}
 
-		brightness_sbmd_setup(BR_RESOLUTION_8BIT);
+		brightness_sbmd_setup(BR_RESOLUTION_8BIT , false);
 		for(i=0;i<3;i++){
 			aw210xx_i2c_write(led, AW210XX_REG_BR00L + 2*i, new_always_on_color[i][8]);
 			aw210xx_i2c_write(led, AW210XX_REG_BR03L + 2*i, new_always_on_color[i][8]);
@@ -902,7 +911,7 @@ void run_music_effect(struct aw210xx *aw210xx){
 			}
 		}
 		AW_ERR(" frame entry \n");
-		brightness_sbmd_setup(BR_RESOLUTION_9_AND_3_BIT);
+		brightness_sbmd_setup(BR_RESOLUTION_9_AND_3_BIT , false);
 		for(i=0;i<3;i++){
 			aw210xx_i2c_write(led, AW210XX_REG_BR00H + 2 * i, 0xff & (brightness[i] >> 8));
 			aw210xx_i2c_write(led, AW210XX_REG_BR00L + 2 * i, 0xff & brightness[i]);
@@ -940,8 +949,64 @@ void run_music_effect(struct aw210xx *aw210xx){
 	}
 }
 
+void run_notify_effect_autonomous(struct aw210xx *aw210xx){
+
+	struct aw210xx *aw210xx_id1 = aw210xx_g_chip[1][0];
+	struct aw210xx *led = aw210xx_g_chip[0][0];
+	int i=0;
+
+	int notify_color[3];
+	notify_color[0] = rgb_notify_list[0].r;
+	notify_color[1] = rgb_notify_list[0].g;
+	notify_color[2] = rgb_notify_list[0].b;
+	//AW_ERR(" effect_state.data[AW210XX_LED_MUSICMODE] = %d, last_run_effect = %d", effect_state.data[AW210XX_LED_MUSICMODE], last_run_effect);
+	if((effect_state.data[AW210XX_LED_NOTIFY_MODE] == 1) || (last_run_effect != AW210XX_LED_NOTIFY_MODE)) {
+		effect_state.data[AW210XX_LED_NOTIFY_MODE] = 0;
+		AW_ERR(" entry \n");
+		brightness_sbmd_setup(BR_RESOLUTION_8BIT , true);
+
+/*		aw210xx_i2c_write(led, AW210XX_REG_GSLR, rgb_notify_list[0].r);
+		aw210xx_i2c_write(led, AW210XX_REG_GSLG, rgb_notify_list[0].g);
+		aw210xx_i2c_write(led, AW210XX_REG_GSLB, rgb_notify_list[0].b);
+*/
+        for(i=0;i<3;i++) {
+            aw210xx_i2c_write(led, AW210XX_REG_SL00 + i, notify_color[i]);
+			aw210xx_i2c_write(led, AW210XX_REG_SL03 + i, notify_color[i]);
+			aw210xx_i2c_write(led, AW210XX_REG_SL06 + i, notify_color[i]);
+			aw210xx_i2c_write(led, AW210XX_REG_SL09 + i, notify_color[i]);
+        }
+
+		aw210xx_i2c_write(led, AW210XX_REG_GBRH, br_notify_fadeh[0].r | br_notify_fadeh[0].g | br_notify_fadeh[0].b);
+		aw210xx_i2c_write(led, AW210XX_REG_GBRL, 0x00);
+
+		aw210xx_i2c_write(led, AW210XX_REG_GCFG, 0x4F);
+		aw210xx_i2c_write(led, AW210XX_REG_ABMCFG, 0x03);
+		aw210xx_i2c_write(led, AW210XX_REG_ABMT0 , notify_breath_cycle[0]);
+		aw210xx_i2c_write(led, AW210XX_REG_ABMT1 , notify_breath_cycle[1]);
+
+		aw210xx_update(led);
+
+		if (led->pdata->led->led_groups_num == 8 && aw210xx_id1 != NULL) {
+			for(i=0;i<12;i++)
+			{
+				aw210xx_i2c_write(aw210xx_id1, AW210XX_REG_SL00+i, 0x00);
+			}
+			aw210xx_update(aw210xx_id1);
+		}
+
+		aw210xx_i2c_write(led, AW210XX_REG_ABMGO, 0x01);
+
+/*
+		if (led->pdata->led->led_groups_num == 8 && aw210xx_id1 != NULL) {
+			aw210xx_i2c_write(aw210xx_id1, AW210XX_REG_ABMGO, 0x01);
+		}
+*/
+
+	}
+}
+
 void initiate_effect(struct aw210xx *aw210xx, effect_select_t effect) {
-	print_effectdata(effect);
+	//print_effectdata(effect);
 	effect_data[effect] = aw210xx_cfg_array[effect].p;
 	effect_stop_val[effect] = 0;
 	num[effect] = 0;
@@ -970,7 +1035,7 @@ int update_next_frame(struct aw210xx *aw210xx, effect_select_t effect){
 
 void run_poweron_effect(struct aw210xx *aw210xx){
 	int ret=0;
-	brightness_sbmd_setup(BR_RESOLUTION_8BIT);
+	brightness_sbmd_setup(BR_RESOLUTION_8BIT , false);
 	//effect_state.state  = 0 stopped, 1 initial, 2 running, 3 pause,
 	if (effect_state.state[AW210XX_LED_POWERON_MODE] == 1){
 		AW_ERR(" AW210XX_LED_POWERON_MODE enter \n" );
@@ -989,7 +1054,7 @@ void run_poweron_effect(struct aw210xx *aw210xx){
 
 void run_incall_effect(struct aw210xx *aw210xx){
 	int ret=0;
-	brightness_sbmd_setup(BR_RESOLUTION_8BIT);
+	brightness_sbmd_setup(BR_RESOLUTION_8BIT, false);
 	//effect_state.state  = 0 stopped, 1 initial, 2 running, 3 pause,
 	if (effect_state.state[AW210XX_LED_INCALL_MODE] == 1){
 		AW_ERR(" AW210XX_LED_INCALL_MODE enter \n" );
@@ -1009,7 +1074,7 @@ void run_incall_effect(struct aw210xx *aw210xx){
 
 void run_game_effect(struct aw210xx *aw210xx){
 	int ret=0;
-	brightness_sbmd_setup(BR_RESOLUTION_8BIT);
+	brightness_sbmd_setup(BR_RESOLUTION_8BIT, false);
 	//effect_state.state  = 0 stopped, 1 initial, 2 running, 3 pause,
 	if (effect_state.state[AW210XX_LED_GAMEMODE] == 1){
 		AW_ERR(" AW210XX_LED_GAMEMODE enter \n" );
@@ -1028,7 +1093,7 @@ void run_game_effect(struct aw210xx *aw210xx){
 
 void run_notify_effect(struct aw210xx *aw210xx){
 	int ret=0;
-	brightness_sbmd_setup(BR_RESOLUTION_8BIT);
+	brightness_sbmd_setup(BR_RESOLUTION_8BIT , false);
 	//effect_state.state  = 0 stopped, 1 initial, 2 running, 3 pause,
 	if (effect_state.state[AW210XX_LED_NOTIFY_MODE] == 1){
 		AW_ERR(" AW210XX_LED_NOTIFY_MODE enter \n" );
@@ -1048,7 +1113,7 @@ void run_notify_effect(struct aw210xx *aw210xx){
 
 void run_charger_effect(struct aw210xx *aw210xx){
 	int ret=0;
-	brightness_sbmd_setup(BR_RESOLUTION_8BIT);
+	brightness_sbmd_setup(BR_RESOLUTION_8BIT, false);
 	//effect_state.state  = 0 disable, 1 init, 2 running, 3 pause, 4 second stage init (for charger),5 second stage running, 6 100% recover  stage (for charger)
 	if (effect_state.state[AW210XX_LED_CHARGE_MODE] == 1){
 		AW_ERR(" AW210XX_LED_CHARGE_MODE enter \n" );
@@ -1091,6 +1156,37 @@ void run_charger_effect(struct aw210xx *aw210xx){
 
 }
 
+void reset_led(void){
+
+	struct aw210xx *led = aw210xx_g_chip[0][0];
+/*
+	struct aw210xx *aw210xx_id1 = aw210xx_g_chip[1][0];
+	aw210xx_i2c_write(led, AW210XX_REG_GBRH, 0x00);
+	aw210xx_i2c_write(led, AW210XX_REG_GBRL, 0xff);
+	aw210xx_i2c_write(led, AW210XX_REG_ABMCFG, 0x00);
+	aw210xx_i2c_write(led, AW210XX_REG_ABMGO, 0x00);
+	if (led->pdata->led->led_groups_num == 8 && aw210xx_id1 != NULL) {
+		aw210xx_i2c_write(aw210xx_id1, AW210XX_REG_GBRH, 0x00);
+		aw210xx_i2c_write(aw210xx_id1, AW210XX_REG_GBRL, 0xff);
+		aw210xx_i2c_write(aw210xx_id1, AW210XX_REG_ABMCFG, 0x00);
+		aw210xx_i2c_write(aw210xx_id1, AW210XX_REG_ABMGO, 0x00);
+	}
+*/
+	AW_LOG("enter");
+	led->pdata->led->power_change_state |= (1 << 0);
+	mutex_lock(&led->pdata->led->lock);
+	if (aw210xx_hw_enable(led->pdata->led, false)) {
+		AW_LOG("aw210xx hw disable failed");
+	}
+	usleep_range(10000,10500);
+
+	if (aw210xx_hw_enable(led->pdata->led, true)) {
+		AW_LOG("aw210xx hw enable failed");
+	}
+	mutex_unlock(&led->pdata->led->lock);
+	led->pdata->led->power_change_state &= ~(1 << 0);
+}
+
 void run_effect(struct aw210xx *aw210xx)
 {
 	while (1)
@@ -1108,9 +1204,12 @@ void run_effect(struct aw210xx *aw210xx)
 			continue;
 		}
 		else if (effect_state.state[AW210XX_LED_INCALL_MODE] != 0){
+			if(last_run_effect == AW210XX_LED_NOTIFY_MODE ){
+				reset_led();
+			}
 			run_incall_effect(aw210xx);
 			last_run_effect = AW210XX_LED_INCALL_MODE;
-			usleep_range(20000,20500);
+			usleep_range(6500,7000);
 			continue;
 		}
 		else if (effect_state.state[AW210XX_LED_MUSICMODE] != 0){
@@ -1126,12 +1225,15 @@ void run_effect(struct aw210xx *aw210xx)
 			continue;
 		}
 		else if(effect_state.state[AW210XX_LED_NOTIFY_MODE] != 0) {
-			run_notify_effect(aw210xx);
+			run_notify_effect_autonomous(aw210xx);
 			last_run_effect = AW210XX_LED_NOTIFY_MODE;
 			usleep_range(20000,20500);
 			continue;
 		}
 		else if(effect_state.state[AW210XX_LED_CHARGE_MODE] != 0) {
+			if(last_run_effect == AW210XX_LED_NOTIFY_MODE ){
+				reset_led();
+			}
 			run_charger_effect(aw210xx);
 			last_run_effect = AW210XX_LED_CHARGE_MODE;
 			usleep_range(20000,20500);
@@ -1149,19 +1251,17 @@ static void aw210xx_brightness(struct aw210xx *led)
 	struct aw210xx *aw210xx_id1 = NULL;
 	int led_groups_num = led->pdata->led->led_groups_num;
 
-	AW_LOG("id = %d brightness = %d\n", led->id, led->cdev.brightness);
+	AW_LOG("id = %d brightness = %d, boot_mode = %d \n", led->id, led->cdev.brightness,get_boot_mode());
 	if (led->id > 5) {
 		AW_LOG("id = %d ,return\n", led->id);
 		return ;
 	}
 
-	/*
 	if (get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT ||
 		get_boot_mode() == LOW_POWER_OFF_CHARGING_BOOT) {
 		AW_LOG("boot_mode is power_off_charging");
 		return;
 	}
-	*/
 
 	if (led_groups_num == 8) {
 		if (aw210xx_g_chip[1][0] == NULL) {
@@ -1663,10 +1763,17 @@ void aw210xx_chipen_set(struct aw210xx *aw210xx, bool flag)
 static int aw210xx_hw_enable(struct aw210xx *aw210xx, bool flag)
 {
 	int ret = 0;
-	int led_groups_num = aw210xx->led_groups_num;
+	int led_groups_num = 0;
 	struct aw210xx *aw210xx_id1 = NULL;
+
+	if (aw210xx == NULL){
+		AW_LOG("aw210xx is NULL\n");
+		return -1;
+	}
+
 	AW_LOG("enter\n");
 
+	led_groups_num = aw210xx->led_groups_num;
 	if (led_groups_num == 8) {
 		if (aw210xx_g_chip[1][0] == NULL) {
 			AW_LOG("aw210xx_g_chip[1][0] is NULL \n");
@@ -1675,7 +1782,7 @@ static int aw210xx_hw_enable(struct aw210xx *aw210xx, bool flag)
 		}
 	}
 
-	if (aw210xx && gpio_is_valid(aw210xx->enable_gpio) && gpio_is_valid(aw210xx->vbled_enable_gpio)) {
+	if (gpio_is_valid(aw210xx->enable_gpio) && gpio_is_valid(aw210xx->vbled_enable_gpio)) {
 		if (flag) {
 			gpio_set_value_cansleep(aw210xx->enable_gpio, 1);
 			if (aw210xx->led_groups_num == 8 && aw210xx_id1 != NULL) {
@@ -1700,7 +1807,7 @@ static int aw210xx_hw_enable(struct aw210xx *aw210xx, bool flag)
 			gpio_set_value_cansleep(aw210xx->vbled_enable_gpio, 0);
 			aw210xx->led_enable = false;
 		}
-	} else if (aw210xx && gpio_is_valid(aw210xx->enable_gpio) && (!IS_ERR_OR_NULL(aw210xx->vbled))) {
+	} else if (gpio_is_valid(aw210xx->enable_gpio) && (!IS_ERR_OR_NULL(aw210xx->vbled))) {
 		if (flag) {
 			gpio_set_value_cansleep(aw210xx->enable_gpio, 1);
 			if (aw210xx->led_groups_num == 8 && aw210xx_id1 != NULL) {
@@ -2558,6 +2665,7 @@ void store_effect_color_and_brightness(char *tmp_buf)
 			}
 			break;
 		case NOTIFY_EFFECT:
+			effect_state.data[AW210XX_LED_NOTIFY_MODE] = 1;
 			rgb_notify_list[0].r = (rgb >> 16) & 0xff; rgb_notify_list[0].g = (rgb >> 8) & 0xff; rgb_notify_list[0].b = rgb & 0xff;
 			br_notify_fadeh[0].r = (br_rgb >> 16) & 0xff; br_notify_fadeh[0].g = (br_rgb >> 8) & 0xff; br_notify_fadeh[0].b = br_rgb & 0xff;
 			break;
@@ -2726,8 +2834,11 @@ static ssize_t aw210xx_l_type_attr_store(struct device *dev,
 			if( (data >=0) && (data <= 4)) {
 				effect_state.data[AW210XX_LED_CHARGE_MODE] = data;
 			}
+			if( val == 0)
+				effect_state.state[lmode] = val;
 
-			if(effect_state.state[AW210XX_LED_CHARGE_MODE] == val) {
+			if(effect_state.state[lmode] != 0) {
+				AW_ERR("skip charger state setting state = %d\n", effect_state.state[lmode] );
 				goto errout;
 			}
 		}
@@ -3791,6 +3902,11 @@ static int aw210xx_i2c_probe(struct i2c_client *i2c,
 	struct aw210xx *aw210xx;
 	struct device_node *np = i2c->dev.of_node;
 	int ret, num_leds = 0, i = 0;
+	if (get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT ||
+		get_boot_mode() == LOW_POWER_OFF_CHARGING_BOOT) {
+		AW_LOG("boot_mode is power_off_charging skip probe");
+		return 0;
+	}
 
 	AW_LOG("enter\n");
 

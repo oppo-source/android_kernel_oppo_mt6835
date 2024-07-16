@@ -557,7 +557,11 @@ static int tcpc_typec_port_type_set(struct typec_port *port, enum typec_port_typ
 			typec_role = TYPEC_ROLE_TRY_SNK;
 		else
 			typec_role = TYPEC_ROLE_DRP;
+#ifndef OPLUS_FEATURE_CHG_BASIC
 		return tcpm_typec_change_role(rpmd->tcpc, typec_role);
+#else
+		return tcpm_typec_change_role_postpone(rpmd->tcpc, typec_role, false);
+#endif
 	default:
 		return 0;
 	}

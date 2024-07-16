@@ -370,18 +370,23 @@ static void write_cmos_sensor_8(kal_uint32 addr, kal_uint32 para)
 static void table_write_cmos_sensor(kal_uint16 *para, kal_uint32 len)
 {
     char puSendCmd[I2C_BUFFER_LEN];
-    kal_uint32 tosend = 0, idx = 0;
-    kal_uint16 addr = 0, data = 0;
+    kal_uint32 tosend, IDX;
+    kal_uint16 addr = 0, addr_last = 0, data;
 
-    while (len > idx) {
-        addr = para[idx];
+    tosend = 0;
+    IDX = 0;
+    while (len > IDX) {
+        addr = para[IDX];
+    {
         puSendCmd[tosend++] = (char)((addr >> 8) & 0xff);
         puSendCmd[tosend++] = (char)(addr & 0xff);
-        data = para[idx + 1];
+        data = para[IDX + 1];
         puSendCmd[tosend++] = (char)(data & 0xff);
-        idx += 2;
+        IDX += 2;
+        addr_last = addr;
+    }
 #if MULTI_WRITE
-        if (tosend >= I2C_BUFFER_LEN || idx == len) {
+        if ((I2C_BUFFER_LEN - tosend) < 3 || IDX == len || addr != addr_last) {
             iBurstWriteReg_multi(puSendCmd, tosend, imgsensor.i2c_write_id,
                     3, imgsensor_info.i2c_speed);
             tosend = 0;

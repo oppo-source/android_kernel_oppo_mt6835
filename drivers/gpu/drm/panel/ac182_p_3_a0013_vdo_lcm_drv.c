@@ -75,14 +75,14 @@ extern unsigned int g_shutdown_flag;
 #include "../bias/oplus23661_aw37501_bias.h"
 #include <linux/reboot.h>
 
-#define MAX_NORMAL_BRIGHTNESS    (3276)
+#define MAX_NORMAL_BRIGHTNESS    (3319)
 
 static int cabc_status = 0;
 static int esd_brightness;
 static unsigned char g_gammaflag = 0;
 
 extern unsigned int oplus_display_brightness;
-extern unsigned long oplus_max_normal_brightness;
+extern unsigned int oplus_max_normal_brightness;
 extern unsigned long esd_flag;
 
 struct lcm {

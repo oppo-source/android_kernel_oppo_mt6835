@@ -315,6 +315,35 @@ static void jdi_panel_init(struct jdi *ctx)
         jdi_dcs_write_seq_static(ctx, 0x84, 0x00);
 
         /*cabc begin*/
+        /*3% MODE1*/
+        jdi_dcs_write_seq_static(ctx, 0xAF, 0x18);
+        jdi_dcs_write_seq_static(ctx, 0x80, 0x04);
+        jdi_dcs_write_seq_static(ctx, 0x81, 0x04);
+        jdi_dcs_write_seq_static(ctx, 0x82, 0x04);
+        jdi_dcs_write_seq_static(ctx, 0xB6, 0x84);
+        jdi_dcs_write_seq_static(ctx, 0x88, 0xEE);
+        jdi_dcs_write_seq_static(ctx, 0x89, 0xEE);
+        jdi_dcs_write_seq_static(ctx, 0x8A, 0xEF);
+        jdi_dcs_write_seq_static(ctx, 0x8B, 0xF1);
+        jdi_dcs_write_seq_static(ctx, 0xA6, 0xEF);
+        jdi_dcs_write_seq_static(ctx, 0xAC, 0xEF);
+
+        /*7% MODE2*/
+        jdi_dcs_write_seq_static(ctx, 0xB7, 0x84);
+        jdi_dcs_write_seq_static(ctx, 0x8C, 0xE4);
+        jdi_dcs_write_seq_static(ctx, 0x8D, 0xE4);
+        jdi_dcs_write_seq_static(ctx, 0x8E, 0xE5);
+        jdi_dcs_write_seq_static(ctx, 0x8F, 0xE5);
+        jdi_dcs_write_seq_static(ctx, 0x90, 0xE5);
+        jdi_dcs_write_seq_static(ctx, 0x91, 0xE6);
+        jdi_dcs_write_seq_static(ctx, 0x92, 0xE6);
+        jdi_dcs_write_seq_static(ctx, 0x93, 0xE6);
+        jdi_dcs_write_seq_static(ctx, 0x94, 0xE6);
+        jdi_dcs_write_seq_static(ctx, 0x95, 0xE6);
+        jdi_dcs_write_seq_static(ctx, 0xA7, 0xE6);
+        jdi_dcs_write_seq_static(ctx, 0xAD, 0xE6);
+
+        /*11.5% MODE3*/
         jdi_dcs_write_seq_static(ctx, 0xB8, 0x84);
         jdi_dcs_write_seq_static(ctx, 0x96, 0x60);
         jdi_dcs_write_seq_static(ctx, 0x97, 0x9B);
