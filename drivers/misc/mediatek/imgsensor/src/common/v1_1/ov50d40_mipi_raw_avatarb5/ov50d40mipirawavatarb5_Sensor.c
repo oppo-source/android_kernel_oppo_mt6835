@@ -134,16 +134,16 @@ static struct imgsensor_info_struct imgsensor_info = {
     },
 
     .custom1 = {
-        .pclk = 100000000, /*4080x3072@30.3fps*/
+        .pclk = 100000000, /*2040x1536_30.1fps*/
         .linelength = 850,
         .framelength = 3920,
-        .startx = 0,
+        .startx =0,
         .starty = 0,
-        .grabwindow_width = 4080,
-        .grabwindow_height = 3072,
+        .grabwindow_width = 2040,
+        .grabwindow_height = 1536,
         .mipi_data_lp2hs_settle_dc = 85,
-        .max_framerate = 303,
-        .mipi_pixel_rate = 760800000,
+        .max_framerate = 300,
+        .mipi_pixel_rate = 540000000,
     },
 
     .custom2 = {
@@ -173,7 +173,7 @@ static struct imgsensor_info_struct imgsensor_info = {
     },
 
     .margin = 31,                    /* sensor framelength & shutter margin */
-    .min_shutter = 20,                /* min shutter */
+    .min_shutter = 10,                /* min shutter */
     .min_gain = 64, /*1x gain*/
     .max_gain = 3968, /*64x gain*/
     .video_max_gain = 992, /*15.5x gain*/
@@ -231,13 +231,13 @@ static struct SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[8] = {
 	{ 8192,  6144,  16, 776,  8160,  4592,  4080,  2296,  0000,  0000,  4080,  2296,  0,  0,  4080,  2296},	/*normal video*/
 	{ 8192,  6144, 256, 912,  7680,  4320,  1280,  720,   0000,  0000,  1280,  720,   0,  0,  1280,  720},	/*hs video*/
 	{ 8192,  6144,  16, 776,  8160,  4592,  4080,  2296,  0000,  0000,  4080,  2296,  0,  0,  4080,  2296},	/*slim video*/
-	{ 8192,  6144,  16,   0,  8160,  6144,  4080,  3072,  0000,  0000,  4080,  3072,  0,  0,  4080,  3072},	/*custom1 DualCam */
+	{ 8192,  6144,  16,   0,  8160,  6144,  2040,  1536,  0000,  0000,  2040,  1536,  0,  0,  2040,  1536},	/*custom1 3rd */
 	{ 8192,  6144,  16,   0,  8160,  6144,  4080,  3072,  0000,  0000,  4080,  3072,  0,  0,  4080,  3072},	/*custom2 DualCam */
 	{ 8192,  6144, 256, 912,  7680,  4320,  3840,  2160,  0000,  0000,  3840,  2160,  0,  0,  3840,  2160},	/*custom3 video 60fps*/
 };
 
 #if PDAF_SUPPORT
-static struct SENSOR_VC_INFO_STRUCT SENSOR_VC_INFO[4] = {
+static struct SENSOR_VC_INFO_STRUCT SENSOR_VC_INFO[5] = {
     /* preview mode setting */
     {
         0x02, 0x0a, 0x0000, 0x0008, 0x40, 0x00,
@@ -261,6 +261,12 @@ static struct SENSOR_VC_INFO_STRUCT SENSOR_VC_INFO[4] = {
         0x02, 0x0a, 0x0000, 0x0008, 0x40, 0x00,
         0x00, 0x2b, 0x0F00, 0x0870, 0x00, 0x00, 0x0000, 0x0000, //3840*2160
         0x01, 0x2B, 0x03C0, 0x021C, 0x03, 0x00, 0x0000, 0x0000 //960x540
+    },
+    /* custom1 3rd 30fps mode setting */
+    {
+        0x02, 0x0a, 0x0000, 0x0008, 0x40, 0x00,
+        0x00, 0x2b, 0x07F8, 0x0600, 0x00, 0x00, 0x0000, 0x0000,//2040*1536
+        0x01, 0x2B, 0x04D8, 0x02F8, 0x03, 0x00, 0x0000, 0x0000 //992*760
     },
 };
 static struct SET_PD_BLOCK_INFO_T imgsensor_pd_info_cap = {
@@ -467,41 +473,25 @@ static void write_shutter(kal_uint32 shutter)
     // Framelength should be an even number
     shutter = (shutter >> 1) << 1;
     imgsensor.frame_length = (imgsensor.frame_length >> 1) << 1;
+    LOG_INF("write_shutter _is_binning_size %d shutter %d lastshutter %d %d frame_length %d",
+        _is_binning_size, shutter, imgsensor.lastshutter, imgsensor.shutter, imgsensor.frame_length);
+
+    if(_is_binning_size) {
+        if ((imgsensor.lastshutter <= imgsensor.frame_length) && (imgsensor.frame_length <= (imgsensor.lastshutter+3))) {
+           imgsensor.frame_length = imgsensor.lastshutter+4;
+        }
+    } else {
+        if ((imgsensor.lastshutter <= imgsensor.frame_length) && (imgsensor.frame_length <= (imgsensor.lastshutter+6))) {
+            imgsensor.frame_length = imgsensor.lastshutter+8;
+        }
+    }
+
     if (imgsensor.autoflicker_en) {
         realtime_fps = imgsensor.pclk / imgsensor.line_length * 10 / imgsensor.frame_length;
         if (realtime_fps >= 297 && realtime_fps <= 305)
             set_max_framerate(296, 0);
         else if (realtime_fps >= 147 && realtime_fps <= 150)
             set_max_framerate(146, 0);
-        else {
-             // Extend frame length
-             write_cmos_sensor(0x3208, 0x00);
-             if (_is_binning_size){
-                 write_cmos_sensor(0x3840, imgsensor.frame_length*2 >> 16);
-                 write_cmos_sensor(0x380e, imgsensor.frame_length*2 >>  8);
-                 write_cmos_sensor(0x380f, imgsensor.frame_length*2 & 0xFF);
-             }else{
-                 write_cmos_sensor(0x3840, imgsensor.frame_length >> 16);
-                 write_cmos_sensor(0x380e, imgsensor.frame_length >>  8);
-                 write_cmos_sensor(0x380f, imgsensor.frame_length & 0xFF);
-             }
-              write_cmos_sensor(0x3208, 0x10);
-              write_cmos_sensor(0x3208, 0xa0);
-        }
-    } else {
-        // Extend frame length
-        write_cmos_sensor(0x3208, 0x00);
-            if (_is_binning_size){
-                write_cmos_sensor(0x3840, imgsensor.frame_length*2 >> 16);
-                write_cmos_sensor(0x380e, imgsensor.frame_length*2 >>  8);
-                write_cmos_sensor(0x380f, imgsensor.frame_length*2 & 0xFF);
-            }else{
-                write_cmos_sensor(0x3840, imgsensor.frame_length >> 16);
-                write_cmos_sensor(0x380e, imgsensor.frame_length >>  8);
-                write_cmos_sensor(0x380f, imgsensor.frame_length & 0xFF);
-            }
-        write_cmos_sensor(0x3208, 0x10);
-        write_cmos_sensor(0x3208, 0xa0);
     }
     // Update Shutter
     write_cmos_sensor(0x3208, 0x01);
@@ -522,6 +512,7 @@ static void write_shutter(kal_uint32 shutter)
     }
     write_cmos_sensor(0x3208, 0x11);
     write_cmos_sensor(0x3208, 0xa1);
+    imgsensor.lastshutter = shutter;
     LOG_INF("shutter =%d, framelength =%d, realtime_fps =%d\n",
             shutter, imgsensor.frame_length, realtime_fps);
 }
@@ -1913,7 +1904,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
     case SENSOR_FEATURE_GET_BINNING_TYPE:
         switch (*(feature_data + 1)) {
             default:
-                *feature_return_para_32 = 1; /*BINNING_AVERAGED*/
+                *feature_return_para_32 = 1470; /*BINNING_AVERAGED*/
                 break;
             }
         LOG_INF("SENSOR_FEATURE_GET_BINNING_TYPE AE_binning_type:%d,\n",
@@ -1938,9 +1929,12 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
                        sizeof(struct SENSOR_VC_INFO_STRUCT));
                 break;
             case MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG:
-            case MSDK_SCENARIO_ID_CUSTOM1:
             case MSDK_SCENARIO_ID_CUSTOM2:
                 memcpy((void *)pvcinfo, (void *)&SENSOR_VC_INFO[1],
+                       sizeof(struct SENSOR_VC_INFO_STRUCT));
+                break;
+            case MSDK_SCENARIO_ID_CUSTOM1:
+                memcpy((void *)pvcinfo, (void *)&SENSOR_VC_INFO[4],
                        sizeof(struct SENSOR_VC_INFO_STRUCT));
                 break;
             case MSDK_SCENARIO_ID_VIDEO_PREVIEW:

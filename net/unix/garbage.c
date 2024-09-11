@@ -258,7 +258,6 @@ void unix_gc(void)
 			list_move_tail(&u->link, &gc_candidates);
 			__set_bit(UNIX_GC_CANDIDATE, &u->gc_flags);
 			__set_bit(UNIX_GC_MAYBE_CYCLE, &u->gc_flags);
-			
 			if (sk->sk_state == TCP_LISTEN) {
 				unix_state_lock(sk);
 				unix_state_unlock(sk);

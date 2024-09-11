@@ -7,7 +7,8 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/    \
              -I$(srctree)/drivers/misc/mediatek/mtk-interconnect/   \
              -I$(srctree)/drivers/misc/mediatek/slbc/
 #/* #endif OPLUS_FEATURE_DISPLAY */
-
+obj-$(CONFIG_DRM_PANEL_TD4160_HXCD_AB5_VDO_LCM_DRV) += td4160_hxcd_ab5_vdo_lcm_drv.o
+obj-$(CONFIG_DRM_PANEL_JD9365TG_TOKEN_AB5_VDO_LCM_DRV) += jd9365tg_token_ab5_vdo_lcm_drv.o
 obj-$(CONFIG_DRM_PANEL_TD4160_HX_AB5_VDO_LCM_DRV) += td4160_hx_ab5_vdo_lcm_drv.o
 obj-$(CONFIG_DRM_PANEL_ILI9883C_TXD_AB5_VDO_LCM_DRV) += ili9883c_txd_ab5_vdo_lcm_drv.o
 obj-$(CONFIG_DRM_PANEL_AC182_P_3_A0013_VDO_LCM_DRV) += ac182_p_3_a0013_vdo_lcm_drv.o

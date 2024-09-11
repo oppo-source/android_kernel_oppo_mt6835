@@ -67,6 +67,12 @@ extern int (*tp_gesture_enable_notifier)(unsigned int tp_index);
 static bool is_pd_with_guesture = false;
 extern unsigned int g_shutdown_flag;
 
+static void lcm_cabc_mode_switch(void *dsi, dcs_write_gce cb,
+		void *handle, unsigned int cabc_mode);
+static void lcm_cabc_mode_switch_to0(void *dsi, dcs_write_gce cb,
+		void *handle, unsigned int cabc_mode);
+#define OFF_CABC_LOW_BRIGHTNESS_LEVEL  18
+int set_low_brightness_cabc_mode = 0;
 
 #ifdef CONFIG_MTK_ROUND_CORNER_SUPPORT
 #include "../mediatek/mediatek_v2/mtk_corner_pattern/ili9883c_txd_ab5_data_hw_roundedpattern.h"
@@ -164,6 +170,10 @@ static void push_table(struct lcm *ctx, struct LCM_setting_table *table,
 static void lcm_init_set_cabc(struct lcm *ctx, int cabc_mode)
 {
 	pr_info("%s [lcm] init set cabc_mode %d\n", __func__, cabc_mode);
+	if(set_low_brightness_cabc_mode == 1) {
+		pr_info("%s()  set_low_brightness_cabc_mode ture, cabc_mode =%d return!\n",	__func__, cabc_mode);
+		return;
+	}
 	lcm_dcs_write_seq_static(ctx, 0xFF, 0x98, 0x83, 0x00);
 	if (cabc_mode == 0) {
 		lcm_dcs_write_seq_static(ctx, 0x55, 0x00);
@@ -483,6 +493,18 @@ static int lcm_setbacklight_cmdq(void *dsi, dcs_write_gce cb,
 	if (!cb)
 		return -1;
 	pr_info("%s+: level =  %d\n", __func__, level);
+
+	if((0 < level) && (level <= OFF_CABC_LOW_BRIGHTNESS_LEVEL) && (set_low_brightness_cabc_mode == 0)) {
+		lcm_cabc_mode_switch_to0(dsi, cb, handle, 0);
+		set_low_brightness_cabc_mode = 1;
+		pr_info("level <= %d ,set set_low_brightness_cabc_mode 0\n", OFF_CABC_LOW_BRIGHTNESS_LEVEL);
+	} else if ((level > OFF_CABC_LOW_BRIGHTNESS_LEVEL) && (set_low_brightness_cabc_mode == 1)) {
+		set_low_brightness_cabc_mode = 0;
+		lcm_cabc_mode_switch(dsi, cb, handle, cabc_status);
+		pr_info("level > %d ,cabc_status %d\n", OFF_CABC_LOW_BRIGHTNESS_LEVEL, cabc_status);
+	}
+
+
 	/*
 	if (level < 9 && level > 0 && g_gammaflag == 0) {
 		g_gammaflag = 1;
@@ -686,15 +708,35 @@ static int oplus_esd_backlight_recovery(void *dsi, dcs_write_gce cb,
 	return 1;
 }
 
+static void lcm_cabc_mode_switch_to0(void *dsi, dcs_write_gce cb,
+		void *handle, unsigned int cabc_mode)
+{
+	unsigned char cabc_cmd_page0[] = {0xFF, 0x98, 0x83, 0x00};
+	unsigned char cabc_cmd_1[] = {0x55, 0x00};
+	unsigned char cabc_cmd_2[] = {0x53, 0x2C};
+
+	cb(dsi, handle, cabc_cmd_page0, ARRAY_SIZE(cabc_cmd_page0));
+	cb(dsi, handle, cabc_cmd_2, ARRAY_SIZE(cabc_cmd_2));
+	cb(dsi, handle, cabc_cmd_1, ARRAY_SIZE(cabc_cmd_1));
+	pr_info("%s [lcd_info]:cabc mode_%d, set cabc_para=%#x\n", __func__, cabc_mode, cabc_cmd_2[1]);
+}
+
+
 static void lcm_cabc_mode_switch(void *dsi, dcs_write_gce cb,
 		void *handle, unsigned int cabc_mode)
 {
 	unsigned char cabc_cmd_page0[] = {0xFF, 0x98, 0x83, 0x00};
 	unsigned char cabc_cmd_1[] = {0x55, 0x00};
 	unsigned char cabc_cmd_2[] = {0x53, 0x2C};
-	cabc_status = cabc_mode;
 
+	cabc_status = cabc_mode;
 	pr_info("%s: begin+ cabc_mode = %d!\n", __func__, cabc_mode);
+	if(set_low_brightness_cabc_mode == 1) {
+		pr_info("%s()  set_low_brightness_cabc_mode ture, cabc_mode =%d return!\n",	__func__, cabc_mode);
+		return;
+	}
+
+
 	if (0 == cabc_mode) {
 		/* off mode */
 		cabc_cmd_1[1] = 0x00;

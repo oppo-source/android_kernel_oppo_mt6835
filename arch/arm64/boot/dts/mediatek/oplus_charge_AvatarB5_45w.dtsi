@@ -487,6 +487,8 @@
 		qcom,voocphy_freq_maxcore = <1543000>;
 		qcom,voocphy_current_change_timeout = <100>;
 
+		oplus,workaround_for_100w;
+
 		svooc_batt_sys_curve = <0 1 0 1 0 0 1	// 4100mA
 					0 0 0 0 0 0 1	// 3414mV
 					0 0 1 0 1 0 0	// 2000mA

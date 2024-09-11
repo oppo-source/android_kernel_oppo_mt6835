@@ -224,16 +224,29 @@ long GT9772AF_24031_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
 int GT9772AF_24031_Release(struct inode *a_pstInode, struct file *a_pstFile)
 {
 	int Ret = 0;
+	unsigned long currPosition = g_u4CurrPosition;
 
 	LOG_INF("Start\n");
 
 	if (*g_pAF_Opened == 2) {
-		setPosition(300);
-		mdelay(15);
+		LOG_INF("Wait\n");
+		if (currPosition > 400) {
+			setPosition(400);
+			usleep_range(5000, 6000);
+			currPosition = 400;
+		}
+		while (currPosition > 40) {
+			if (currPosition > 200)
+				currPosition -= 80;
+			else
+				currPosition -= 40;
+			setPosition((unsigned short)currPosition);
+			LOG_INF("currPosition=%d ",currPosition);
+			usleep_range(2000, 3000);
+		}
 		s4AF_WriteReg(0, 0x06, 0x8A);
 		setPosition(0);
-		mdelay(30);
-		LOG_INF("apply\n");
+		usleep_range(2000, 3000);
 	}
 
 	if (*g_pAF_Opened) {

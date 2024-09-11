@@ -66,7 +66,6 @@ extern unsigned int oplus_display_brightness;
 static int esd_brightness;
 extern unsigned int last_backlight;
 extern unsigned int get_PCB_Version(void);
-extern int oplus_display_panel_dbv_probe(struct device *dev);
 
 static unsigned int temp_seed_mode = 0;
 /* whether enter hbm brightness level or not */
@@ -1253,39 +1252,6 @@ static int lcm_esd_gpio_read(struct drm_panel *panel)
 	return ret;
 }
 
-static int oplus_display_panel_set_hbm_max(void *dsi, dcs_write_gce cb, void *handle, unsigned int en)
-{
-	unsigned int lcm_cmd_count = 0;
-	unsigned int i = 0;
-	struct LCM_setting_table *table = NULL;
-	unsigned int level = oplus_display_brightness;
-
-	DISP_ERR("[DISP][INFO][%s: en=%d\n", __func__, en);
-	if (!dsi || !cb) {
-		pr_err("Invalid params\n");
-		return -EINVAL;
-	}
-
-
-	if (en) {
-		table = dsi_switch_hbm_apl_on;
-		lcm_cmd_count = sizeof(dsi_switch_hbm_apl_on) / sizeof(struct LCM_setting_table);
-		for (i = 0; i < lcm_cmd_count; i++) {
-			cb(dsi, handle, table[i].para_list, table[i].count);
-		}
-		DISP_ERR("[DISP][INFO]Enter hbm max mode, set last_backlight as %d", last_backlight);
-	} else if (!en) {
-		table = dsi_switch_hbm_apl_off;
-		lcm_cmd_count = sizeof(dsi_switch_hbm_apl_off) / sizeof(struct LCM_setting_table);
-		for (i = 0; i < lcm_cmd_count; i++) {
-			cb(dsi, handle, table[i].para_list, table[i].count);
-		}
-		DISP_ERR("[DISP][INFO][%s: hbm_max off, restore bl:%d\n", __func__, level);
-	}
-
-	return 0;
-}
-
 static struct mtk_panel_funcs ext_funcs = {
 	.reset = panel_ext_reset,
 	.set_backlight_cmdq = lcm_setbacklight_cmdq,
@@ -1298,7 +1264,6 @@ static struct mtk_panel_funcs ext_funcs = {
 	.esd_backlight_recovery = oplus_esd_backlight_recovery,
 	.set_seed = panel_set_seed,
 	.esd_read_gpio = lcm_esd_gpio_read,
-	.lcm_set_hbm_max_vdo = oplus_display_panel_set_hbm_max,
 /* #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 	.set_hbm = lcm_set_hbm,
 	.hbm_set_cmdq = panel_hbm_set_cmdq,
@@ -1446,7 +1411,7 @@ static int lcm_probe(struct mipi_dsi_device *dsi)
 		return ret;
 
 #endif
-	oplus_display_panel_dbv_probe(dev);
+
 	register_device_proc("lcd", "AC176_P_1_A0017", "P_1");
 /* #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 	oplus_ofp_set_fp_type(&fp_type);

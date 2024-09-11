@@ -13,7 +13,6 @@
 		label = "lcd-backlight";
 		max-brightness = <4095>;
 		max-hw-brightness = <4095>;
-	        oplus,panel-max-brightness=<4094>;
 		min-brightness = <1>;
 		min-hw-brightness = <1>;
 		led_mode = <4>;

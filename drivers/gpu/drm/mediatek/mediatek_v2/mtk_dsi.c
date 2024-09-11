@@ -11259,12 +11259,6 @@ static int mtk_dsi_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
 			DDPINFO("%s dsi set hbm apl state\n", __func__);
 			panel_ext->funcs->lcm_set_hbm_max(dsi, mtk_dsi_cmdq_pack_gce, handle, *(unsigned int *)params);
 		}
-		/*vdo mode*/
-		if (panel_ext && panel_ext->funcs
-			&& panel_ext->funcs->lcm_set_hbm_max_vdo) {
-			DDPINFO("%s dsi set hbm apl state\n", __func__);
-			panel_ext->funcs->lcm_set_hbm_max_vdo(dsi, mipi_dsi_dcs_write_gce, handle, *(unsigned int *)params);
-		}
 	}
 		break;
 	case CONNECTOR_PANEL_SHUTDOWN:

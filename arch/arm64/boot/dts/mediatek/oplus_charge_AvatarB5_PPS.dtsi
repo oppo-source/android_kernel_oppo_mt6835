@@ -5,7 +5,7 @@
 
 &charger {
 	oplus,pps_ops = "cp-sc6607";
-	oplus,pps_region_list = <0x00 0x3B 0x44 0x89 0x8B>;
+	oplus,pps_region_list = <0x00 0x3B 0x44 0x89 0x8B 0x83>;
 	oplus,pps_support_type = <4>;
 	oplus,pps_support_third = <1>;
 	oplus,pps_use_cp_vbat;

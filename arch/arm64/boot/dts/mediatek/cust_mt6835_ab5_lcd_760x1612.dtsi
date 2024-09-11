@@ -174,10 +174,36 @@
         compatible = "td4160,hx,ab5,vdo,lcm";
         reg = <1>;
         reset-gpios = <&pio 86 0>;
+        tpreset-gpios = <&pio 171 0>;
         bias-gpios = <&pio 150 0>, <&pio 151 0>;
         pinctrl-names = "default";
         port {
             panel_in7: endpoint {
+                remote-endpoint = <&dsi_out>;
+            };
+        };
+    };
+    panel10@9 {
+        compatible = "jd9365tg,token,ab5,vdo,lcm";
+        reg = <2>;
+        reset-gpios = <&pio 86 0>;
+        bias-gpios = <&pio 150 0>, <&pio 151 0>;
+        pinctrl-names = "default";
+        port {
+            panel_in10: endpoint {
+                remote-endpoint = <&dsi_out>;
+            };
+        };
+    };
+    panel11@10 {
+        compatible = "td4160,hxcd,ab5,vdo,lcm";
+        reg = <3>;
+        reset-gpios = <&pio 86 0>;
+        tpreset-gpios = <&pio 171 0>;
+        bias-gpios = <&pio 150 0>, <&pio 151 0>;
+        pinctrl-names = "default";
+        port {
+            panel_in11: endpoint {
                 remote-endpoint = <&dsi_out>;
             };
         };
@@ -197,6 +223,10 @@
         reg = <0x3e>;
         status = "okay";
     };
+};
+
+&disp_ccorr0 {
+    oplus_set_ccorr_matrix = <1>;
 };
 
 #include  "mediatek/cust_evb6835.dtsi"

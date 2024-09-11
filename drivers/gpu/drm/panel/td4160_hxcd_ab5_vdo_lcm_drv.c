@@ -1,6 +1,6 @@
 /***********************************************************
 ** Copyright (C), 2008-2016, OPPO Mobile Comm Corp., Ltd.
-** File: td4160_hx_ab5_vdo_lcm_drv.c
+** File: td4160_hxcd_ab5_vdo_lcm_drv.c
 ** Description: source file for lcm ab5 in kernel stage
 **
 ** Version: 1.0
@@ -75,9 +75,9 @@ static void lcm_cabc_mode_switch_to0(void *dsi, dcs_write_gce cb,
 int set_low_brightness_cabc_mode = 0;
 
 #ifdef CONFIG_MTK_ROUND_CORNER_SUPPORT
-#include "../mediatek/mediatek_v2/mtk_corner_pattern/td4160_hx_ab5_data_hw_roundedpattern.h"
+#include "../mediatek/mediatek_v2/mtk_corner_pattern/td4160_hxcd_ab5_data_hw_roundedpattern.h"
 #endif
-#include "include/td4160_hx_ab5_vdo_lcm_drv.h"
+#include "include/td4160_hxcd_ab5_vdo_lcm_drv.h"
 #include "../bias/oplus23661_aw37501_bias.h"
 #include <linux/reboot.h>
 
@@ -243,7 +243,7 @@ static void lcm_panel_init(struct lcm *ctx)
 	0x00, 0x00, 0x01, 0x00, 0x50, 0x00, 0x33, 0x03, 0x00, 0x00);
 	lcm_dcs_write_seq_static(ctx, 0xCB, 0x02, 0xd0, 0x01, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x40, 0x70, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff);
-	lcm_dcs_write_seq_static(ctx, 0xCE, 0x7f, 0xcc, 0xcc, 0xdc, 0xdc, 0xdc, 0xd9, 0xda, 0xdc, 0xd9, 0xd9, 0xd9, 0xd8, 0xd9, 0xd8, 0xd8, 0xcc, 0x07,
+	lcm_dcs_write_seq_static(ctx, 0xCE, 0x3f, 0x01, 0x01, 0xdc, 0xdc, 0xdc, 0xd9, 0xda, 0xdc, 0xd9, 0xd9, 0xd9, 0xd8, 0xd9, 0xd8, 0xd8, 0xcc, 0x07,
 	0x0f, 0x00, 0x00, 0x00, 0x04, 0x8c);
 	lcm_dcs_write_seq_static(ctx, 0xCF, 0x00);
 	lcm_dcs_write_seq_static(ctx, 0xD0, 0xc1, 0x50, 0x81, 0x66, 0x09, 0x90, 0x00, 0xd5, 0x92, 0x9f, 0x11, 0x3c, 0x06, 0x7e, 0x09, 0x08, 0xdc, 0x1b,
@@ -450,8 +450,8 @@ static const struct drm_display_mode disp_mode_120HZ = {
 static struct mtk_panel_params ext_params_60HZ = {/* 60hz */
 	.pll_clk = MIPI_CLK,
 	.data_rate = DATA_RATE,
-	.vendor = "TD4160_HX_02",
-	.manufacture = "60_02",
+	.vendor = "TD4160_HXCD_04",
+	.manufacture = "60_04",
 	.cust_esd_check = 1,
 	.esd_check_enable = 1,
 	.lcm_esd_check_table[0] = {
@@ -497,8 +497,8 @@ static struct mtk_panel_params ext_params_60HZ = {/* 60hz */
 static struct mtk_panel_params ext_params_90HZ = {/* 90hz */
 	.pll_clk = MIPI_CLK,
 	.data_rate = DATA_RATE,
-	.vendor = "TD4160_HX_02",
-	.manufacture = "90_02",
+	.vendor = "TD4160_HXCD_04",
+	.manufacture = "90_04",
 	.cust_esd_check = 1,
 	.esd_check_enable = 1,
 	.lcm_esd_check_table[0] = {
@@ -542,8 +542,8 @@ static struct mtk_panel_params ext_params_90HZ = {/* 90hz */
 static struct mtk_panel_params ext_params_120HZ = {/* 120hz */
 	.pll_clk = MIPI_CLK,
 	.data_rate = DATA_RATE,
-	.vendor = "TD4160_HX_02",
-	.manufacture = "120_02",
+	.vendor = "TD4160_HXCD_04",
+	.manufacture = "120_04",
 	.cust_esd_check = 1,
 	.esd_check_enable = 1,
 	.lcm_esd_check_table[0] = {
@@ -696,7 +696,7 @@ static int lcm_panel_poweron(struct drm_panel *panel)
 
 	if (ctx->prepared)
 		return 0;
-	pr_info("%s: td4160_hx_ab5 lcm ctx->prepared %d\n", __func__, ctx->prepared);
+	pr_info("%s: td4160_hxcd_ab5 lcm ctx->prepared %d\n", __func__, ctx->prepared);
 
 	blank = LCD_CTL_IRQ_OFF;
 	mtk_disp_notifier_call_chain(MTK_DISP_EVENT_FOR_TOUCH, &blank);
@@ -753,7 +753,7 @@ static int lcm_panel_poweroff(struct drm_panel *panel)
 	if (ctx->prepared)
 		return 0;
 
-	pr_err("[TP] td4160_hx_ab5 g_shutdown_flag is %d, esd_flag is %d\n", g_shutdown_flag, esd_flag);
+	pr_err("[TP] td4160_hxcd_ab5 g_shutdown_flag is %d, esd_flag is %d\n", g_shutdown_flag, esd_flag);
 	if (tp_gesture_enable_notifier && tp_gesture_enable_notifier(0) && (g_shutdown_flag == 0)) {
 		is_pd_with_guesture = true;
 		flag_poweroff = 0;
@@ -1027,7 +1027,7 @@ static int lcm_probe(struct mipi_dsi_device *dsi)
 		return ret;
 #endif
 
-	register_device_proc("lcd", "td4160_hx_01", "AB5_V02");
+	register_device_proc("lcd", "td4160_hxcd_04", "AB5_V04");
 	oplus_max_normal_brightness = MAX_NORMAL_BRIGHTNESS;
 	mode = get_boot_mode();
 	pr_info("%s Successful-\n", __func__);
@@ -1058,7 +1058,7 @@ static int lcm_remove(struct mipi_dsi_device *dsi)
 }
 
 static const struct of_device_id lcm_of_match[] = {
-	{ .compatible = "td4160,hx,ab5,vdo,lcm", },
+	{ .compatible = "td4160,hxcd,ab5,vdo,lcm", },
 	{ }
 };
 
@@ -1068,7 +1068,7 @@ static struct mipi_dsi_driver lcm_driver = {
 	.probe = lcm_probe,
 	.remove = lcm_remove,
 	.driver = {
-		.name = "td4160_hx_ab5_vdo_lcm_drv",
+		.name = "td4160_hxcd_ab5_vdo_lcm_drv",
 		.owner = THIS_MODULE,
 		.of_match_table = lcm_of_match,
 	},
@@ -1077,5 +1077,5 @@ static struct mipi_dsi_driver lcm_driver = {
 module_mipi_dsi_driver(lcm_driver);
 
 MODULE_AUTHOR("oplus.display.lcd");
-MODULE_DESCRIPTION("td4160_hx_ab5_vdo_lcm_drv Panel Driver");
+MODULE_DESCRIPTION("td4160_hxcd_ab5_vdo_lcm_drv Panel Driver");
 MODULE_LICENSE("GPL v2");

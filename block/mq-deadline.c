@@ -578,8 +578,10 @@ static struct request *dd_dispatch_request(struct blk_mq_hw_ctx *hctx)
 
 	spin_lock(&dd->lock);
 	rq = dd_dispatch_prio_aged_requests(dd, now);
-	if (rq)
+	if (rq) {
+        pr_info("block_rq i2i dispatch  aged request  [%d + %d] rwbs=%d iopr=0x%x <%d %d  %d>",blk_rq_pos(rq),blk_rq_sectors(rq),rq_data_dir(rq),req_get_ioprio(rq),jiffies_to_msecs(rq->fifo_time )/1000,jiffies_to_msecs(jiffies )/1000,dd->prio_aging_expire/HZ);
 		goto unlock;
+	}
 
 	/*
 	 * Next, dispatch requests in priority order. Ignore lower priority
