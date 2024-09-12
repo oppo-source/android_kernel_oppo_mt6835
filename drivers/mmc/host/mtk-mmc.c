@@ -45,6 +45,7 @@
 #include <mt-plat/dvfsrc-exp.h>
 #include <mt-plat/mtk_blocktag.h>
 #include <soc/oplus/device_info.h>
+#include <soc/oplus/last_boot_reason.h>
 
 static const struct mtk_mmc_compatible mt8135_compat = {
 	.clk_div_bits = 8,
@@ -2608,6 +2609,7 @@ static int msdc_execute_hs400_tuning(struct mmc_host *mmc, struct mmc_card *card
 		if (!strcmp(mmc_hostname(mmc), "mmc0")) {
 			pr_err("%s: register emmc device info\n", __func__);
 			register_device_proc_for_emmc("emmc", "emmc_version", mmc);
+			set_device_type_for_mmc();
 			first_tuning = false;
 		}
 	}

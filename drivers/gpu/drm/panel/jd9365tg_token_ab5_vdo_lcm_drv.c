@@ -334,6 +334,8 @@ static int lcm_enable(struct drm_panel *panel)
 static void lcm_gamma_enter (void *dsi, dcs_write_gce cb, void *handle)
 {
 	/*3.7V*/
+	pr_info("%s return!\n", __func__);
+/*
 	char bl_tb1[] = {0xde, 0x00};
 	char bl_tb2[] = {0xc0, 0x01, 0x45, 0x01, 0x45};
 	char bl_tb3[] = {0xcb, 0x7f, 0x7b, 0x75, 0x6c, 0x64, 0x64, 0x58, 0x5f, 0x4a, 0x63, 0x60, 0x5d, 0x74, 0x5b,
@@ -343,11 +345,14 @@ static void lcm_gamma_enter (void *dsi, dcs_write_gce cb, void *handle)
 	cb(dsi, handle, bl_tb1, ARRAY_SIZE(bl_tb1));
 	cb(dsi, handle, bl_tb2, ARRAY_SIZE(bl_tb2));
 	cb(dsi, handle, bl_tb3, ARRAY_SIZE(bl_tb3));
+*/
 }
 
 static void lcm_gamma_exit (void *dsi, dcs_write_gce cb, void *handle)
 {
 	/*5V*/
+	pr_info("%s return!\n", __func__);
+/*
 	char bl_tb1[] = {0xde, 0x00};
 	char bl_tb2[] = {0xc0, 0x01, 0xad, 0x01, 0xad};
 	char bl_tb3[] = {0xcb, 0x7f, 0x68, 0x5c, 0x46, 0x36, 0x2f, 0x1f, 0x24, 0x0e, 0x2b, 0x2b, 0x2d, 0x4c, 0x39,
@@ -357,6 +362,7 @@ static void lcm_gamma_exit (void *dsi, dcs_write_gce cb, void *handle)
 	cb(dsi, handle, bl_tb1, ARRAY_SIZE(bl_tb1));
 	cb(dsi, handle, bl_tb2, ARRAY_SIZE(bl_tb2));
 	cb(dsi, handle, bl_tb3, ARRAY_SIZE(bl_tb3));
+*/
 }
 
 

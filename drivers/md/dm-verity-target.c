@@ -583,7 +583,9 @@ static void verity_end_io(struct bio *bio)
 	struct dm_verity_io *io = bio->bi_private;
 
 	if (bio->bi_status &&
-	    (!verity_fec_is_enabled(io->v) || verity_is_system_shutting_down())) {
+	    (!verity_fec_is_enabled(io->v) ||
+	     verity_is_system_shutting_down() ||
+	     (bio->bi_opf & REQ_RAHEAD))) {
 		verity_finish_io(io, bio->bi_status);
 		return;
 	}
@@ -1290,7 +1292,7 @@ static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 	 * doesn't have required hashes).
 	 */
 #ifdef CONFIG_BLOCKIO_UX_OPT
-	v->verify_wq = alloc_workqueue("kveritydX", WQ_MEM_RECLAIM | WQ_HIGHPRI | WQ_UX | WQ_UNBOUND, 0);
+    v->verify_wq = alloc_workqueue("kveritydX", WQ_MEM_RECLAIM | WQ_HIGHPRI | WQ_UX | WQ_UNBOUND, 0);
 #else
 	v->verify_wq = alloc_workqueue("kverityd", WQ_MEM_RECLAIM | WQ_HIGHPRI, 0);
 #endif

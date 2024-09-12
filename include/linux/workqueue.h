@@ -344,7 +344,6 @@ enum {
 #ifdef CONFIG_BLOCKIO_UX_OPT
 	WQ_UX	= 1 << 15,
 #endif
-
 	__WQ_DRAINING		= 1 << 16, /* internal: workqueue is draining */
 	__WQ_ORDERED		= 1 << 17, /* internal: workqueue is ordered */
 	__WQ_LEGACY		= 1 << 18, /* internal: create*_workqueue() */

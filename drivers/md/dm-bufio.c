@@ -1709,12 +1709,10 @@ static unsigned long dm_bufio_shrink_scan(struct shrinker *shrink, struct shrink
 {
 	struct dm_bufio_client *c;
 	bool bypass = false;
-
 #ifdef CONFIG_BLOCKIO_UX_OPT
 	if (dm_bufio_shrink_scan_skip())
 		return 0;
 #endif
-
 	trace_android_vh_dm_bufio_shrink_scan_bypass(
 			dm_bufio_current_allocated,
 			&bypass);
