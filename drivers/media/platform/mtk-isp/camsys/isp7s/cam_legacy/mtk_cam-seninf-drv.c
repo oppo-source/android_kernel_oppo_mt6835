@@ -36,6 +36,12 @@
 #include "mtk_cam-seninf-route.h"
 #include "imgsensor-user.h"
 #include "mtk_cam-seninf-ca.h"
+#if defined(OPLUS_FEATURE_CAMERA_COMMON) && defined(CONFIG_OPLUS_CAM_EVENT_REPORT_MODULE)
+#include "oplus_cam_olc_exception.h"
+#endif
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif /* OPLUS_FEATURE_CAMERA_COMMON */
 
 #define ESD_RESET_SUPPORT 1
 #define V4L2_CID_MTK_SENINF_BASE	(V4L2_CID_USER_BASE | 0xf000)
@@ -1734,6 +1740,7 @@ static int seninf_s_stream(struct v4l2_subdev *sd, int enable)
 		dev_info(ctx->dev,
 			"[%s] is_ctx_streaming(%d)\n",
 			__func__, ctx->streaming);
+
 		if (!enable) {
 			// ensure forget cammux setting
 			mtk_cam_seninf_forget_camtg_setting(ctx);
@@ -3017,6 +3024,9 @@ int mtk_cam_seninf_check_timeout(struct v4l2_subdev *sd, u64 time_after_sof)
 	struct v4l2_subdev *sensor_sd = ctx->sensor_sd;
 	struct v4l2_ctrl *ctrl;
 
+	#if defined(OPLUS_FEATURE_CAMERA_COMMON) && defined(CONFIG_OPLUS_CAM_EVENT_REPORT_MODULE)
+	struct olc_params olc_data;
+	#endif
 	ctrl = v4l2_ctrl_find(sensor_sd->ctrl_handler, V4L2_CID_MTK_SOF_TIMEOUT_VALUE);
 	if (!ctrl) {
 		dev_info(ctx->dev, "no timeout value in subdev %s\n", sd->name);
@@ -3039,6 +3049,17 @@ int mtk_cam_seninf_check_timeout(struct v4l2_subdev *sd, u64 time_after_sof)
 		ret,
 		SOF_TIMEOUT_RATIO,
 		val);
+
+	#if defined(OPLUS_FEATURE_CAMERA_COMMON) && defined(CONFIG_OPLUS_CAM_EVENT_REPORT_MODULE)
+	if (ret == -1) {
+		/*report the exception data to imgsensor module.*/
+		olc_data.frame_time = frame_time;
+		olc_data.time_after_sof = time_after_sof;
+		strncpy(olc_data.name, sd->name, strlen(sd->name));
+		sensor_sd->ops->core->command(sensor_sd, V4L2_CMD_OLC_EVENT, &olc_data);
+	}
+	#endif /* OPLUS_FEATURE_CAMERA_COMMON */
+
 	return ret;
 }
 
@@ -3101,16 +3122,23 @@ int mtk_cam_seninf_dump(struct v4l2_subdev *sd, u32 seq_id, bool force_check)
 #if ESD_RESET_SUPPORT
 			if (ret != 0) {
 				reset_by_user = is_reset_by_user(sd_to_ctx(sd));
-				if (!reset_by_user){
+				
+			#ifdef OPLUS_FEATURE_CAMERA_COMMON
+				if (!reset_by_user) {
 					reset_sensor(sd_to_ctx(sd));
 					ctx->esd_status_flag = 1;
 				}
+			#else
+				if (!reset_by_user)
+					reset_sensor(sd_to_ctx(sd));
+			#endif
 			}
 #endif
 		} else
 			dev_info(ctx->dev, "%s skip dump, sensor is in resetting\n", __func__);
 	} else
 		dev_info(ctx->dev, "%s should not dump during stream off\n", __func__);
+
 
 	pm_runtime_put_sync(ctx->dev);
 

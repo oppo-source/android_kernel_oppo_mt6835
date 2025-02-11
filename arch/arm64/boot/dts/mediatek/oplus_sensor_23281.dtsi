@@ -1,0 +1,160 @@
+&odm {
+	sensor_fb: sensor_fb {
+		compatible = "oplus,sensor-feedback";
+	};
+	oplus_sensor:oplus_sensor {
+		compatible = "oplus,sensor-devinfo";
+		als-row-coe = <1000>;
+		/* sensor start */
+		/*
+		enum {
+			LIS3DH,
+			LSM6DS3,
+			BMI160,
+			LIS2HH12,
+			LSM6DSM,
+			BMI2XY,
+			LSM6DSO,
+			ICM4X6XX,
+			ICM4263X,
+			ICM4N607,
+			BMI22X,
+			SC7A20,
+			MC34X9,
+			BMA4XY,
+			STK8329,
+			BMI3XY,
+		};
+		*/
+		gsensor_1: gsensor_1 {
+			status = "okay";
+			sensor_name = <9>;//ICM4N607
+			device_name = "icm42607";
+			i2c_num = <2>;
+			i2c_addr = <0x00>;
+			direction = <1>;
+			eint_num = <17>;
+			acc_cali_range= <300 300 300>;
+		};
+		gsensor_2: gsensor_2 {
+			status = "okay";
+			sensor_name = <15>;//BMI3XY
+			device_name = "bmi3xy";
+			i2c_num = <2>;
+			i2c_addr = <0x00>;
+			direction = <0>;
+			eint_num = <17>;
+			acc_cali_range= <300 300 300>;
+		};
+		/*
+		enum {
+			AKM09911,
+			MMC3530,
+			MMC5603,
+			MXG4300,
+			AKM09918,
+		};
+		*/
+		msensor_1: msensor_1 {
+			status = "okay";
+			sensor_name = <3>;//MXG4300
+			i2c_num = <4>;
+			i2c_addr = <0x0C>;
+			direction = <0>;
+			eint_num = <0>;
+			soft-mag-parameter = <10125 0 12 0 40 1 257 1 9993 0 291 0 95 1 165 1 10201 0>;
+		};
+		/*
+		enum {
+			TMD2725,
+			APSD9922,
+			STK3335,
+			STK3331,
+			STK2232,
+			TCS3701,
+			STK32600,
+			STK33502,
+			MN78911,
+			TCS3720,
+			SIP3515,
+			STK3329,
+			LTR569,
+			SIP3510,
+                        SIP3535,
+		};
+		*/
+		proximity_1: proximity_1 {
+			status = "okay";
+			sensor_name = <16>;//SIP3535
+			i2c_num = <0>;
+			i2c_addr = <0x59>;
+			direction = <0>;
+			eint_num = <18>;
+			low_step = <300>;
+			high_step = <400>;
+			low_limit = <650>;
+			high_limit = <1050>;
+			dirty_low_step = <300>;
+			dirty_high_step = <400>;
+			ps_dirty_limit = <1800>;
+			ps_ir_limit = <2000>;
+			ps_adjust_min = <0>;
+			ps_adjust_max = <1850>;
+			sampling_count = <5>;
+			step_max = <400>;
+			step_min = <100>;
+			step_div = <2000>;
+			anti_shake_delta = <70>;
+			dynamic_cali_max = <2000>;
+			raw2offset_radio = <1000>;
+			offset_max = <60000>;
+			offset_range_min = <0>;
+			offset_range_max = <65534>;
+			force_cali_limit = <2000>;
+			cali_jitter_limit = <20>;
+			cal_offset_margin = <3000>;
+		};
+		light_1: light_1 {
+			status = "okay";
+			sensor_name = <16>;//SIP3535
+			i2c_num = <0>;
+			i2c_addr = <0x59>;
+			direction = <0>;
+			eint_num = <18>;
+			als_buffer_length =<4>;
+			als_ratio = <212>;
+			als_type = <2>;//<1-normal;2-under screen;3-normal needed compensation>
+			device_name = "sip3535";
+                        coefficient_mode = <6>;
+			als_coef_a = <963>; //*100
+			als_coef_b = <60>; //*100
+			als_coef_c = <963>; //*100
+			als_coef_d = <60>; //*100
+			als_coef_e = <2490>; //*100
+			als_coef_ratio = <1500>;
+		};
+		pick_up: pick_up {
+			status = "okay";
+			use-proximity = <1>;
+		};
+		lux_aod: lux_aod {
+			status = "okay";
+			use-proximity = <1>;
+		};
+                pocket: pocket {
+			status = "okay";
+			support_pocket = <1>;
+			use_sub_accgyro = <0>;
+			need_als = <0>;
+		};
+		alsps_arch: alsps_arch {
+			status = "okay";
+			new-arch-supported = <1>;
+		};
+		cali_arch: cali_arch {
+			status = "okay";
+			new-arch-supported = <1>;
+		};
+	};
+/* sensor end */
+};

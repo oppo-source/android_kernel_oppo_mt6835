@@ -211,6 +211,18 @@ int charger_dev_set_input_current(struct charger_device *chg_dev, u32 uA)
 }
 EXPORT_SYMBOL(charger_dev_set_input_current);
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+int charger_dev_set_boost_voltage_limit(struct charger_device *chg_dev, u32 uv)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+		chg_dev->ops->set_boost_voltage_limit)
+		return chg_dev->ops->set_boost_voltage_limit(chg_dev, uv);
+
+	return -EOPNOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_set_boost_voltage_limit);
+#endif
+
 int charger_dev_get_input_current(struct charger_device *chg_dev, u32 *uA)
 {
 	if (chg_dev != NULL && chg_dev->ops != NULL &&
@@ -789,6 +801,18 @@ int charger_dev_enable_hidden_mode(struct charger_device *charger_dev, bool en)
 	return -EOPNOTSUPP;
 }
 EXPORT_SYMBOL(charger_dev_enable_hidden_mode);
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+int charger_dev_enable_ship_mode(struct charger_device *charger_dev)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL &&
+					   charger_dev->ops->enable_ship_mode)
+		return charger_dev->ops->enable_ship_mode(charger_dev);
+
+	return -EOPNOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_enable_ship_mode);
+#endif
 
 int charger_dev_set_property(struct charger_device *charger_dev,
 			     enum charger_property prop,

@@ -6,6 +6,10 @@
 #ifndef __MTK_CAMERA_V4l2_CONTROLS_H
 #define __MTK_CAMERA_V4l2_CONTROLS_H
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif /* OPLUS_FEATURE_CAMERA_COMMON */
+
 #include <linux/videodev2.h>
 #include <linux/v4l2-controls.h>
 
@@ -675,6 +679,9 @@ struct mtk_cam_apu_info {
 #define V4L2_CID_MTK_AOV_SWITCH_MCLK_ULPOSC \
 	(V4L2_CID_USER_MTK_SENSOR_BASE + 38)
 
+#define V4L2_CID_MTK_SENSOR_RMSC_MODE \
+	(V4L2_CID_USER_MTK_SENSOR_BASE + 43)
+
 /**
  * enum scl for imgsensor gpio aux function.
  */
@@ -754,6 +761,10 @@ enum mtk_cam_sensor_pm_ops {
 #define V4L2_CMD_SENSOR_IN_RESET \
 	(V4L2_CMD_USER_MTK_SENSOR_BASE + 3)
 
+#if defined(OPLUS_FEATURE_CAMERA_COMMON) && defined(CONFIG_OPLUS_CAM_EVENT_REPORT_MODULE)
+#define V4L2_CMD_OLC_EVENT \
+	(V4L2_CMD_USER_MTK_SENSOR_BASE + 4)
+#endif
 
 /* S E N I N F */
 #define V4L2_CID_MTK_SENINF_S_STREAM \

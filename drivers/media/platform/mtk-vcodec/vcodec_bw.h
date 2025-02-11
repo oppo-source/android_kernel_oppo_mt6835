@@ -8,7 +8,6 @@
 #include <linux/types.h>
 #include <linux/list.h>
 
-
 #define VENC_BW_MONITOR 1
 #define DEFAULT_VENC_CONFIG -1000
 #define MTK_VCODEC_QOS_GROUP 2

@@ -17,12 +17,19 @@
 #include <linux/regulator/consumer.h>
 #include <linux/reset.h>
 #include <linux/tracepoint.h>
+/*google patch Random W/R performance improvement*/
+#include <linux/irq.h>
 
 #if IS_ENABLED(CONFIG_RPMB)
 #include <asm/unaligned.h>
 #include <linux/async.h>
 #include <linux/rpmb.h>
 #endif
+
+#include <scsi/scsi.h>
+#include <scsi/scsi_ioctl.h>
+#include <scsi/scsi_cmnd.h>
+#include <linux/async.h>
 
 #if IS_ENABLED(CONFIG_MTK_BLOCK_IO_TRACER)
 #include <mt-plat/mtk_blocktag.h>
@@ -35,6 +42,7 @@
 #include "unipro.h"
 #include "ufs-mediatek.h"
 #include "ufs-mediatek-sip.h"
+#include "../sd.h"
 #include "ufshpb.h"
 
 #if IS_ENABLED(CONFIG_SCSI_UFS_MEDIATEK_DBG)
@@ -390,9 +398,9 @@ static const u8 *mphy_str[] = {
 extern void mt_irq_dump_status(unsigned int irq);
 static int ufs_mtk_auto_hibern8_disable(struct ufs_hba *hba);
 
-
 #include <trace/events/ufs.h>
 
+static void ufs_mtk_clk_scale(struct ufs_hba *hba, bool scale_up);
 #define CREATE_TRACE_POINTS
 #define TRACE_INCLUDE_PATH ../../drivers/scsi/ufs/
 #define TRACE_INCLUDE_FILE ufs-mediatek-trace
@@ -400,13 +408,20 @@ static int ufs_mtk_auto_hibern8_disable(struct ufs_hba *hba);
 #undef CREATE_TRACE_POINTS
 
 EXPORT_TRACEPOINT_SYMBOL_GPL(ufs_mtk_mcq_command);
+struct ufs_transmission_status_t ufs_transmission_status;
+struct device_attribute ufs_transmission_status_attr;
 
+/*feature-flashaging806-v001-1-begin*/
+struct unipro_signal_quality_ctrl signalCtrl;
+/*feature-flashaging806-v001-1-end*/
 static struct ufs_dev_fix ufs_mtk_dev_fixups[] = {
 	UFS_FIX(UFS_ANY_VENDOR, UFS_ANY_MODEL,
 		UFS_DEVICE_QUIRK_DELAY_BEFORE_LPM |
 		UFS_DEVICE_QUIRK_DELAY_AFTER_LPM),
 	UFS_FIX(UFS_VENDOR_SKHYNIX, "H9HQ21AFAMZDAR",
 		UFS_DEVICE_QUIRK_SUPPORT_EXTENDED_FEATURES),
+	UFS_FIX(UFS_VENDOR_SAMSUNG, "KLUFG4LHGC-B0E1",
+		UFS_DEVICE_QUIRK_SAMSUNG_QLC),
 	END_FIX
 };
 
@@ -414,7 +429,301 @@ static const struct of_device_id ufs_mtk_of_match[] = {
 	{ .compatible = "mediatek,mt8183-ufshci" },
 	{},
 };
+//#ifdef OPLUS_UFS_SIGNAL_QUALITY
+/*feature-flashaging806-v001-2-begin*/
+void recordUniproErr(
+	struct unipro_signal_quality_ctrl *signalCtrl,
+	u32 reg,
+	enum ufs_event_type type
+) {
+	unsigned long err_bits;
+	int ec;
+	struct signal_quality *rec = &signalCtrl->record;
+	switch (type)
+	{
+	case UFS_EVT_FATAL_ERR:
+		if (DEVICE_FATAL_ERROR & reg)
+			rec->ufs_device_err_cnt++;
+		if (CONTROLLER_FATAL_ERROR & reg)
+			rec->ufs_host_err_cnt++;
+		if (SYSTEM_BUS_FATAL_ERROR & reg)
+			rec->ufs_bus_err_cnt++;
+		if (CRYPTO_ENGINE_FATAL_ERROR & reg)
+			rec->ufs_crypto_err_cnt++;
+		break;
+	case UFS_EVT_LINK_STARTUP_FAIL:
+		if (UIC_LINK_LOST & reg)
+			rec->ufs_link_lost_cnt++;
+		break;
+	case UFS_EVT_PA_ERR:
+		err_bits = reg & UIC_PHY_ADAPTER_LAYER_ERROR_CODE_MASK;
+		for_each_set_bit(ec, &err_bits, UNIPRO_PA_ERR_MAX) {
+			rec->unipro_PA_err_total_cnt++;
+			rec->unipro_PA_err_cnt[ec]++;
+		}
+		break;
+	case UFS_EVT_DL_ERR:
+		err_bits = reg & UIC_DATA_LINK_LAYER_ERROR_CODE_MASK;
+		for_each_set_bit(ec, &err_bits, UNIPRO_DL_ERR_MAX) {
+			rec->unipro_DL_err_total_cnt++;
+			rec->unipro_DL_err_cnt[ec]++;
+		}
+		break;
+	case UFS_EVT_NL_ERR:
+		err_bits = reg & UIC_NETWORK_LAYER_ERROR_CODE_MASK;
+		for_each_set_bit(ec, &err_bits, UNIPRO_NL_ERR_MAX) {
+			rec->unipro_NL_err_total_cnt++;
+			rec->unipro_NL_err_cnt[ec]++;
+		}
+		break;
+	case UFS_EVT_TL_ERR:
+		err_bits = reg & UIC_TRANSPORT_LAYER_ERROR_CODE_MASK;
+		for_each_set_bit(ec, &err_bits, UNIPRO_TL_ERR_MAX) {
+			rec->unipro_TL_err_total_cnt++;
+			rec->unipro_TL_err_cnt[ec]++;
+		}
+		break;
+	case UFS_EVT_DME_ERR:
+		err_bits = reg & UIC_DME_ERROR_CODE_MASK;
+		for_each_set_bit(ec, &err_bits, UNIPRO_DME_ERR_MAX) {
+			rec->unipro_DME_err_total_cnt++;
+			rec->unipro_DME_err_cnt[ec]++;
+		}
+		break;
+	default:
+		break;
+	}
+}
 
+#define SEQ_EASY_PRINT(x)   seq_printf(s, #x"\t%d\n", signalCtrl->record.x)
+#define SEQ_PA_PRINT(x)     \
+	seq_printf(s, #x"\t%d\n", signalCtrl->record.unipro_PA_err_cnt[x])
+#define SEQ_DL_PRINT(x)     \
+	seq_printf(s, #x"\t%d\n", signalCtrl->record.unipro_DL_err_cnt[x])
+#define SEQ_NL_PRINT(x)     \
+	seq_printf(s, #x"\t%d\n", signalCtrl->record.unipro_NL_err_cnt[x])
+#define SEQ_TL_PRINT(x)     \
+	seq_printf(s, #x"\t%d\n", signalCtrl->record.unipro_TL_err_cnt[x])
+#define SEQ_DME_PRINT(x)    \
+	seq_printf(s, #x"\t%d\n", signalCtrl->record.unipro_DME_err_cnt[x])
+#define SEQ_GEAR_PRINT(x)  \
+	seq_printf(s, #x"\t%d\n", signalCtrl->record.gear_err_cnt[x])
+
+static int record_read_func(struct seq_file *s, void *v)
+{
+	struct unipro_signal_quality_ctrl *signalCtrl =
+		(struct unipro_signal_quality_ctrl *)(s->private);
+	if (!signalCtrl)
+		return -EINVAL;
+	SEQ_EASY_PRINT(ufs_device_err_cnt);
+	SEQ_EASY_PRINT(ufs_host_err_cnt);
+	SEQ_EASY_PRINT(ufs_bus_err_cnt);
+	SEQ_EASY_PRINT(ufs_crypto_err_cnt);
+	SEQ_EASY_PRINT(ufs_link_lost_cnt);
+	SEQ_EASY_PRINT(unipro_PA_err_total_cnt);
+	SEQ_PA_PRINT(UNIPRO_PA_LANE0_ERR_CNT);
+	SEQ_PA_PRINT(UNIPRO_PA_LANE1_ERR_CNT);
+	SEQ_PA_PRINT(UNIPRO_PA_LANE2_ERR_CNT);
+	SEQ_PA_PRINT(UNIPRO_PA_LANE3_ERR_CNT);
+	SEQ_PA_PRINT(UNIPRO_PA_LINE_RESET);
+	SEQ_EASY_PRINT(unipro_DL_err_total_cnt);
+	SEQ_DL_PRINT(UNIPRO_DL_NAC_RECEIVED);
+	SEQ_DL_PRINT(UNIPRO_DL_TCX_REPLAY_TIMER_EXPIRED);
+	SEQ_DL_PRINT(UNIPRO_DL_AFCX_REQUEST_TIMER_EXPIRED);
+	SEQ_DL_PRINT(UNIPRO_DL_FCX_PROTECTION_TIMER_EXPIRED);
+	SEQ_DL_PRINT(UNIPRO_DL_CRC_ERROR);
+	SEQ_DL_PRINT(UNIPRO_DL_RX_BUFFER_OVERFLOW);
+	SEQ_DL_PRINT(UNIPRO_DL_MAX_FRAME_LENGTH_EXCEEDED);
+	SEQ_DL_PRINT(UNIPRO_DL_WRONG_SEQUENCE_NUMBER);
+	SEQ_DL_PRINT(UNIPRO_DL_AFC_FRAME_SYNTAX_ERROR);
+	SEQ_DL_PRINT(UNIPRO_DL_NAC_FRAME_SYNTAX_ERROR);
+	SEQ_DL_PRINT(UNIPRO_DL_EOF_SYNTAX_ERROR);
+	SEQ_DL_PRINT(UNIPRO_DL_FRAME_SYNTAX_ERROR);
+	SEQ_DL_PRINT(UNIPRO_DL_BAD_CTRL_SYMBOL_TYPE);
+	SEQ_DL_PRINT(UNIPRO_DL_PA_INIT_ERROR);
+	SEQ_DL_PRINT(UNIPRO_DL_PA_ERROR_IND_RECEIVED);
+	SEQ_DL_PRINT(UNIPRO_DL_PA_INIT);
+	SEQ_EASY_PRINT(unipro_NL_err_total_cnt);
+	SEQ_NL_PRINT(UNIPRO_NL_UNSUPPORTED_HEADER_TYPE);
+	SEQ_NL_PRINT(UNIPRO_NL_BAD_DEVICEID_ENC);
+	SEQ_NL_PRINT(UNIPRO_NL_LHDR_TRAP_PACKET_DROPPING);
+	SEQ_EASY_PRINT(unipro_TL_err_total_cnt);
+	SEQ_TL_PRINT(UNIPRO_TL_UNSUPPORTED_HEADER_TYPE);
+	SEQ_TL_PRINT(UNIPRO_TL_UNKNOWN_CPORTID);
+	SEQ_TL_PRINT(UNIPRO_TL_NO_CONNECTION_RX);
+	SEQ_TL_PRINT(UNIPRO_TL_CONTROLLED_SEGMENT_DROPPING);
+	SEQ_TL_PRINT(UNIPRO_TL_BAD_TC);
+	SEQ_TL_PRINT(UNIPRO_TL_E2E_CREDIT_OVERFLOW);
+	SEQ_TL_PRINT(UNIPRO_TL_SAFETY_VALVE_DROPPING);
+	SEQ_EASY_PRINT(unipro_DME_err_total_cnt);
+	SEQ_DME_PRINT(UNIPRO_DME_GENERIC);
+	SEQ_DME_PRINT(UNIPRO_DME_TX_QOS);
+	SEQ_DME_PRINT(UNIPRO_DME_RX_QOS);
+	SEQ_DME_PRINT(UNIPRO_DME_PA_INIT_QOS);
+	SEQ_GEAR_PRINT(UFS_HS_G1);
+	SEQ_GEAR_PRINT(UFS_HS_G2);
+	SEQ_GEAR_PRINT(UFS_HS_G3);
+	SEQ_GEAR_PRINT(UFS_HS_G4);
+	SEQ_GEAR_PRINT(UFS_HS_G5);
+	return 0;
+}
+
+static int record_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, record_read_func, PDE_DATA(inode));
+}
+
+static const struct proc_ops record_fops = {
+	.proc_open = record_open,
+	.proc_read = seq_read,
+	.proc_release = single_release,
+	.proc_lseek = default_llseek,
+};
+
+#define SEQ_UPLOAD_PRINT(x) \
+	seq_printf(s, #x": %d\n", signalCtrl->record.x \
+		-signalCtrl->record_upload.x);\
+	signalCtrl->record_upload.x = signalCtrl->record.x;
+
+#define SEQ_PA_UPLOAD_PRINT(x) \
+	seq_printf(s, #x": %d\n", signalCtrl->record.unipro_PA_err_cnt[x] \
+		-signalCtrl->record_upload.unipro_PA_err_cnt[x]);\
+	signalCtrl->record_upload.unipro_PA_err_cnt[x] = signalCtrl->record.unipro_PA_err_cnt[x];
+
+#define SEQ_DL_UPLOAD_PRINT(x) \
+		seq_printf(s, #x": %d\n", signalCtrl->record.unipro_DL_err_cnt[x] \
+			-signalCtrl->record_upload.unipro_DL_err_cnt[x]);\
+		signalCtrl->record_upload.unipro_DL_err_cnt[x] = signalCtrl->record.unipro_DL_err_cnt[x];
+
+#define SEQ_DL_UPLOAD_PRINT(x) \
+			seq_printf(s, #x": %d\n", signalCtrl->record.unipro_DL_err_cnt[x] \
+				-signalCtrl->record_upload.unipro_DL_err_cnt[x]);\
+			signalCtrl->record_upload.unipro_DL_err_cnt[x] = signalCtrl->record.unipro_DL_err_cnt[x];
+
+#define SEQ_NL_UPLOAD_PRINT(x) \
+				seq_printf(s, #x": %d\n", signalCtrl->record.unipro_NL_err_cnt[x] \
+					-signalCtrl->record_upload.unipro_NL_err_cnt[x]);\
+				signalCtrl->record_upload.unipro_NL_err_cnt[x] = signalCtrl->record.unipro_NL_err_cnt[x];
+
+#define SEQ_TL_UPLOAD_PRINT(x) \
+					seq_printf(s, #x": %d\n", signalCtrl->record.unipro_TL_err_cnt[x] \
+						-signalCtrl->record_upload.unipro_TL_err_cnt[x]);\
+					signalCtrl->record_upload.unipro_TL_err_cnt[x] = signalCtrl->record.unipro_TL_err_cnt[x];
+
+#define SEQ_DME_UPLOAD_PRINT(x) \
+						seq_printf(s, #x": %d\n", signalCtrl->record.unipro_DME_err_cnt[x] \
+							-signalCtrl->record_upload.unipro_DME_err_cnt[x]);\
+						signalCtrl->record_upload.unipro_DME_err_cnt[x] = signalCtrl->record.unipro_DME_err_cnt[x];
+
+#define SEQ_GEAR_UPLOAD_PRINT(x) \
+						seq_printf(s, #x": %d\n", signalCtrl->record.gear_err_cnt[x] \
+							-signalCtrl->record_upload.gear_err_cnt[x]);\
+						signalCtrl->record_upload.gear_err_cnt[x] = signalCtrl->record.gear_err_cnt[x];
+
+
+static int record_upload_read_func(struct seq_file *s, void *v)
+{
+	struct unipro_signal_quality_ctrl *signalCtrl =
+		(struct unipro_signal_quality_ctrl *)(s->private);
+	if (!signalCtrl)
+		return -EINVAL;
+	SEQ_UPLOAD_PRINT(ufs_device_err_cnt);
+	SEQ_UPLOAD_PRINT(ufs_host_err_cnt);
+	SEQ_UPLOAD_PRINT(ufs_bus_err_cnt);
+	SEQ_UPLOAD_PRINT(ufs_crypto_err_cnt);
+	SEQ_UPLOAD_PRINT(ufs_link_lost_cnt);
+	SEQ_UPLOAD_PRINT(unipro_PA_err_total_cnt);
+	SEQ_UPLOAD_PRINT(unipro_DL_err_total_cnt);
+	SEQ_UPLOAD_PRINT(unipro_NL_err_total_cnt);
+	SEQ_UPLOAD_PRINT(unipro_TL_err_total_cnt);
+	SEQ_UPLOAD_PRINT(unipro_DME_err_total_cnt);
+	SEQ_PA_UPLOAD_PRINT(UNIPRO_PA_LANE0_ERR_CNT);
+	SEQ_PA_UPLOAD_PRINT(UNIPRO_PA_LANE1_ERR_CNT);
+	SEQ_PA_UPLOAD_PRINT(UNIPRO_PA_LANE2_ERR_CNT);
+	SEQ_PA_UPLOAD_PRINT(UNIPRO_PA_LANE3_ERR_CNT);
+	SEQ_PA_UPLOAD_PRINT(UNIPRO_PA_LINE_RESET);
+
+	SEQ_DL_UPLOAD_PRINT(UNIPRO_DL_NAC_RECEIVED);
+	SEQ_DL_UPLOAD_PRINT(UNIPRO_DL_TCX_REPLAY_TIMER_EXPIRED);
+	SEQ_DL_UPLOAD_PRINT(UNIPRO_DL_AFCX_REQUEST_TIMER_EXPIRED);
+	SEQ_DL_UPLOAD_PRINT(UNIPRO_DL_FCX_PROTECTION_TIMER_EXPIRED);
+	SEQ_DL_UPLOAD_PRINT(UNIPRO_DL_CRC_ERROR);
+	SEQ_DL_UPLOAD_PRINT(UNIPRO_DL_RX_BUFFER_OVERFLOW);
+	SEQ_DL_UPLOAD_PRINT(UNIPRO_DL_MAX_FRAME_LENGTH_EXCEEDED);
+	SEQ_DL_UPLOAD_PRINT(UNIPRO_DL_WRONG_SEQUENCE_NUMBER);
+	SEQ_DL_UPLOAD_PRINT(UNIPRO_DL_AFC_FRAME_SYNTAX_ERROR);
+	SEQ_DL_UPLOAD_PRINT(UNIPRO_DL_NAC_FRAME_SYNTAX_ERROR);
+	SEQ_DL_UPLOAD_PRINT(UNIPRO_DL_EOF_SYNTAX_ERROR);
+	SEQ_DL_UPLOAD_PRINT(UNIPRO_DL_FRAME_SYNTAX_ERROR);
+	SEQ_DL_UPLOAD_PRINT(UNIPRO_DL_BAD_CTRL_SYMBOL_TYPE);
+	SEQ_DL_UPLOAD_PRINT(UNIPRO_DL_PA_INIT_ERROR);
+	SEQ_DL_UPLOAD_PRINT(UNIPRO_DL_PA_ERROR_IND_RECEIVED);
+	SEQ_DL_UPLOAD_PRINT(UNIPRO_DL_PA_INIT);
+
+	SEQ_NL_UPLOAD_PRINT(UNIPRO_NL_UNSUPPORTED_HEADER_TYPE);
+	SEQ_NL_UPLOAD_PRINT(UNIPRO_NL_BAD_DEVICEID_ENC);
+	SEQ_NL_UPLOAD_PRINT(UNIPRO_NL_LHDR_TRAP_PACKET_DROPPING);
+
+	SEQ_TL_UPLOAD_PRINT(UNIPRO_TL_UNSUPPORTED_HEADER_TYPE);
+	SEQ_TL_UPLOAD_PRINT(UNIPRO_TL_UNKNOWN_CPORTID);
+	SEQ_TL_UPLOAD_PRINT(UNIPRO_TL_NO_CONNECTION_RX);
+	SEQ_TL_UPLOAD_PRINT(UNIPRO_TL_CONTROLLED_SEGMENT_DROPPING);
+	SEQ_TL_UPLOAD_PRINT(UNIPRO_TL_BAD_TC);
+	SEQ_TL_UPLOAD_PRINT(UNIPRO_TL_E2E_CREDIT_OVERFLOW);
+	SEQ_TL_UPLOAD_PRINT(UNIPRO_TL_SAFETY_VALVE_DROPPING);
+
+	SEQ_DME_UPLOAD_PRINT(UNIPRO_DME_GENERIC);
+	SEQ_DME_UPLOAD_PRINT(UNIPRO_DME_TX_QOS);
+	SEQ_DME_UPLOAD_PRINT(UNIPRO_DME_RX_QOS);
+	SEQ_DME_UPLOAD_PRINT(UNIPRO_DME_PA_INIT_QOS);
+
+	SEQ_GEAR_UPLOAD_PRINT(UFS_HS_G1);
+	SEQ_GEAR_UPLOAD_PRINT(UFS_HS_G2);
+	SEQ_GEAR_UPLOAD_PRINT(UFS_HS_G3);
+	SEQ_GEAR_UPLOAD_PRINT(UFS_HS_G4);
+	SEQ_GEAR_UPLOAD_PRINT(UFS_HS_G5);
+	return 0;
+}
+
+static int record_upload_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, record_upload_read_func, PDE_DATA(inode));
+}
+
+static const struct proc_ops record_upload_fops = {
+	.proc_open = record_upload_open,
+	.proc_read = seq_read,
+	.proc_release = single_release,
+	.proc_lseek = default_llseek,
+};
+
+int create_signal_quality_proc(struct unipro_signal_quality_ctrl *signalCtrl)
+{
+	struct proc_dir_entry *d_entry;
+	signalCtrl->ctrl_dir = proc_mkdir("ufs_signalShow", NULL);
+	if (!signalCtrl->ctrl_dir)
+		return -ENOMEM;
+	d_entry = proc_create_data("record", S_IRUGO, signalCtrl->ctrl_dir,
+			&record_fops, signalCtrl);
+	if (!d_entry)
+		return -ENOMEM;
+	d_entry = proc_create_data("record_upload", S_IRUGO, signalCtrl->ctrl_dir,
+			&record_upload_fops, signalCtrl);
+	if (!d_entry)
+		return -ENOMEM;
+	return 0;
+}
+
+void remove_signal_quality_proc(struct unipro_signal_quality_ctrl *signalCtrl)
+{
+	if (signalCtrl->ctrl_dir) {
+		remove_proc_entry("record", signalCtrl->ctrl_dir);
+		remove_proc_entry("record_upload", signalCtrl->ctrl_dir);
+	}
+	return;
+}
+/*feature-flashaging806-v001-2-end*/
+//#endif /*OPLUS_UFS_SIGNAL_QUALITY*/
 static bool ufs_mtk_is_boost_crypt_enabled(struct ufs_hba *hba)
 {
 	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
@@ -1096,7 +1405,6 @@ static int ufs_mtk_setup_clocks(struct ufs_hba *hba, bool on,
 				mtk_btag_ufs_clk_gating(on);
 #endif
 		}
-
 		if (hba_priv->is_mcq_enabled)
 			ufs_mtk_mcq_disable_irq(hba);
 
@@ -1150,6 +1458,60 @@ static void ufs_mtk_trace_vh_prepare_command_vend_ss(void *data,
 	*err = ufsf_prep_fn(ufs_mtk_get_ufsf(hba), lrbp);
 }
 
+static void ufshcd_lrb_scsicmd_time_statistics(struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
+{
+	if (lrbp->cmd->cmnd[0] == WRITE_10 || lrbp->cmd->cmnd[0] == WRITE_16) {
+		if (hba->pwr_info.gear_tx == 1) {
+			ufs_transmission_status.gear_min_write_sec += blk_rq_sectors(scsi_cmd_to_rq(lrbp->cmd));
+			ufs_transmission_status.gear_min_write_us +=
+				ktime_us_delta(lrbp->compl_time_stamp, lrbp->issue_time_stamp);
+		}
+
+		if (hba->pwr_info.gear_tx == 3 || hba->pwr_info.gear_tx == 4) {
+			ufs_transmission_status.gear_max_write_sec += blk_rq_sectors(scsi_cmd_to_rq(lrbp->cmd));
+			ufs_transmission_status.gear_max_write_us +=
+				ktime_us_delta(lrbp->compl_time_stamp, lrbp->issue_time_stamp);
+		}
+	} else if (lrbp->cmd->cmnd[0] == READ_10 || lrbp->cmd->cmnd[0] == READ_16) {
+		if (hba->pwr_info.gear_rx == 1) {
+			ufs_transmission_status.gear_min_read_sec += blk_rq_sectors(scsi_cmd_to_rq(lrbp->cmd));
+			ufs_transmission_status.gear_min_read_us +=
+				ktime_us_delta(lrbp->compl_time_stamp, lrbp->issue_time_stamp);
+		}
+
+		if (hba->pwr_info.gear_rx == 3 || hba->pwr_info.gear_rx == 4) {
+			ufs_transmission_status.gear_max_read_sec += blk_rq_sectors(scsi_cmd_to_rq(lrbp->cmd));
+			ufs_transmission_status.gear_max_read_us +=
+				ktime_us_delta(lrbp->compl_time_stamp, lrbp->issue_time_stamp);
+		}
+	} else {
+		if (hba->pwr_info.gear_rx == 1) {
+			ufs_transmission_status.gear_min_other_sec += blk_rq_sectors(scsi_cmd_to_rq(lrbp->cmd));
+			ufs_transmission_status.gear_min_other_us += ktime_us_delta(lrbp->compl_time_stamp, lrbp->issue_time_stamp);
+		}
+
+		if (hba->pwr_info.gear_rx == 3 || hba->pwr_info.gear_rx == 4) {
+			ufs_transmission_status.gear_max_other_sec += blk_rq_sectors(scsi_cmd_to_rq(lrbp->cmd));
+			ufs_transmission_status.gear_max_other_us += ktime_us_delta(lrbp->compl_time_stamp, lrbp->issue_time_stamp);
+		}
+	}
+
+	return;
+}
+
+static void ufshcd_lrb_devcmd_time_statistics(struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
+{
+	if (hba->pwr_info.gear_tx == 1) {
+		ufs_transmission_status.gear_min_dev_us +=
+			ktime_us_delta(lrbp->compl_time_stamp, lrbp->issue_time_stamp);
+	}
+
+	if (hba->pwr_info.gear_tx == 3 || hba->pwr_info.gear_tx == 4) {
+		ufs_transmission_status.gear_max_dev_us +=
+			ktime_us_delta(lrbp->compl_time_stamp, lrbp->issue_time_stamp);
+	}
+}
+
 static void ufs_mtk_trace_vh_compl_command_vend_ss(struct ufs_hba *hba,
 				struct ufshcd_lrb *lrbp,
 				unsigned long out_reqs,
@@ -1160,56 +1522,35 @@ static void ufs_mtk_trace_vh_compl_command_vend_ss(struct ufs_hba *hba,
 	int result = 0;
 	int scsi_status;
 	int ocs;
-	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
 
 	if (!cmd)
 		return;
 
-#if defined(CONFIG_UFSSHPB) && defined(CONFIG_HPB_DEBUG)
-	trace_printk("%llu + %u cmd 0x%X comp tag[%d] out %lX\n",
-		     (unsigned long long) blk_rq_pos(cmd->request),
-		     (unsigned int) blk_rq_sectors(cmd->request),
-		     cmd->cmnd[0], lrbp->task_tag, hba->outstanding_reqs);
-#endif
-	ocs = le32_to_cpu(header->dword_2) & MASK_OCS;
+	ocs = le32_to_cpu(lrbp->utr_descriptor_ptr->header.dword_2) & MASK_OCS;
+	if (ocs != OCS_SUCCESS)
+		return;
 
-	if (ocs == OCS_SUCCESS) {
-		result = be32_to_cpu(header->dword_0) >> 24;
-		if (result == UPIU_TRANSACTION_RESPONSE) {
-			scsi_status = be32_to_cpu(header->dword_1) &
-				MASK_SCSI_STATUS;
-			if (scsi_status == SAM_STAT_GOOD) {
-				ufsf_hpb_noti_rb(ufsf, lrbp);
-				if (ufsf_upiu_check_for_ccd(lrbp)) {
-					ufsf_copy_sense_data(lrbp);
-					/*
-					 * this applies to "GOOD" case
-					 * in scsi_decide_disposition()
-					 * and will pass normally.
-					 * if result is 0x00, sense will not
-					 * be able to copy in sg_scsi_ioctl()
-					 * Finally, ioctl tool in userspace will
-					 * receive the error as 1.
-					 */
-					result |= GOOD_CCD;
-				}
-			}
+	result = be32_to_cpu(header->dword_0) >> 24;
+	if (result != UPIU_TRANSACTION_RESPONSE)
+		return;
+
+	scsi_status = be32_to_cpu(header->dword_1) & MASK_SCSI_STATUS;
+	if (scsi_status != SAM_STAT_GOOD)
+		return;
+
+	ufsf_upiu_check_for_ccd(lrbp);
+
+	if (lrbp->cmd) {
+		if (ufs_transmission_status.transmission_status_enable) {
+			lrbp->compl_time_stamp = ktime_get();
+			ufshcd_lrb_scsicmd_time_statistics(hba, lrbp);
+		}
+	} else if (lrbp->command_type == UTP_CMD_TYPE_DEV_MANAGE ||
+			lrbp->command_type == UTP_CMD_TYPE_UFS_STORAGE) {
+		if (ufs_transmission_status.transmission_status_enable) {
+			ufshcd_lrb_devcmd_time_statistics(hba, lrbp);
 		}
 	}
-#if defined(CONFIG_UFSHID)
-	/* Check if it is the last request to be completed */
-	if (!out_tasks && !out_reqs)
-		schedule_work(&ufsf->on_idle_work);
-#endif
-}
-
-static void ufs_mtk_trace_vh_send_tm_command_vend_ss(void *data, struct ufs_hba *hba,
-			int tag, int str_t)
-{
-	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
-
-	if (str_t == UFS_TM_COMP)
-		ufsf_reset_lu(ufsf);
 }
 
 static void ufs_mtk_trace_vh_update_sdev_vend_ss(void *data, struct scsi_device *sdev)
@@ -1219,14 +1560,6 @@ static void ufs_mtk_trace_vh_update_sdev_vend_ss(void *data, struct scsi_device 
 
 	if (hba->dev_info.wmanufacturerid == UFS_VENDOR_SAMSUNG)
 		ufsf_slave_configure(ufsf, sdev);
-}
-
-static void ufs_mtk_trace_vh_send_command_vend_ss(void *data, struct ufs_hba *hba,
-				struct ufshcd_lrb *lrbp)
-{
-	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
-
-	ufsf_hid_acc_io_stat(ufsf, lrbp);
 }
 #endif
 
@@ -1316,6 +1649,23 @@ static void ufs_mtk_trace_vh_compl_command(void *data, struct ufs_hba *hba, stru
 		ufs_mtk_trace_vh_compl_command_vend_ss(hba, lrbp,
 			ongoing_cnt, outstanding_tasks);
 #endif
+	if (ufs_transmission_status.transmission_status_enable) {
+		if(lrbp->cmd) {
+			ufs_transmission_status.scsi_send_count++;
+		} else {
+			ufs_transmission_status.dev_cmd_count++;
+		}
+	}
+	/* if cost more than 100ms, print out in dmesg for IO analyze */
+	if ((cmd->cmnd[0] == READ_10 || cmd->cmnd[0] == WRITE_10 || cmd->cmnd[0] == READ_16 || cmd->cmnd[0] == WRITE_16) &&
+	    ktime_us_delta(lrbp->compl_time_stamp, lrbp->issue_time_stamp) > 100000) {
+		printk_ratelimited(
+			KERN_WARNING "%s cost more than 100ms, it's %dms\n",
+			cmd->cmnd[0] == READ_10 ? "READ_10" :
+			cmd->cmnd[0] == WRITE_10 ? "WRITE_10" :
+			cmd->cmnd[0] == READ_16 ? "READ_16" : "WRITE_16",
+			ktime_us_delta(lrbp->compl_time_stamp, lrbp->issue_time_stamp) / 1000);
+	}
 }
 
 static void ufs_mtk_trace_vh_update_sdev(void *data, struct scsi_device *sdev)
@@ -1392,18 +1742,8 @@ static struct tracepoints_table interests[] = {
 		.vend = UFS_VEND_SAMSUNG
 	},
 	{
-		.name = "android_vh_ufs_send_tm_command",
-		.func = ufs_mtk_trace_vh_send_tm_command_vend_ss,
-		.vend = UFS_VEND_SAMSUNG
-	},
-	{
 		.name = "android_vh_ufs_update_sdev",
 		.func = ufs_mtk_trace_vh_update_sdev_vend_ss,
-		.vend = UFS_VEND_SAMSUNG
-	},
-	{
-		.name = "android_vh_ufs_send_command",
-		.func = ufs_mtk_trace_vh_send_command_vend_ss,
 		.vend = UFS_VEND_SAMSUNG
 	},
 #endif
@@ -1731,6 +2071,113 @@ struct rpmb_dev *ufs_mtk_rpmb_get_raw_dev(void)
 }
 EXPORT_SYMBOL_GPL(ufs_mtk_rpmb_get_raw_dev);
 #endif
+/*feature-memorymonitor-v001-1-begin*/
+static int monitor_verify_command(unsigned char *cmd)
+{
+    if (cmd[0] != 0x3B && cmd[0] != 0x3C && cmd[0] != 0xC0)
+        return false;
+
+    return true;
+}
+
+/**
+ * ufs_ioctl_monitor - special cmd for memory monitor
+ * @hba: per-adapter instance
+ * @buf_user: user space buffer for ioctl data
+ * @return: 0 for success negative error code otherwise
+ *
+ */
+int ufs_ioctl_monitor(struct scsi_device *dev, void __user *buf_user)
+{
+	struct scsi_disk *sdp = (struct scsi_disk *)dev_get_drvdata(&dev->sdev_gendev);
+	struct request_queue *q = dev->request_queue;
+	struct gendisk *disk = sdp->disk;
+	struct request *rq;
+	struct scsi_request *req;
+	struct scsi_ioctl_command __user *sic = (struct scsi_ioctl_command __user *)buf_user;
+	int err;
+	unsigned int in_len, out_len, bytes, opcode, cmdlen;
+	char *buffer = NULL;
+
+	/*
+	 * get in an out lengths, verify they don't exceed a page worth of data
+	 */
+	if (get_user(in_len, &sic->inlen))
+		return -EFAULT;
+	if (get_user(out_len, &sic->outlen))
+		return -EFAULT;
+	if (in_len > PAGE_SIZE || out_len > PAGE_SIZE)
+		return -EINVAL;
+	if (get_user(opcode, sic->data))
+		return -EFAULT;
+
+	bytes = max(in_len, out_len);
+	if (bytes) {
+		buffer = kzalloc(bytes, GFP_NOIO | GFP_USER| __GFP_NOWARN);
+		if (!buffer)
+			return -ENOMEM;
+
+	}
+
+	rq = blk_get_request(q, in_len ? REQ_OP_DRV_OUT : REQ_OP_DRV_IN, 0);
+	if (IS_ERR(rq)) {
+		err = PTR_ERR(rq);
+		goto error_free_buffer;
+	}
+	req = scsi_req(rq);
+
+	cmdlen = COMMAND_SIZE(opcode);
+	if (((VENDOR_SPECIFIC_CDB == opcode) && (0 == strncmp(dev->vendor, "SAMSUNG ", 8)))
+	         || ((READ_BUFFER == opcode) && (0 == strncmp(dev->vendor, "YMTC ", 5))))
+		cmdlen = 16;
+
+	/*
+	 * get command and data to send to device, if any
+	 */
+	err = -EFAULT;
+	req->cmd_len = cmdlen;
+	if (copy_from_user(req->cmd, sic->data, cmdlen))
+		goto error;
+
+	if (in_len && copy_from_user(buffer, sic->data + cmdlen, in_len))
+		goto error;
+
+	if (!monitor_verify_command(req->cmd))
+		goto error;
+
+	/* default.  possible overriden later */
+	req->retries = 5;
+
+	if (bytes) {
+		err = blk_rq_map_kern(q, rq, buffer, bytes, GFP_NOIO);
+		if (err)
+			goto error;
+	}
+	blk_execute_rq(disk, rq, 0);
+
+#define OMAX_SB_LEN 16          /* For backward compatibility */
+	err = req->result & 0xff;	/* only 8 bit SCSI status */
+	if (err) {
+		if (req->sense_len && req->sense) {
+			bytes = (OMAX_SB_LEN > req->sense_len) ?
+				req->sense_len : OMAX_SB_LEN;
+			if (copy_to_user(sic->data, req->sense, bytes))
+				err = -EFAULT;
+		}
+	} else {
+		if (copy_to_user(sic->data, buffer, out_len))
+			err = -EFAULT;
+	}
+
+error:
+	blk_put_request(rq);
+
+error_free_buffer:
+	kfree(buffer);
+
+	return err;
+}
+/*feature-memorymonitor-v001-1-end*/
 
 /**
  * ufs_mtk_query_ioctl - perform user read queries
@@ -1788,6 +2235,9 @@ ufs_mtk_query_ioctl(struct ufs_hba *hba, u8 lun, void __user *buffer)
 		case QUERY_DESC_IDN_INTERCONNECT:
 		case QUERY_DESC_IDN_GEOMETRY:
 		case QUERY_DESC_IDN_POWER:
+                /*feature-memorymonitor-v001-2-begin*/
+		case QUERY_DESC_IDN_HEALTH:
+                /*feature-memorymonitor-v001-2-end*/
 			index = 0;
 			break;
 		case QUERY_DESC_IDN_UNIT:
@@ -1981,6 +2431,13 @@ ufs_mtk_ioctl(struct scsi_device *dev, unsigned int cmd, void __user *buffer)
 					  buffer);
 		pm_runtime_put_sync(hba->dev);
 		break;
+        /*feature-memorymonitor-v001-3-begin*/
+	case UFS_IOCTL_MONITOR:
+		pm_runtime_get_sync(hba->dev);
+		err = ufs_ioctl_monitor(dev, buffer);
+		pm_runtime_put_sync(hba->dev);
+		break;
+        /*feature-memorymonitor-v001-3-end*/
 	default:
 		err = -ENOIOCTLCMD;
 		dev_dbg(hba->dev, "%s: Unsupported ioctl cmd %d\n", __func__,
@@ -1989,6 +2446,98 @@ ufs_mtk_ioctl(struct scsi_device *dev, unsigned int cmd, void __user *buffer)
 	}
 
 	return err;
+}
+
+static ssize_t ufshcd_transmission_status_data_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE,
+					"transmission_status_enable:%u\n"
+					"gear_min_write_sec:%llu\n"
+					"gear_max_write_sec:%llu\n"
+					"gear_min_read_sec:%llu\n"
+					"gear_max_read_sec:%llu\n"
+					"gear_min_write_us:%llu\n"
+					"gear_max_write_us:%llu\n"
+					"gear_min_read_us:%llu\n"
+					"gear_max_read_us:%llu\n"
+					"gear_min_dev_us:%llu\n"
+					"gear_max_dev_us:%llu\n"
+					"gear_min_other_sec:%llu\n"
+					"gear_max_other_sec:%llu\n"
+					"gear_min_other_us:%llu\n"
+					"gear_max_other_us:%llu\n"
+					"scsi_send_count:%llu\n"
+					"dev_cmd_count:%llu\n"
+					"active_count:%llu\n"
+					"active_time:%llu\n"
+					"sleep_count:%llu\n"
+					"sleep_time:%llu\n"
+					"powerdown_count:%llu\n"
+					"powerdown_time:%llu\n"
+					"power_total_count:%llu\n"
+					"current_pwr_mode:%u\n",
+					ufs_transmission_status.transmission_status_enable,
+					ufs_transmission_status.gear_min_write_sec,
+					ufs_transmission_status.gear_max_write_sec,
+					ufs_transmission_status.gear_min_read_sec,
+					ufs_transmission_status.gear_max_read_sec,
+					ufs_transmission_status.gear_min_write_us,
+					ufs_transmission_status.gear_max_write_us,
+					ufs_transmission_status.gear_min_read_us,
+					ufs_transmission_status.gear_max_read_us,
+					ufs_transmission_status.gear_min_dev_us,
+					ufs_transmission_status.gear_max_dev_us,
+					ufs_transmission_status.gear_min_other_sec,
+					ufs_transmission_status.gear_max_other_sec,
+					ufs_transmission_status.gear_min_other_us,
+					ufs_transmission_status.gear_max_other_us,
+					ufs_transmission_status.scsi_send_count,
+					ufs_transmission_status.dev_cmd_count,
+					ufs_transmission_status.active_count,
+					ufs_transmission_status.active_time,
+					ufs_transmission_status.sleep_count,
+					ufs_transmission_status.sleep_time,
+					ufs_transmission_status.powerdown_count,
+					ufs_transmission_status.powerdown_time,
+					ufs_transmission_status.power_total_count,
+					ufs_transmission_status.current_pwr_mode);
+}
+
+static ssize_t ufshcd_transmission_status_data_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	u32 value;
+
+	if (kstrtou32(buf, 0, &value))
+		return -EINVAL;
+
+	value = !!value;
+
+	if (value) {
+		ufs_transmission_status.transmission_status_enable = 1;
+	} else {
+		ufs_transmission_status.transmission_status_enable = 0;
+		memset(&ufs_transmission_status, 0, sizeof(struct ufs_transmission_status_t));
+	}
+
+	return count;
+}
+
+static void ufshcd_transmission_status_init_sysfs(struct ufs_hba *hba)
+{
+	printk("tianwen: ufshcd_transmission_status_init_sysfs start\n");
+	ufs_transmission_status_attr.show = ufshcd_transmission_status_data_show;
+	ufs_transmission_status_attr.store = ufshcd_transmission_status_data_store;
+	sysfs_attr_init(&ufs_transmission_status_attr.attr);
+	ufs_transmission_status_attr.attr.name = "ufs_transmission_status";
+	ufs_transmission_status_attr.attr.mode = 0644;
+	if (device_create_file(hba->dev, &ufs_transmission_status_attr))
+		dev_err(hba->dev, "Failed to create sysfs for ufs_transmission_status_attr\n");
+
+	/*init the struct ufs_transmission_status*/
+	memset(&ufs_transmission_status, 0, sizeof(struct ufs_transmission_status_t));
+	ufs_transmission_status.transmission_status_enable = 1;
 }
 
 /**
@@ -2136,6 +2685,15 @@ static int ufs_mtk_vreg_fix_vcc(struct ufs_hba *hba)
 	return err;
 }
 
+static void ufs_mtk_fix_clock_scaling(struct ufs_hba *hba)
+{
+	/* UFS version is below 4.0, clock scaling is not necessary*/
+	if ((hba->dev_info.wspecversion < 0x0400) &&
+		ufs_mtk_is_clk_scale_ready(hba)) {
+		hba->caps &= ~UFSHCD_CAP_CLK_SCALING;
+		ufs_mtk_clk_scale(hba, false);
+	}
+}
 static void ufs_mtk_vreg_fix_vccqx(struct ufs_hba *hba)
 {
 	struct ufs_vreg_info *info = &hba->vreg_info;
@@ -2308,11 +2866,6 @@ static int ufs_mtk_init(struct ufs_hba *hba)
 
 	ufs_mtk_init_clocks(hba);
 
-#if IS_ENABLED(CONFIG_SCSI_UFS_MEDIATEK_DBG)
-	if (hba->caps & UFSHCD_CAP_CLK_SCALING)
-		ufs_mtk_init_clk_scaling_sysfs(hba);
-#endif
-
 	/*
 	 * ufshcd_vops_init() is invoked after
 	 * ufshcd_setup_clock(true) in ufshcd_hba_init() thus
@@ -2339,7 +2892,10 @@ static int ufs_mtk_init(struct ufs_hba *hba)
 #if IS_ENABLED(CONFIG_SCSI_UFS_MEDIATEK_DBG)
 	ufs_mtk_dbg_register(hba);
 #endif
-
+	ufshcd_transmission_status_init_sysfs(hba);
+        /*feature-flashaging806-v001-3-begin*/
+	create_signal_quality_proc(&signalCtrl);
+        /*feature-flashaging806-v001-3-end*/
 #if IS_ENABLED(CONFIG_RPMB)
 	async_schedule(ufs_mtk_rpmb_add, hba);
 #endif
@@ -3300,6 +3856,11 @@ static int ufs_mtk_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op,
 	struct arm_smccc_res res;
 
 	if (status == PRE_CHANGE) {
+#if defined(CONFIG_UFSFEATURE)
+		if (hba->dev_quirks & UFS_DEVICE_QUIRK_SAMSUNG_QLC) {
+			ufsf_suspend(ufs_mtk_get_ufsf(hba), pm_op == UFS_SYSTEM_PM);
+		}
+#endif
 		err = ufs_mtk_suspend_check(hba, pm_op);
 		if (err)
 			return err;
@@ -3347,6 +3908,13 @@ static int ufs_mtk_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 {
 	int err;
 	struct arm_smccc_res res;
+#if defined(CONFIG_UFSFEATURE)
+	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
+
+	if (hba->dev_quirks & UFS_DEVICE_QUIRK_SAMSUNG_QLC) {
+		schedule_work(&ufsf->resume_work);
+	}
+#endif
 
 	if (hba->ufshcd_state != UFSHCD_STATE_OPERATIONAL)
 		ufs_mtk_dev_vreg_set_lpm(hba, false);
@@ -3511,6 +4079,7 @@ static void ufs_mtk_fixup_dev_quirks(struct ufs_hba *hba)
 {
 	struct ufs_dev_info *dev_info = &hba->dev_info;
 	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
+	struct cpumask dstp;
 
 	ufshcd_fixup_dev_quirks(hba, ufs_mtk_dev_fixups);
 
@@ -3527,19 +4096,48 @@ static void ufs_mtk_fixup_dev_quirks(struct ufs_hba *hba)
 		hba->dev_quirks &= ~(UFS_DEVICE_QUIRK_DELAY_BEFORE_LPM |
 			UFS_DEVICE_QUIRK_DELAY_AFTER_LPM);
 	}
-
+	dev_info->hpb_enabled = false;
 	ufs_mtk_vreg_fix_vcc(hba);
 	ufs_mtk_vreg_fix_vccqx(hba);
 	ufs_mtk_fix_ahit(hba);
 
+	ufs_mtk_fix_clock_scaling(hba);
 	ufs_mtk_install_tracepoints(hba);
 
+#if IS_ENABLED(CONFIG_SCSI_UFS_MEDIATEK_DBG)
+	if (hba->caps & UFSHCD_CAP_CLK_SCALING)
+		ufs_mtk_init_clk_scaling_sysfs(hba);
+#endif
+
+	/* give more time for H8 */
+	if (STR_PRFX_EQUAL("KLUFG4LHGC-B0E1", dev_info->model)) {
+		hba->rpm_lvl = UFS_PM_LVL_1;
+		hba->spm_lvl = UFS_PM_LVL_1;
+		/* set affinity to cpu6,7 */
+		cpumask_clear(&dstp);
+		cpumask_set_cpu(7, &dstp);
+		cpumask_set_cpu(6, &dstp);
+		irq_modify_status(hba->irq, 0, IRQ_NO_BALANCING);
+		irq_set_affinity_hint(hba->irq, &dstp);
+	}
+
 #if IS_ENABLED(CONFIG_UFSFEATURE)
-	if (hba->dev_info.wmanufacturerid == UFS_VENDOR_SAMSUNG) {
+	if (hba->dev_quirks & UFS_DEVICE_QUIRK_SAMSUNG_QLC) {
 		host->ufsf.hba = hba;
-		ufsf_set_init_state(ufs_mtk_get_ufsf(hba));
+		ufsf_set_init_state(hba);
 	}
 #endif
+}
+/*feature-flashaging806-v001-4-begin*/
+void recordGearErr(struct unipro_signal_quality_ctrl *signalCtrl, struct ufs_hba *hba)
+{
+	struct ufs_pa_layer_attr *pwr_info = &hba->pwr_info;
+	u32 dev_gear = min_t(u32, pwr_info->gear_rx, pwr_info->gear_tx);
+
+	if (dev_gear > UFS_HS_G5)
+		return;
+
+	signalCtrl->record.gear_err_cnt[dev_gear]++;
 }
 
 static void ufs_mtk_event_notify(struct ufs_hba *hba,
@@ -3549,6 +4147,8 @@ static void ufs_mtk_event_notify(struct ufs_hba *hba,
 	unsigned long reg;
 	uint8_t bit;
 
+	recordUniproErr(&signalCtrl, val, evt);
+	recordGearErr(&signalCtrl, hba);
 	trace_ufs_mtk_event(evt, val);
 
 	/* Print details of UIC Errors */
@@ -3604,8 +4204,22 @@ static void ufs_mtk_event_notify(struct ufs_hba *hba,
 #endif
 	}
 #endif
-}
+#if defined(CONFIG_UFSFEATURE)
+	if (hba->dev_quirks & UFS_DEVICE_QUIRK_SAMSUNG_QLC) {
+		if (evt == UFS_EVT_DEV_RESET && val == 0)
+			/*
+			 * In case of device reset, it may be called repeatedly.
+			 * However, since the cost of initializing flags is small,
+			 * it is performed redundantly.
+			 */
+			ufsf_reset_lu(ufs_mtk_get_ufsf(hba));
 
+		if (evt == UFS_EVT_WL_SUSP_ERR)
+			ufsf_resume(ufs_mtk_get_ufsf(hba), true);
+	}
+#endif
+}
+/*feature-flashaging806-v001-4-end*/
 static int ufs_mtk_auto_hibern8_disable(struct ufs_hba *hba)
 {
 	unsigned long flags;
@@ -3635,17 +4249,6 @@ static int ufs_mtk_auto_hibern8_disable(struct ufs_hba *hba)
 
 	return ret;
 }
-
-void ufs_mtk_setup_task_mgmt(struct ufs_hba *hba, int tag, u8 tm_function)
-{
-#if IS_ENABLED(CONFIG_UFSFEATURE)
-	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
-
-	if (ufsf->hba && (tm_function == UFS_LOGICAL_RESET))
-		ufsf_prepare_reset_lu(ufsf);
-#endif
-}
-
 
 static void ufs_mtk_config_scaling_param(struct ufs_hba *hba,
 					struct devfreq_dev_profile *profile,
@@ -3773,8 +4376,9 @@ static const struct ufs_hba_variant_ops ufs_hba_mtk_vops = {
 	.resume              = ufs_mtk_resume,
 	.dbg_register_dump   = ufs_mtk_dbg_register_dump,
 	.device_reset        = ufs_mtk_device_reset,
+        /*feature-flashaging806-v001-5-begin*/
 	.event_notify        = ufs_mtk_event_notify,
-	.setup_task_mgmt     = ufs_mtk_setup_task_mgmt,
+        /*feature-flashaging806-v001-5-end*/
 	.config_scaling_param = ufs_mtk_config_scaling_param,
 	.clk_scale_notify    = ufs_mtk_clk_scale_notify,
 };
@@ -3844,6 +4448,7 @@ skip_phy:
 
 	/* perform generic probe */
 	err = ufshcd_pltfrm_init(pdev, &ufs_hba_mtk_vops);
+
 	if (err) {
 		dev_info(dev, "probe failed %d\n", err);
 		goto out;
@@ -3900,17 +4505,19 @@ static int ufs_mtk_remove(struct platform_device *pdev)
 	ufs_mtk_remove_ufsf(hba);
 #endif
 
-
 #if IS_ENABLED(CONFIG_SCSI_UFS_MEDIATEK_DBG)
 	if (hba->caps & UFSHCD_CAP_CLK_SCALING)
 		ufs_mtk_remove_clk_scaling_sysfs(hba);
-#endif
 
+#endif
 	ufshcd_remove(hba);
 #if IS_ENABLED(CONFIG_MTK_BLOCK_IO_TRACER)
 	mtk_btag_ufs_exit();
 #endif
 	ufs_mtk_uninstall_tracepoints();
+        /*feature-flashaging806-v001-6-begin*/
+	remove_signal_quality_proc(&signalCtrl);
+        /*feature-flashaging806-v001-6-end*/
 	return 0;
 }
 
@@ -3920,18 +4527,10 @@ int ufs_mtk_system_suspend(struct device *dev)
 	int ret = 0;
 	struct ufs_hba *hba = dev_get_drvdata(dev);
 	struct ufs_mtk_host *host;
-#if defined(CONFIG_UFSFEATURE)
-	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
-#endif
 
 	host = ufshcd_get_variant(hba);
 	if (down_trylock(&host->rpmb_sem))
 		return -EBUSY;
-
-#if defined(CONFIG_UFSFEATURE)
-	if (ufsf->hba)
-		ufsf_suspend(ufsf);
-#endif
 
 	/* Check if shutting down */
 	if (!ufshcd_is_user_access_allowed(hba)) {
@@ -3945,11 +4544,6 @@ int ufs_mtk_system_suspend(struct device *dev)
 		ufs_mtk_dev_vreg_set_lpm(hba, true);
 out:
 
-#if defined(CONFIG_UFSFEATURE)
-	/* We assume link is off */
-	if (ret && ufsf)
-		ufsf_resume(ufsf, true);
-#endif
 	if (ret)
 		up(&host->rpmb_sem);
 
@@ -3961,19 +4555,10 @@ int ufs_mtk_system_resume(struct device *dev)
 	int ret = 0;
 	struct ufs_hba *hba = dev_get_drvdata(dev);
 	struct ufs_mtk_host *host;
-#if defined(CONFIG_UFSFEATURE)
-	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
-	bool is_link_off = ufshcd_is_link_off(hba);
-#endif
 
 	ufs_mtk_dev_vreg_set_lpm(hba, false);
 
 	ret = ufshcd_system_resume(dev);
-
-#if defined(CONFIG_UFSFEATURE)
-	if (!ret && ufsf->hba)
-		ufsf_resume(ufsf, is_link_off);
-#endif
 
 	host = ufshcd_get_variant(hba);
 	if (!ret)
@@ -3989,22 +4574,10 @@ int ufs_mtk_runtime_suspend(struct device *dev)
 	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
 	int ret = 0;
 
-#if defined(CONFIG_UFSFEATURE)
-	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
-
-	if (ufsf->hba)
-		ufsf_suspend(ufsf);
-#endif
 	ret = ufshcd_runtime_suspend(dev);
 
 	if (!ret)
 		ufs_mtk_dev_vreg_set_lpm(hba, true);
-
-#if defined(CONFIG_UFSFEATURE)
-	/* We assume link is off */
-	if (ret && ufsf->hba)
-		ufsf_resume(ufsf, true);
-#endif
 
 	if (!ret && (host->phy_dev))
 		pm_runtime_put_sync(host->phy_dev);
@@ -4018,11 +4591,6 @@ int ufs_mtk_runtime_resume(struct device *dev)
 	int ret = 0;
 	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
 
-#if defined(CONFIG_UFSFEATURE)
-	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
-	bool is_link_off = ufshcd_is_link_off(hba);
-#endif
-
 	if (host->phy_dev)
 		pm_runtime_get_sync(host->phy_dev);
 
@@ -4030,25 +4598,11 @@ int ufs_mtk_runtime_resume(struct device *dev)
 
 	ret = ufshcd_runtime_resume(dev);
 
-#if defined(CONFIG_UFSFEATURE)
-	if (!ret && ufsf->hba)
-		ufsf_resume(ufsf, is_link_off);
-#endif
-
 	return ret;
 }
 
 void ufs_mtk_shutdown(struct platform_device *pdev)
 {
-#if defined(CONFIG_UFSFEATURE)
-	struct device *dev = &pdev->dev;
-	struct ufs_hba *hba = dev_get_drvdata(dev);
-	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
-
-	if (ufsf->hba)
-		ufsf_suspend(ufsf);
-#endif
-
 	/*
 	 * ufshcd_wl_shutdown may run concurrently and have racing problem.
 	 * ufshcd_pltfrm_shutdown only turn off power and clock, which is not

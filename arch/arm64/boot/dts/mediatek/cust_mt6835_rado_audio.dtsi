@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: GPL-2.0
+/* Copyright (c) 2020 MediaTek Inc. */
+
+&i2c7 {
+    clock-frequency = <400000>;
+
+    fsa4480: fsa4480@42 {
+        compatible = "qcom,fsa4480-i2c";
+        reg = <0x42>;
+        pinctrl-names = "default";
+        pinctrl-0 = <&fsa_hs_det>;
+        fsa4480,hs-det-gpio = <&pio 35 0>;
+        fsa4480,hp-bypass = <1>;
+        fsa4480,hs-det-level = <1>;
+    };
+};
+
+&pio {
+    fsa_hs_det: fsa_hs_det {
+        pins_cmd_dat {
+            pinmux = <PINMUX_GPIO35__FUNC_GPIO35>;
+            slew-rate = <1>;  /*direction 0:in, 1:out*/
+            output-high;
+        };
+    };
+};
+
+&accdet {
+        hp-eint0-disable = <1>;
+        headset-three-key-threshold = <0 82 170 306>;
+};

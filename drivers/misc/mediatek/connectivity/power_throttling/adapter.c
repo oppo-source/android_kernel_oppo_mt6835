@@ -16,6 +16,7 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/sched/clock.h>
+#include <linux/slab.h>
 #if IS_ENABLED(CONFIG_COMPAT)
 #include <linux/compat.h>
 #endif
@@ -24,7 +25,7 @@
 
 /* termal related macro */
 #if IS_ENABLED(CONFIG_MTK_LOW_BATTERY_POWER_THROTTLING)
-//#define CONN_PWR_LOW_BATTERY_ENABLE
+#define CONN_PWR_LOW_BATTERY_ENABLE
 #endif
 #define CONN_PWR_INVALID_TEMP (-888)
 #define CONN_PWR_MAX_TEMP_HIGH  110
@@ -53,6 +54,8 @@ static CONN_PWR_EVENT_CB g_event_cb_tbl[CONN_PWR_DRV_MAX];
 static int g_drv_status_tbl[CONN_PWR_DRV_MAX];
 #ifdef CONN_PWR_LOW_BATTERY_ENABLE
 static int g_low_battery_level = LOW_BATTERY_LEVEL_0;
+static int g_low_battery_level_cb = LOW_BATTERY_LEVEL_0;
+static int isThreeLevel;
 #else
 static int g_low_battery_level = 0;
 #endif
@@ -165,7 +168,6 @@ int conn_pwr_set_battery_level(int level)
 {
 	struct conn_pwr_update_info info;
 
-	pr_info("%s level = %d\n", __func__, level);
 	if (level < LOW_BATTERY_LEVEL_0 || level >= LOW_BATTERY_LEVEL_NUM) {
 		pr_info("invalid level %d\n", level);
 		return -1;
@@ -223,9 +225,37 @@ static long conn_pwr_dev_compat_ioctl(struct file *filp, unsigned int cmd, unsig
 #endif
 
 #ifdef CONN_PWR_LOW_BATTERY_ENABLE
-static void conn_pwr_low_battery_cb(enum LOW_BATTERY_LEVEL_TAG level)
+static void delay_work_func(struct work_struct *work)
 {
-	conn_pwr_set_battery_level(level);
+
+	if (!work) {
+		pr_notice("%s work is NULL\n", __func__);
+		return;
+	}
+
+	conn_pwr_set_battery_level(g_low_battery_level_cb);
+
+	kfree(work);
+}
+
+static void conn_pwr_delay_work(unsigned int val)
+{
+	struct work_struct *work;
+
+	work = kmalloc(sizeof(struct work_struct), GFP_ATOMIC);
+	if (!work)
+		return;
+
+	g_low_battery_level_cb = val;
+
+	INIT_WORK(work, delay_work_func);
+	schedule_work(work);
+}
+
+static void conn_pwr_low_battery_cb(enum LOW_BATTERY_LEVEL_TAG level, void *data)
+{
+	if (isThreeLevel)
+		conn_pwr_delay_work(level);
 }
 #endif
 
@@ -248,7 +278,6 @@ int conn_pwr_get_plat_level(enum conn_pwr_plat_type type, int *data)
 		pr_info("type %d is out of range.\n", type);
 		return -2;
 	}
-	pr_info("%s ,type = %d, ret = %d\n", __func__, type, *data);
 
 	return 0;
 }
@@ -383,14 +412,13 @@ int conn_pwr_notify_event(enum conn_pwr_drv_type drv, enum conn_pwr_event_type e
 	}
 
 	ret = (*g_event_cb_tbl[drv])(event, data);
-	if (event == CONN_PWR_EVENT_LEVEL)
-		pr_info("%s, drv = %d, level = %d, ret = %d\n", __func__, drv, *((int *)data), ret);
-	else if (event == CONN_PWR_EVENT_MAX_TEMP && data != NULL) {
+	if (event == CONN_PWR_EVENT_MAX_TEMP && data != NULL) {
 		d = (struct conn_pwr_event_max_temp *)data;
 		pr_info("%s, drv = %d, max_t = %d, rcv_t = %d, ret = %d\n", __func__,
 			drv, d->max_temp, d->recovery_temp, ret);
-	} else {
-		pr_info("invalid. event = %d, data = %x\n", event, data);
+	} else if (event != CONN_PWR_EVENT_LEVEL) {
+		pr_info("invalid. event = %d, data = %lx\n", event,
+				(unsigned long)data);
 		return -3;
 	}
 	return ret;
@@ -549,6 +577,8 @@ static int conn_pwr_dev_deinit(void)
 
 int conn_pwr_init(struct conn_pwr_plat_info *data)
 {
+	int ret = 0;
+
 	pr_info("%s\n", __func__);
 	if (data == NULL) {
 		pr_info("data is NULL\n");
@@ -568,7 +598,9 @@ int conn_pwr_init(struct conn_pwr_plat_info *data)
 	conn_pwr_core_init();
 
 #ifdef CONN_PWR_LOW_BATTERY_ENABLE
-	register_low_battery_notify(&conn_pwr_low_battery_cb, LOW_BATTERY_PRIO_WIFI);
+	ret = register_low_battery_notify(&conn_pwr_low_battery_cb, LOW_BATTERY_PRIO_WIFI, NULL);
+	if (ret == 3)
+		isThreeLevel = 1;
 #endif
 	conn_pwr_dev_init();
 

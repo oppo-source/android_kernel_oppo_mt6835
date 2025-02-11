@@ -314,6 +314,9 @@
 #define MIPITX_CK_SW_LPTX_PRE_OE	(0x0348UL)
 #define MIPITX_CKC_SW_LPTX_PRE_OE	(0x0368UL)
 
+#ifdef OPLUS_FEATURE_DISPLAY
+extern unsigned int oplus_enhance_mipi_strength;
+#endif
 
 enum MIPITX_PAD_VALUE {
 	PAD_D2P_T0A = 0,
@@ -1034,7 +1037,9 @@ int mtk_mipi_tx_ssc_en(struct phy *phy, struct mtk_panel_ext *mtk_panel)
 		} else if (data_rate >= 750) {
 			txdiv = 8;
 			div3  = 1;
-		} else if (data_rate >= 510) {
+#ifdef OPLUS_FEATURE_DISPLAY
+		} else if (data_rate >= 500) {
+#endif
 			txdiv = 4;
 			div3  = 3;
 		} else {
@@ -1289,7 +1294,9 @@ static int mtk_mipi_tx_pll_dphy_config_mt6985(struct mtk_mipi_tx *mipi_tx)
 		txdiv1 = 0;
 		div3 = 1;
 		div3_en = 0;
-	} else if (rate >= 510) {
+#ifdef OPLUS_FEATURE_DISPLAY
+	} else if (rate >= 500) {
+#endif
 		txdiv = 4;
 		txdiv0 = 2;
 		txdiv1 = 0;
@@ -1306,6 +1313,14 @@ static int mtk_mipi_tx_pll_dphy_config_mt6985(struct mtk_mipi_tx *mipi_tx)
 	else
 		mtk_mipi_tx_update_bits(mipi_tx, MIPITX_VOLTAGE_SEL_MT6983,
 			FLD_RG_DSI_PRD_REF_SEL, 0x4);
+
+#ifdef OPLUS_FEATURE_DISPLAY
+	if (oplus_enhance_mipi_strength == 1) {
+		mtk_mipi_tx_update_bits(mipi_tx, MIPITX_VOLTAGE_SEL_MT6983,
+			FLD_RG_DSI_HSTX_LDO_REF_SEL, 0xF << 6);
+		DDPINFO("%s+ oplus_enhance_mipi_strength.\n", __func__);
+	}
+#endif
 
 #ifdef IF_ZERO
 	/* No need keep as default */
@@ -1641,7 +1656,9 @@ unsigned int _dsi_get_pcw_mt6983(unsigned long data_rate,
 		div3 = 3;
 	else if (data_rate >= 750)
 		div3 = 1;
-	else if (data_rate >= 510)
+#ifdef OPLUS_FEATURE_DISPLAY
+	else if (data_rate >= 500)
+#endif
 		div3 = 3;
 	else {
 		DDPPR_ERR("invalid data rate %u\n");
@@ -3803,7 +3820,9 @@ void mtk_mipi_tx_pll_rate_switch_gce_mt6983(struct phy *phy,
 		txdiv = 8;
 		txdiv0 = 3;
 		txdiv1 = 0;
-	} else if (rate >= 510) {
+#ifdef OPLUS_FEATURE_DISPLAY
+	} else if (rate >= 500) {
+#endif
 		txdiv = 4;
 		txdiv0 = 2;
 		txdiv1 = 0;

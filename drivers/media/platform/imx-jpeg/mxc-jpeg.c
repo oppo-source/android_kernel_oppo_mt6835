@@ -2104,8 +2104,6 @@ static int mxc_jpeg_probe(struct platform_device *pdev)
 	jpeg->dev = dev;
 	jpeg->mode = mode;
 
-	/* Get clocks */
-	ret = devm_clk_bulk_get_all(&pdev->dev, &jpeg->clks);
 	if (ret < 0) {
 		dev_err(dev, "failed to get clock\n");
 		goto err_clk;

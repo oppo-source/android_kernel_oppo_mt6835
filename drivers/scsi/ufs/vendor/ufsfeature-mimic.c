@@ -1,230 +1,34 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Samsung UFS Feaature Mimic for android12-5.10
+ * Samsung UFS Feature Mimic for android13-5.15
+ *
+ * Copyright (C) 2021 Samsung Electronics Co., Ltd.
+ *
+ * from
+ *
+ * linux/drivers/scsi/ufs/ufshcd.c
  */
 
 #include "ufshcd.h"
 #include "ufshcd-crypto.h"
 #include "ufsfeature.h"
+#define CREATE_TRACE_POINTS
+#include <trace/events/ufs.h>
+#undef CREATE_TRACE_POINTS
 #include <trace/hooks/ufshcd.h>
 
 /* Query request retries */
 #define QUERY_REQ_RETRIES 3
 /* Query request timeout */
 #define QUERY_REQ_TIMEOUT 1500 /* 1.5 seconds */
-/* Task management command timeout */
-#define TM_CMD_TIMEOUT	100 /* msecs */
 
-bool ufsf__blk_mq_tag_busy(struct blk_mq_hw_ctx *hctx)
+static inline int ufsf_use_mcq_hooks(struct ufs_hba *hba)
 {
-	if (blk_mq_is_sbitmap_shared(hctx->flags)) {
-		struct request_queue *q = hctx->queue;
-		struct blk_mq_tag_set *set = q->tag_set;
+	bool mcq_hooks = false;
 
-		if (!test_bit(QUEUE_FLAG_HCTX_ACTIVE, &q->queue_flags) &&
-		    !test_and_set_bit(QUEUE_FLAG_HCTX_ACTIVE, &q->queue_flags))
-			atomic_inc(&set->active_queues_shared_sbitmap);
-	} else {
-		if (!test_bit(BLK_MQ_S_TAG_ACTIVE, &hctx->state) &&
-		    !test_and_set_bit(BLK_MQ_S_TAG_ACTIVE, &hctx->state))
-			atomic_inc(&hctx->tags->active_queues);
-	}
+	trace_android_vh_ufs_use_mcq_hooks(hba, &mcq_hooks);
 
-	return true;
-}
-
-static inline bool ufsf_blk_mq_tag_busy(struct blk_mq_hw_ctx *hctx)
-{
-	if (!(hctx->flags & BLK_MQ_F_TAG_QUEUE_SHARED))
-		return false;
-
-	return ufsf__blk_mq_tag_busy(hctx);
-}
-
-static inline void ufsf__blk_mq_inc_active_requests(struct blk_mq_hw_ctx *hctx)
-{
-	if (blk_mq_is_sbitmap_shared(hctx->flags))
-		atomic_inc(&hctx->queue->nr_active_requests_shared_sbitmap);
-	else
-		atomic_inc(&hctx->nr_active);
-}
-
-static bool ufsf__blk_mq_get_driver_tag(struct request *rq)
-{
-	struct sbitmap_queue *bt = rq->mq_hctx->tags->bitmap_tags;
-	unsigned int tag_offset = rq->mq_hctx->tags->nr_reserved_tags;
-	int tag;
-
-	ufsf_blk_mq_tag_busy(rq->mq_hctx);
-
-	if (blk_mq_tag_is_reserved(rq->mq_hctx->sched_tags, rq->internal_tag)) {
-		bt = rq->mq_hctx->tags->breserved_tags;
-		tag_offset = 0;
-	} else {
-		if (!hctx_may_queue(rq->mq_hctx, bt))
-			return false;
-	}
-
-	tag = __sbitmap_queue_get(bt);
-	if (tag == BLK_MQ_NO_TAG)
-		return false;
-
-	rq->tag = tag + tag_offset;
-	return true;
-}
-
-bool ufsf_blk_mq_get_driver_tag(struct request *rq)
-{
-	struct blk_mq_hw_ctx *hctx = rq->mq_hctx;
-
-	if (rq->tag == BLK_MQ_NO_TAG && !ufsf__blk_mq_get_driver_tag(rq))
-		return false;
-
-	if ((hctx->flags & BLK_MQ_F_TAG_QUEUE_SHARED) &&
-			!(rq->rq_flags & RQF_MQ_INFLIGHT)) {
-		rq->rq_flags |= RQF_MQ_INFLIGHT;
-		ufsf__blk_mq_inc_active_requests(hctx);
-	}
-	hctx->tags->rqs[rq->tag] = rq;
-	return true;
-}
-
-static void ufsf_hctx_unlock_mimic(struct blk_mq_hw_ctx *hctx, int srcu_idx)
-__releases(hctx->srcu)
-{
-	if (!(hctx->flags & BLK_MQ_F_BLOCKING))
-		rcu_read_unlock();
-	else
-		srcu_read_unlock(hctx->srcu, srcu_idx);
-}
-
-static void ufsf_hctx_lock_mimic(struct blk_mq_hw_ctx *hctx, int *srcu_idx)
-__acquires(hctx->srcu)
-{
-	if (!(hctx->flags & BLK_MQ_F_BLOCKING)) {
-		/* shut up gcc false positive */
-		*srcu_idx = 0;
-		rcu_read_lock();
-	} else
-		*srcu_idx = srcu_read_lock(hctx->srcu);
-}
-
-static int ufsf_blk_mq_dispatch_rq_list_mimic(struct blk_mq_hw_ctx *hctx,
-						struct request *rq)
-{
-	struct request_queue *q = rq->q;
-	struct blk_mq_queue_data bd;
-	int ret = 0;
-
-	if (!blk_mq_get_dispatch_budget(rq->q))
-		return -EBUSY;
-
-	if (!ufsf_blk_mq_get_driver_tag(rq)) {
-		blk_mq_put_dispatch_budget(rq->q);
-		return -EBUSY;
-	}
-
-	bd.rq = rq;
-
-	ret = q->mq_ops->queue_rq(hctx, &bd);
-	if (ret == BLK_STS_RESOURCE || ret == BLK_STS_DEV_RESOURCE) {
-		/*
-		 * If an I/O scheduler has been configured and we got a
-		 * driver tag for the next request already, free it
-		 * again.
-		 */
-		return -EIO;
-	}
-
-	if (unlikely(ret != BLK_STS_OK))
-		return -EIO;
-
-	return ret;
-}
-
-static int ufsf_blk_mq_sched_dispatch_requests(struct blk_mq_hw_ctx *hctx,
-						 struct request *rq)
-{
-	int ret;
-
-	/* RCU or SRCU read lock is needed before checking quiesced flag */
-	if (unlikely(blk_mq_hctx_stopped(hctx) || blk_queue_quiesced(rq->q)))
-		return -EPERM;
-
-	hctx->run++;
-
-	blk_mq_sched_mark_restart_hctx(hctx);
-	ret = ufsf_blk_mq_dispatch_rq_list_mimic(hctx, rq);
-
-	return ret;
-}
-
-int ufsf_blk_mq_run_hw_queue_mimic(struct blk_mq_hw_ctx *hctx, struct request *rq)
-{
-	int srcu_idx;
-	int ret = 0;
-
-	/*
-	 * We should be running this queue from one of the CPUs that
-	 * are mapped to it.
-	 *
-	 * There are at least two related races now between setting
-	 * hctx->next_cpu from blk_mq_hctx_next_cpu() and running
-	 * __blk_mq_run_hw_queue():
-	 *
-	 * - hctx->next_cpu is found offline in blk_mq_hctx_next_cpu(),
-	 *   but later it becomes online, then this warning is harmless
-	 *   at all
-	 *
-	 * - hctx->next_cpu is found online in blk_mq_hctx_next_cpu(),
-	 *   but later it becomes offline, then the warning can't be
-	 *   triggered, and we depend on blk-mq timeout handler to
-	 *   handle dispatched requests to this hctx
-	 */
-	if (!cpumask_test_cpu(raw_smp_processor_id(), hctx->cpumask) &&
-		cpu_online(hctx->next_cpu)) {
-		printk(KERN_WARNING "run queue from wrong CPU %d, hctx %s\n",
-			raw_smp_processor_id(),
-			cpumask_empty(hctx->cpumask) ? "inactive" : "active");
-		dump_stack();
-	}
-
-	/*
-	 * We can't run the queue inline with ints disabled. Ensure that
-	 * we catch bad users of this early.
-	 */
-	WARN_ON_ONCE(in_interrupt());
-
-	if (hctx->flags & BLK_MQ_F_BLOCKING)
-		return -EPERM;
-
-	ufsf_hctx_lock_mimic(hctx, &srcu_idx);
-	ret = ufsf_blk_mq_sched_dispatch_requests(hctx, rq);
-	ufsf_hctx_unlock_mimic(hctx, srcu_idx);
-
-	return ret;
-}
-
-int ufsf_blk_execute_rq_nowait_mimic(struct request *rq,
-				     struct blk_mq_hw_ctx *hctx,
-				     rq_end_io_fn *done)
-{
-	int cpu = get_cpu();
-	int ret = 0;
-
-	WARN_ON(irqs_disabled());
-	WARN_ON(!blk_rq_is_passthrough(rq));
-
-	rq->rq_disk = NULL;
-	rq->end_io = done;
-
-	if (likely(cpumask_test_cpu(cpu, hctx->cpumask))) {
-		ret = ufsf_blk_mq_run_hw_queue_mimic(hctx, rq);
-		put_cpu();
-		return ret;
-	}
-	put_cpu();
-	return -EPERM;
+	return mcq_hooks;
 }
 
 static inline int ufsf_get_tr_ocs(struct ufshcd_lrb *lrbp)
@@ -242,11 +46,6 @@ static inline int
 ufsf_get_rsp_upiu_result(struct utp_upiu_rsp *ucd_rsp_ptr)
 {
 	return be32_to_cpu(ucd_rsp_ptr->header.dword_1) & MASK_RSP_UPIU_RESULT;
-}
-
-static inline void ufsf_outstanding_req_clear(struct ufs_hba *hba, int tag)
-{
-	clear_bit(tag, &hba->outstanding_reqs);
 }
 
 static int
@@ -331,13 +130,18 @@ ufsf_clear_cmd(struct ufs_hba *hba, int tag)
 	unsigned long flags;
 	u32 mask = 1 << tag;
 
+	if (ufsf_use_mcq_hooks(hba)) {
+		trace_android_vh_ufs_mcq_clear_cmd(hba, tag, &err);
+		return err;
+	}
+
 	/* clear outstanding transaction before retry */
 	spin_lock_irqsave(hba->host->host_lock, flags);
 	ufsf_utrl_clear(hba, tag);
 	spin_unlock_irqrestore(hba->host->host_lock, flags);
 
 	/*
-	 * wait for for h/w to clear corresponding bit in door-bell.
+	 * wait for h/w to clear corresponding bit in door-bell.
 	 * max. wait is 1 sec.
 	 */
 	err = ufsf_wait_for_register(hba,
@@ -382,6 +186,68 @@ static void ufsf_clk_scaling_start_busy(struct ufs_hba *hba)
 	spin_unlock_irqrestore(hba->host->host_lock, flags);
 }
 
+static void ufsf_add_cmd_upiu_trace(struct ufs_hba *hba, unsigned int tag,
+				    enum ufs_trace_str_t str_t)
+{
+	struct utp_upiu_req *rq = hba->lrb[tag].ucd_req_ptr;
+	struct utp_upiu_header *header;
+
+	if (!trace_ufshcd_upiu_enabled())
+		return;
+
+	if (str_t == UFS_CMD_SEND)
+		header = &rq->header;
+	else
+		header = &hba->lrb[tag].ucd_rsp_ptr->header;
+
+	trace_ufshcd_upiu(dev_name(hba->dev), str_t, header, &rq->sc.cdb,
+			  UFS_TSF_CDB);
+}
+
+static void ufsf_add_command_trace(struct ufs_hba *hba, unsigned int tag,
+				   enum ufs_trace_str_t str_t)
+{
+	u64 lba = 0;
+	u8 opcode = 0, group_id = 0;
+	u32 intr, doorbell;
+	struct ufshcd_lrb *lrbp = &hba->lrb[tag];
+	struct scsi_cmnd *cmd = lrbp->cmd;
+	struct request *rq = scsi_cmd_to_rq(cmd);
+	int transfer_len = -1;
+
+	if (!cmd)
+		return;
+
+	/* trace UPIU also */
+	ufsf_add_cmd_upiu_trace(hba, tag, str_t);
+	if (!trace_ufshcd_command_enabled())
+		return;
+
+	opcode = cmd->cmnd[0];
+
+	if (opcode == READ_10 || opcode == WRITE_10) {
+		/*
+		 * Currently we only fully trace read(10) and write(10) commands
+		 */
+		transfer_len =
+		       be32_to_cpu(lrbp->ucd_req_ptr->sc.exp_data_transfer_len);
+		lba = scsi_get_lba(cmd);
+		if (opcode == WRITE_10)
+			group_id = lrbp->cmd->cmnd[6];
+	} else if (opcode == UNMAP) {
+		/*
+		 * The number of Bytes to be unmapped beginning with the lba.
+		 */
+		transfer_len = blk_rq_bytes(rq);
+		lba = scsi_get_lba(cmd);
+	}
+
+	intr = ufshcd_readl(hba, REG_INTERRUPT_STATUS);
+	doorbell = ufshcd_readl(hba, REG_UTP_TRANSFER_REQ_DOOR_BELL);
+	trace_ufshcd_command(dev_name(hba->dev), str_t, tag,
+			doorbell, transfer_len, intr, lba, opcode, group_id);
+}
+
 static inline bool ufsf_should_inform_monitor(struct ufs_hba *hba,
 					      struct ufshcd_lrb *lrbp)
 {
@@ -413,31 +279,37 @@ static void ufsf_start_monitor(struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
 	spin_unlock_irqrestore(hba->host->host_lock, flags);
 }
 
+/**
+ * ufsf_send_command - Send SCSI or device management commands
+ * @hba: per adapter instance
+ * @task_tag: Task tag of the command
+ */
 static inline
 void ufsf_send_command(struct ufs_hba *hba, unsigned int task_tag)
 {
 	struct ufshcd_lrb *lrbp = &hba->lrb[task_tag];
+	unsigned long flags;
+
+	if (ufsf_use_mcq_hooks(hba)) {
+		trace_android_vh_ufs_mcq_send_command(hba, task_tag);
+		return;
+	}
 
 	lrbp->issue_time_stamp = ktime_get();
 	lrbp->compl_time_stamp = ktime_set(0, 0);
-	ufshcd_vops_setup_xfer_req(hba, task_tag, (lrbp->cmd ? true : false));
 	trace_android_vh_ufs_send_command(hba, lrbp);
+	ufsf_add_command_trace(hba, task_tag, UFS_CMD_SEND);
 	ufsf_clk_scaling_start_busy(hba);
 	if (unlikely(ufsf_should_inform_monitor(hba, lrbp)))
 		ufsf_start_monitor(hba, lrbp);
-	if (ufshcd_has_utrlcnr(hba)) {
-		set_bit(task_tag, &hba->outstanding_reqs);
-		ufshcd_writel(hba, 1 << task_tag,
-			      REG_UTP_TRANSFER_REQ_DOOR_BELL);
-	} else {
-		unsigned long flags;
 
-		spin_lock_irqsave(hba->host->host_lock, flags);
-		set_bit(task_tag, &hba->outstanding_reqs);
-		ufshcd_writel(hba, 1 << task_tag,
-			      REG_UTP_TRANSFER_REQ_DOOR_BELL);
-		spin_unlock_irqrestore(hba->host->host_lock, flags);
-	}
+	spin_lock_irqsave(&hba->outstanding_lock, flags);
+	if (hba->vops && hba->vops->setup_xfer_req)
+		hba->vops->setup_xfer_req(hba, task_tag, !!lrbp->cmd);
+	__set_bit(task_tag, &hba->outstanding_reqs);
+	ufshcd_writel(hba, 1 << task_tag, REG_UTP_TRANSFER_REQ_DOOR_BELL);
+	spin_unlock_irqrestore(&hba->outstanding_lock, flags);
+
 	/* Make sure that doorbell is committed immediately */
 	wmb();
 }
@@ -486,12 +358,11 @@ static int ufsf_wait_for_dev_cmd(struct ufs_hba *hba,
 	int err = 0;
 	unsigned long time_left;
 	unsigned long flags;
+	unsigned long *outstanding_reqs;
 
 	time_left = wait_for_completion_timeout(hba->dev_cmd.complete,
 			msecs_to_jiffies(max_timeout));
 
-	/* Make sure descriptors are ready before ringing the doorbell */
-	wmb();
 	spin_lock_irqsave(hba->host->host_lock, flags);
 	hba->dev_cmd.complete = NULL;
 	if (likely(time_left)) {
@@ -513,7 +384,12 @@ static int ufsf_wait_for_dev_cmd(struct ufs_hba *hba,
 		 * we also need to clear the outstanding_request
 		 * field in hba
 		 */
-		ufsf_outstanding_req_clear(hba, lrbp->task_tag);
+		spin_lock_irqsave(&hba->outstanding_lock, flags);
+		outstanding_reqs = &hba->outstanding_reqs;
+		trace_android_vh_ufs_mcq_get_outstanding_reqs(hba,
+								&outstanding_reqs, NULL);
+		__clear_bit(lrbp->task_tag, outstanding_reqs);
+		spin_unlock_irqrestore(&hba->outstanding_lock, flags);
 	}
 
 	return err;
@@ -653,40 +529,30 @@ static inline bool ufsf_valid_tag(struct ufs_hba *hba, int tag)
 	return tag >= 0 && tag < hba->nutrs;
 }
 
+static void ufsf_add_query_upiu_trace(struct ufs_hba *hba,
+				      enum ufs_trace_str_t str_t,
+				      struct utp_upiu_req *rq_rsp)
+{
+	if (!trace_ufshcd_upiu_enabled())
+		return;
+
+	trace_ufshcd_upiu(dev_name(hba->dev), str_t, &rq_rsp->header,
+			  &rq_rsp->qr, UFS_TSF_OSF);
+}
+
 static int ufsf_exec_dev_cmd(struct ufs_hba *hba,
 			     enum dev_cmd_type cmd_type, int timeout)
 {
-	struct request_queue *q = hba->cmd_queue;
-	struct request *req;
+	DECLARE_COMPLETION_ONSTACK(wait);
+	const u32 tag = hba->reserved_slot;
 	struct ufshcd_lrb *lrbp;
 	int err;
-	int tag;
-	struct completion wait;
+
+	/* Protects use of hba->reserved_slot. */
+	lockdep_assert_held(&hba->dev_cmd.lock);
 
 	down_read(&hba->clk_scaling_lock);
 
-	/*
-	 * Get free slot, sleep if slots are unavailable.
-	 * Even though we use wait_event() which sleeps indefinitely,
-	 * the maximum wait time is bounded by SCSI request timeout.
-	 */
-	req = blk_get_request(q, REQ_OP_DRV_OUT, 0);
-	if (IS_ERR(req)) {
-		err = PTR_ERR(req);
-		goto out_unlock;
-	}
-	tag = req->tag;
-	WARN_ON_ONCE(!ufsf_valid_tag(hba, tag));
-	/* Set the timeout such that the SCSI error handler is not activated. */
-	req->timeout = msecs_to_jiffies(2 * timeout);
-	blk_mq_start_request(req);
-
-	if (unlikely(test_bit(tag, &hba->outstanding_reqs))) {
-		err = -EBUSY;
-		goto out;
-	}
-
-	init_completion(&wait);
 	lrbp = &hba->lrb[tag];
 	WARN_ON(lrbp->cmd);
 	err = ufsf_compose_dev_cmd(hba, lrbp, cmd_type, tag);
@@ -695,15 +561,16 @@ static int ufsf_exec_dev_cmd(struct ufs_hba *hba,
 
 	hba->dev_cmd.complete = &wait;
 
-	/* Make sure descriptors are ready before ringing the doorbell */
-	wmb();
+	trace_android_vh_ufs_mcq_set_sqid(hba, 0, lrbp);
+
+	ufsf_add_query_upiu_trace(hba, UFS_QUERY_SEND, lrbp->ucd_req_ptr);
 
 	ufsf_send_command(hba, tag);
 	err = ufsf_wait_for_dev_cmd(hba, lrbp, timeout);
+	ufsf_add_query_upiu_trace(hba, err ? UFS_QUERY_ERR : UFS_QUERY_COMP,
+				    (struct utp_upiu_req *)lrbp->ucd_rsp_ptr);
 
 out:
-	blk_put_request(req);
-out_unlock:
 	up_read(&hba->clk_scaling_lock);
 	return err;
 }
@@ -722,16 +589,6 @@ static inline void ufsf_init_query(struct ufs_hba *hba,
 	(*request)->upiu_req.selector = selector;
 }
 
-/**
- * ufsf_query_flag() - API function for sending flag query requests
- * @hba: per-adapter instance
- * @opcode: flag query to perform
- * @idn: flag idn to access
- * @index: flag index to access
- * @flag_res: the flag value after the query request completes
- *
- * Returns 0 for success, non-zero in case of failure
- */
 int ufsf_query_flag(struct ufs_hba *hba, enum query_opcode opcode,
 		    enum flag_idn idn, u8 index, u8 selector,  bool *flag_res)
 {
@@ -798,8 +655,7 @@ int ufsf_query_flag_retry(struct ufs_hba *hba, enum query_opcode opcode,
 	int retries;
 
 	for (retries = 0; retries < QUERY_REQ_RETRIES; retries++) {
-		ret = ufsf_query_flag(hba, opcode, idn, index, selector,
-				      flag_res);
+		ret = ufsf_query_flag(hba, opcode, idn, index, selector, flag_res);
 		if (ret)
 			dev_dbg(hba->dev,
 				"%s: failed with error %d, retries %d\n",
@@ -813,153 +669,6 @@ int ufsf_query_flag_retry(struct ufs_hba *hba, enum query_opcode opcode,
 			"%s: query attribute, opcode %d, idn %d, failed with error %d after %d retires\n",
 			__func__, opcode, idn, ret, retries);
 	return ret;
-}
-
-static inline void ufsf_utmrl_clear(struct ufs_hba *hba, u32 pos)
-{
-	if (hba->quirks & UFSHCI_QUIRK_BROKEN_REQ_LIST_CLR)
-		ufshcd_writel(hba, (1 << pos), REG_UTP_TASK_REQ_LIST_CLEAR);
-	else
-		ufshcd_writel(hba, ~(1 << pos), REG_UTP_TASK_REQ_LIST_CLEAR);
-}
-
-static int ufsf_clear_tm_cmd(struct ufs_hba *hba, int tag)
-{
-	int err = 0;
-	u32 mask = 1 << tag;
-	unsigned long flags;
-
-	if (!test_bit(tag, &hba->outstanding_tasks))
-		goto out;
-
-	spin_lock_irqsave(hba->host->host_lock, flags);
-	ufsf_utmrl_clear(hba, tag);
-	spin_unlock_irqrestore(hba->host->host_lock, flags);
-
-	/* poll for max. 1 sec to clear door bell register by h/w */
-	err = ufsf_wait_for_register(hba,
-			REG_UTP_TASK_REQ_DOOR_BELL,
-			mask, 0, 1000, 1000);
-out:
-	return err;
-}
-
-static void ufsf_add_tm_upiu_trace(struct ufs_hba *hba, unsigned int tag,
-		enum ufs_trace_str_t str_t)
-{
-	trace_android_vh_ufs_send_tm_command(hba, tag, (int)str_t);
-}
-
-static int __ufsf_issue_tm_cmd(struct ufs_hba *hba,
-		struct utp_task_req_desc *treq, u8 tm_function)
-{
-	struct request_queue *q = hba->tmf_queue;
-	struct Scsi_Host *host = hba->host;
-	DECLARE_COMPLETION_ONSTACK(wait);
-	struct request *req;
-	unsigned long flags;
-	int task_tag, err;
-
-	/*
-	 * blk_get_request() is used here only to get a free tag.
-	 */
-	req = blk_get_request(q, REQ_OP_DRV_OUT, 0);
-	if (IS_ERR(req))
-		return PTR_ERR(req);
-
-	req->end_io_data = &wait;
-	ufshcd_hold(hba, false);
-
-	spin_lock_irqsave(host->host_lock, flags);
-	blk_mq_start_request(req);
-
-	task_tag = req->tag;
-	treq->req_header.dword_0 |= cpu_to_be32(task_tag);
-
-	memcpy(hba->utmrdl_base_addr + task_tag, treq, sizeof(*treq));
-	ufshcd_vops_setup_task_mgmt(hba, task_tag, tm_function);
-
-	/* send command to the controller */
-	__set_bit(task_tag, &hba->outstanding_tasks);
-
-	/* Make sure descriptors are ready before ringing the task doorbell */
-	wmb();
-
-	ufshcd_writel(hba, 1 << task_tag, REG_UTP_TASK_REQ_DOOR_BELL);
-	/* Make sure that doorbell is committed immediately */
-	wmb();
-
-	spin_unlock_irqrestore(host->host_lock, flags);
-
-	ufsf_add_tm_upiu_trace(hba, task_tag, UFS_TM_SEND);
-
-	/* wait until the task management command is completed */
-	err = wait_for_completion_io_timeout(&wait,
-			msecs_to_jiffies(TM_CMD_TIMEOUT));
-	if (!err) {
-		/*
-		 * Make sure that ufshcd_compl_tm() does not trigger a
-		 * use-after-free.
-		 */
-		req->end_io_data = NULL;
-		ufsf_add_tm_upiu_trace(hba, task_tag, UFS_TM_ERR);
-		dev_err(hba->dev, "%s: task management cmd 0x%.2x timed-out\n",
-				__func__, tm_function);
-		if (ufsf_clear_tm_cmd(hba, task_tag))
-			dev_WARN(hba->dev, "%s: unable to clear tm cmd (slot %d) after timeout\n",
-					__func__, task_tag);
-		err = -ETIMEDOUT;
-	} else {
-		err = 0;
-		memcpy(treq, hba->utmrdl_base_addr + task_tag, sizeof(*treq));
-
-		ufsf_add_tm_upiu_trace(hba, task_tag, UFS_TM_COMP);
-	}
-
-	spin_lock_irqsave(hba->host->host_lock, flags);
-	__clear_bit(task_tag, &hba->outstanding_tasks);
-	spin_unlock_irqrestore(hba->host->host_lock, flags);
-
-	ufshcd_release(hba);
-	blk_put_request(req);
-
-	return err;
-}
-
-int ufsf_issue_tm_cmd(struct ufs_hba *hba, int lun_id, int task_id,
-		      u8 tm_function, u8 *tm_response)
-{
-	struct utp_task_req_desc treq = { { 0 }, };
-	int ocs_value, err;
-
-	/* Configure task request descriptor */
-	treq.header.dword_0 = cpu_to_le32(UTP_REQ_DESC_INT_CMD);
-	treq.header.dword_2 = cpu_to_le32(OCS_INVALID_COMMAND_STATUS);
-
-	/* Configure task request UPIU */
-	treq.req_header.dword_0 = cpu_to_be32(lun_id << 8) |
-				  cpu_to_be32(UPIU_TRANSACTION_TASK_REQ << 24);
-	treq.req_header.dword_1 = cpu_to_be32(tm_function << 16);
-
-	/*
-	 * The host shall provide the same value for LUN field in the basic
-	 * header and for Input Parameter.
-	 */
-	treq.input_param1 = cpu_to_be32(lun_id);
-	treq.input_param2 = cpu_to_be32(task_id);
-
-	err = __ufsf_issue_tm_cmd(hba, &treq, tm_function);
-	if (err == -ETIMEDOUT)
-		return err;
-
-	ocs_value = le32_to_cpu(treq.header.dword_2) & MASK_OCS;
-	if (ocs_value != OCS_SUCCESS)
-		dev_err(hba->dev, "%s: failed, ocs = 0x%x\n",
-				__func__, ocs_value);
-	else if (tm_response)
-		*tm_response = be32_to_cpu(treq.output_param1) &
-				MASK_TM_SERVICE_RESP;
-	return err;
 }
 
 void ufsf_scsi_unblock_requests(struct ufs_hba *hba)
@@ -982,6 +691,7 @@ int ufsf_wait_for_doorbell_clr(struct ufs_hba *hba, u64 wait_timeout_us)
 	u32 tr_doorbell;
 	bool timeout = false, do_last_check = false;
 	ktime_t start;
+	bool has_outstanding = false;
 
 	ufshcd_hold(hba, false);
 	spin_lock_irqsave(hba->host->host_lock, flags);
@@ -997,7 +707,12 @@ int ufsf_wait_for_doorbell_clr(struct ufs_hba *hba, u64 wait_timeout_us)
 		}
 
 		tm_doorbell = ufshcd_readl(hba, REG_UTP_TASK_REQ_DOOR_BELL);
-		tr_doorbell = ufshcd_readl(hba, REG_UTP_TRANSFER_REQ_DOOR_BELL);
+		if (ufsf_use_mcq_hooks(hba)) {
+			trace_android_vh_ufs_mcq_has_oustanding_reqs(hba, &has_outstanding);
+			tr_doorbell = has_outstanding ? 1 : 0;
+		} else {
+			tr_doorbell = ufshcd_readl(hba, REG_UTP_TRANSFER_REQ_DOOR_BELL);
+		}
 		if (!tm_doorbell && !tr_doorbell) {
 			timeout = false;
 			break;
@@ -1030,32 +745,6 @@ out:
 	spin_unlock_irqrestore(hba->host->host_lock, flags);
 	ufshcd_release(hba);
 	return ret;
-}
-
-static inline unsigned int
-ufsf_get_rsp_upiu_data_seg_len(struct utp_upiu_rsp *ucd_rsp_ptr)
-{
-	return be32_to_cpu(ucd_rsp_ptr->header.dword_2) &
-		MASK_RSP_UPIU_DATA_SEG_LEN;
-}
-
-/**
- * ufsf_copy_sense_data - Copy sense data in case of check condition
- * @lrbp: pointer to local reference block
- */
-inline void ufsf_copy_sense_data(struct ufshcd_lrb *lrbp)
-{
-	int len;
-	if (lrbp->sense_buffer &&
-	    ufsf_get_rsp_upiu_data_seg_len(lrbp->ucd_rsp_ptr)) {
-		int len_to_copy;
-
-		len = be16_to_cpu(lrbp->ucd_rsp_ptr->sr.sense_data_len);
-		len_to_copy = min_t(int, UFS_SENSE_SIZE, len);
-
-		memcpy(lrbp->sense_buffer, lrbp->ucd_rsp_ptr->sr.sense_data,
-		       len_to_copy);
-	}
 }
 
 MODULE_LICENSE("GPL v2");

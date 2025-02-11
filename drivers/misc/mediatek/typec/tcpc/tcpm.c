@@ -26,6 +26,19 @@ static int tcpm_check_typec_attached(struct tcpc_device *tcpc)
 	return 0;
 }
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+/*oplus add for pd svooc*/
+bool tcpm_inquire_pdphy_ready(struct tcpc_device *tcpc)
+{
+	if (tcpc->pd_inited_flag) {
+		return true;
+	} else {
+		return false;
+	}
+}
+EXPORT_SYMBOL(tcpm_inquire_pdphy_ready);
+#endif
+
 #if IS_ENABLED(CONFIG_USB_POWER_DELIVERY)
 int tcpm_check_pd_attached(struct tcpc_device *tcpc)
 {
@@ -261,7 +274,11 @@ int tcpm_typec_change_role(
 	int ret = 0;
 
 	tcpci_lock_typec(tcpc);
+#ifndef OPLUS_FEATURE_CHG_BASIC
 	ret = tcpc_typec_change_role(tcpc, typec_role, false);
+#else
+	ret = tcpc_typec_change_role(tcpc, typec_role, true);
+#endif
 	tcpci_unlock_typec(tcpc);
 
 	return ret;
@@ -1853,7 +1870,7 @@ int tcpm_update_pd_status_event(struct tcpc_device *tcpc, uint8_t evt)
 	uint8_t ado_type = 0;
 	struct pd_port *pd_port = &tcpc->pd_port;
 
-	if (evt & PD_STASUS_EVENT_OCP)
+	if (evt & PD_STATUS_EVENT_OCP)
 		ado_type |= ADO_ALERT_OCP;
 
 	if (evt & PD_STATUS_EVENT_OTP)

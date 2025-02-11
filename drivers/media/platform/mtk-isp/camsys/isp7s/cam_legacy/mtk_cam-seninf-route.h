@@ -4,6 +4,10 @@
 #ifndef __MTK_CAM_SENINF_ROUTE_H__
 #define __MTK_CAM_SENINF_ROUTE_H__
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif /* OPLUS_FEATURE_CAMERA_COMMON */
+
 void mtk_cam_seninf_init_res(struct seninf_core *core);
 
 struct seninf_mux *mtk_cam_seninf_mux_get_by_type(struct seninf_ctx *ctx,

@@ -19,12 +19,13 @@ bool mddp_f_dev_add_lan_dev(char *dev_name, int netif_id);
 bool mddp_f_dev_add_wan_dev(char *dev_name);
 void mddp_f_dev_del_lan_dev(char *dev_name);
 void mddp_f_dev_del_wan_dev(char *dev_name);
+bool mddp_f_dev_is_wan_lan_dev(void);
 struct net_device *mddp_f_is_support_lan_dev(int ifindex);
 struct net_device *mddp_f_is_support_wan_dev(int ifindex);
 
 int32_t mddp_f_msg_hdlr(uint32_t msg_id, void *buf, uint32_t buf_len);
 int32_t mddp_f_set_ct_value(uint8_t *buf, uint32_t buf_len);
-void mddp_netfilter_hook(void);
-void mddp_netfilter_unhook(void);
+void mddp_netfilter_hook(struct completion *);
+void mddp_netfilter_unhook(struct completion *);
 
 #endif /* __MDDP_FILTER_H */

@@ -42,6 +42,10 @@ extern void mtk_gamma_regdump(void);
 
 extern unsigned int m_new_pq_persist_property[32];
 extern unsigned int g_gamma_data_mode;
+#ifdef OPLUS_FEATURE_DISPLAY
+extern unsigned int merge_trigger_offset;
+extern unsigned int prefetch_te_offset;
+#endif /* OPLUS_FEATURE_DISPLAY */
 enum mtk_pq_persist_property {
 	DISP_PQ_COLOR_BYPASS,
 	DISP_PQ_CCORR_BYPASS,

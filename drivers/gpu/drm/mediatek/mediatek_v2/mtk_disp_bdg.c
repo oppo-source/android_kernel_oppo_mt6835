@@ -57,11 +57,19 @@ unsigned int bdg_tx_mode;
 
 /***** NFC SRCLKENAI0 Interrupt Handler +++ *****/
 static int nfc_eint_irq;
-static int mt6382_nfc_srclk;
 static bool nfc_irq_already_requested;
-static bool nfc_clk_already_enabled;
-static int mt6382_nfc_gpio_value;
 static bool bdg_spi_already_first_init;
+static struct workqueue_struct *bdg_pre_init_wq;
+struct mtk_disp_bdg {
+	atomic_t clock_ref_26m;
+	atomic_t bdg_clock_out_status;
+	struct mutex pre_init_lock;
+	struct work_struct pre_init_tast;
+	int mt6382_nfc_srclk;
+	struct mtk_dsi *dsi;
+};
+struct mtk_disp_bdg g_bdg_data;
+
 
 /***** NFC SRCLKENAI0 Interrupt Handler --- *****/
 
@@ -92,6 +100,7 @@ struct lcm_setting_table {
 #define DSI_MODULE_to_ID(x)	(x == DISP_BDG_DSI0 ? 0 : 1)
 #define DSI_MODULE_BEGIN(x)	(x == DISP_BDG_DSIDUAL ? 0 : DSI_MODULE_to_ID(x))
 #define DSI_MODULE_END(x)	(x == DISP_BDG_DSIDUAL ? 1 : DSI_MODULE_to_ID(x))
+#define CHK_SWITCH(a, b)  ((a == 0) ? b : a)
 
 #define DSI_SET_VAL(cmdq, addr, val) \
 			((*(unsigned int *)(addr)) = (unsigned int)val)
@@ -110,27 +119,44 @@ static unsigned int g_mode_enable = 1; /* _G_MODE_EN_ */
 unsigned int bdg_rxtx_ratio = 229;
 unsigned int bdg_rx_v12 = RX_V12; /* RX_V12 */
 
+#define BDG_CLKOUT_HW_CONTROL_MODE
 
 static void clk_buf_disp_ctrl(bool enable, struct mtk_dsi *dsi)
 {
-	struct pinctrl *pinctrll;
+	struct pinctrl *pinctrll = NULL;
 	struct device *dev = dsi->host.dev;
 	struct pinctrl_state *pState_pull_down = 0;
 	struct pinctrl_state *pState_pull_up = 0;
+	int cnt;
+
+	if(enable)
+		atomic_inc(&g_bdg_data.clock_ref_26m);
+	else
+		atomic_dec(&g_bdg_data.clock_ref_26m);
+
+	cnt = atomic_read(&g_bdg_data.clock_ref_26m);
+	DDPINFO("pmic 26m cnt %d\n", cnt);
+	if(cnt < 0) {
+		DDPMSG("get pmic 26m cnt error %d\n", pinctrll);
+		return;
+	}
 
 	pinctrll = devm_pinctrl_get(dev);
 	if (IS_ERR(pinctrll)) {
 		DDPMSG("get pmic 26m gpios for bdg fail %d\n", pinctrll);
 		return;
 	}
-	if (enable) {
+
+	if(cnt > 0) {
 		pState_pull_up = pinctrl_lookup_state(pinctrll, "6382-pmic-26m-gpio-ctl1");
 		if (IS_ERR(pState_pull_up)) {
 			DDPMSG("get pmic 26m gpios state error %d\n", pState_pull_up);
 			return;
 		}
 		pinctrl_select_state(pinctrll, pState_pull_up);
-	} else {
+	}
+
+	if(cnt == 0) {
 		pState_pull_down = pinctrl_lookup_state(pinctrll, "6382-pmic-26m-gpio-ctl0");
 		if (IS_ERR(pState_pull_down)) {
 			DDPMSG("get pmic 26m gpios state error %d\n", pState_pull_down);
@@ -139,6 +165,7 @@ static void clk_buf_disp_ctrl(bool enable, struct mtk_dsi *dsi)
 		pinctrl_select_state(pinctrll, pState_pull_down);
 	}
 	devm_pinctrl_put(pinctrll);
+
 }
 
 static void bdg_config_init(struct device_node *node)
@@ -431,14 +458,16 @@ void set_LDO_on(void *cmdq)
 	BDG_OUTREGBIT(cmdq, struct SYSREG_LDO_CTRL1_REG,
 			SYS_REG->SYSREG_LDO_CTRL1, RG_PHYLDO1_LP_EN, 0);
 	BDG_OUTREGBIT(cmdq, struct SYSREG_LDO_CTRL1_REG,
+			SYS_REG->SYSREG_LDO_CTRL1, RG_PHYLDO2_VOSEL, 0xd);
+	BDG_OUTREGBIT(cmdq, struct SYSREG_LDO_CTRL1_REG,
 			SYS_REG->SYSREG_LDO_CTRL1, RG_PHYLDO2_EN, 1);
 
 }
 
 void set_LDO_off(void *cmdq)
 {
-	BDG_OUTREGBIT(cmdq, struct SYSREG_LDO_CTRL1_REG,
-			SYS_REG->SYSREG_LDO_CTRL1, RG_PHYLDO2_EN, 0);
+//	BDG_OUTREGBIT(cmdq, struct SYSREG_LDO_CTRL1_REG,
+//			SYS_REG->SYSREG_LDO_CTRL1, RG_PHYLDO2_EN, 0);
 	BDG_OUTREGBIT(cmdq, struct SYSREG_LDO_CTRL1_REG,
 			SYS_REG->SYSREG_LDO_CTRL1, RG_PHYLDO1_LP_EN, 1);
 }
@@ -1314,6 +1343,7 @@ int bdg_tx_phy_config(enum DISP_BDG_ENUM module,
 	unsigned int i;
 	u32 ui, cycle_time;
 	unsigned int hs_trail;
+	struct mtk_dsi_phy_timcon *phy_timcon = NULL;
 
 	ui = 1000 / tx_data_rate;
 	cycle_time = 8000 / tx_data_rate;
@@ -1342,6 +1372,8 @@ int bdg_tx_phy_config(enum DISP_BDG_ENUM module,
 	/* hs_trail > max(8*UI, 60ns+4*UI) (spec) */
 	/* hs_trail = 80ns+4*UI */
 	hs_trail = 80 + 4 * ui;
+	phy_timcon = &dsi->ext->params->phy_timcon;
+	hs_trail = CHK_SWITCH(phy_timcon->hs_trail, hs_trail);
 	timcon0.HS_TRAIL = (hs_trail > cycle_time) ?
 				NS_TO_CYCLE_BDG(hs_trail, cycle_time) + 1 : 2;
 
@@ -1377,6 +1409,7 @@ int bdg_tx_phy_config(enum DISP_BDG_ENUM module,
 	if (timcon2.CLK_TRAIL < 2)
 		timcon2.CLK_TRAIL = 2;
 
+	timcon2.CLK_TRAIL = 10;
 	/* clk_exit > 100ns (spec) */
 	/* clk_exit = 200ns */
 	/* timcon3.CLK_EXIT = NS_TO_CYCLE_BDG(200, cycle_time); */
@@ -5347,8 +5380,13 @@ void output_debug_signal(void)
 
 }
 
-void bdg_first_init(void)
+void bdg_first_init(struct drm_device *drm)
 {
+	struct drm_crtc *crtc0;
+	struct drm_crtc *crtc;
+	struct mtk_drm_crtc *mtk_crtc;
+	struct mtk_ddp_comp *output_comp;
+
 	DISPSYS_REG = (struct BDG_DISPSYS_CONFIG_REGS *)DISPSYS_BDG_MMSYS_CONFIG_BASE;
 	DSI2_REG = (struct BDG_MIPIDSI2_REGS *)DISPSYS_BDG_MIPIDSI2_DEVICE_BASE;
 	SYS_REG = (struct BDG_SYSREG_CTRL_REGS *)DISPSYS_BDG_SYSREG_CTRL_BASE;
@@ -5365,9 +5403,53 @@ void bdg_first_init(void)
 	GPIO = (struct BDG_GPIO_REGS *)DISPSYS_BDG_GPIO_BASE;
 	TX_CMDQ_REG[0] = (struct DSI_TX_CMDQ_REGS *)(DISPSYS_BDG_TX_DSI0_BASE + 0xd00);
 
+	mutex_init(&g_bdg_data.pre_init_lock);
+	drm_for_each_crtc(crtc, drm) {
+		if(drm_crtc_index(crtc) == 0)
+			crtc0 = crtc;
+	}
+	mtk_crtc = to_mtk_crtc(crtc0);
+	output_comp = mtk_ddp_comp_request_output(mtk_crtc);
+	g_bdg_data.dsi= container_of(output_comp, struct mtk_dsi, ddp_comp);
+
+	atomic_set(&g_bdg_data.bdg_clock_out_status, 0);
+	atomic_set(&g_bdg_data.clock_ref_26m, 1);
+
+	bdg_pre_init_wq = create_singlethread_workqueue("bdg_pre_init");
+	INIT_WORK(&g_bdg_data.pre_init_tast, nfc_work_func);
+
 	/***** NFC SRCLKENAI0 Interrupt Handler +++ *****/
 	nfc_request_eint_irq();
 	/***** NFC SRCLKENAI0 Interrupt Handler --- *****/
+}
+
+void bdg_pre_init(void)
+{
+	mutex_lock(&g_bdg_data.pre_init_lock);
+	/* open 26m clk */
+	clk_buf_disp_ctrl(true, g_bdg_data.dsi);
+	bdg_tx_pull_6382_reset_pin(g_bdg_data.dsi);
+	/* spi init & set low speed */
+#if IS_ENABLED(CONFIG_MTK_MT6382_BDG)
+	spislv_init();
+#ifdef BDG_CLKOUT_HW_CONTROL_MODE
+	spislv_switch_speed_hz(SPI_TX_MAX_SPEED_HZ, SPI_RX_MAX_SPEED_HZ);
+#else
+	spislv_switch_speed_hz(SPI_TX_LOW_SPEED_HZ, SPI_RX_LOW_SPEED_HZ);
+#endif
+
+#ifdef BDG_CLKOUT_HW_CONTROL_MODE
+	mtk_spi_write(0x000000a0, 0x00000012);
+	BDG_OUTREGBIT(cmdq, struct GPIO_MODE1_REG, GPIO->GPIO_MODE1, RSV_19, 0x2);
+	spislv_switch_speed_hz(SPI_TX_LOW_SPEED_HZ, SPI_RX_LOW_SPEED_HZ);
+#else
+	if (atomic_read(&g_bdg_data.bdg_clock_out_status))
+		bdg_clk_buf_nfc(1);
+	else
+		bdg_clk_buf_nfc(0);
+#endif
+#endif
+	mutex_unlock(&g_bdg_data.pre_init_lock);
 }
 
 void bdg_spi_first_init(void)
@@ -5381,7 +5463,6 @@ void bdg_spi_first_init(void)
 		DDPMSG("kernel_bdg: %s\n", __func__);
 	}
 }
-
 
 int bdg_common_init(enum DISP_BDG_ENUM module,
 			struct mtk_dsi *dsi, void *cmdq)
@@ -5412,22 +5493,8 @@ int bdg_common_init(enum DISP_BDG_ENUM module,
 	GPIO = (struct BDG_GPIO_REGS *)DISPSYS_BDG_GPIO_BASE;
 	TX_CMDQ_REG[0] = (struct DSI_TX_CMDQ_REGS *)(DISPSYS_BDG_TX_DSI0_BASE + 0xd00);
 
-	/* open 26m clk */
-	clk_buf_disp_ctrl(true, dsi);
-	bdg_tx_pull_6382_reset_pin(dsi);
-
+	bdg_pre_init();
 	bdg_spi_already_first_init = true;
-
-	/* spi init & set low speed */
-#if IS_ENABLED(CONFIG_MTK_MT6382_BDG)
-	spislv_init();
-	spislv_switch_speed_hz(SPI_TX_LOW_SPEED_HZ, SPI_RX_LOW_SPEED_HZ);
-#endif
-
-	if (nfc_clk_already_enabled)
-		bdg_clk_buf_nfc(1);
-	else
-		bdg_clk_buf_nfc(0);
 
 	set_LDO_on(cmdq);
 	set_mtcmos_on(cmdq);
@@ -5541,16 +5608,20 @@ int bdg_common_deinit(enum DISP_BDG_ENUM module, void *cmdq, struct mtk_dsi *dsi
 	//atomic_set(&bdg_eint_wakeup, 0);
 
 	/* set spi low speed */
+	mutex_lock(&g_bdg_data.pre_init_lock);
 #if IS_ENABLED(CONFIG_MTK_MT6382_BDG)
 	spislv_switch_speed_hz(SPI_TX_LOW_SPEED_HZ, SPI_RX_LOW_SPEED_HZ);
 #endif
+	mutex_unlock(&g_bdg_data.pre_init_lock);
 
 	set_ana_mipi_dsi_off(cmdq);
 	ana_macro_off(cmdq);
 	set_mtcmos_off(cmdq);
 	set_LDO_off(cmdq);
 	need_6382_init = 1;
+	mutex_lock(&g_bdg_data.pre_init_lock);
 	clk_buf_disp_ctrl(false, dsi);
+	mutex_unlock(&g_bdg_data.pre_init_lock);
 
 	return ret;
 }
@@ -5881,36 +5952,36 @@ void bdg_clk_buf_nfc(bool onoff)
 
 /***** NFC SRCLKENAI0 Interrupt Handler +++ *****/
 
-void nfc_work_func(void)
+void nfc_work_func(struct work_struct *work_item)
 {
 	int nfc_srclk;
 
-	nfc_srclk = gpio_get_value(mt6382_nfc_srclk);
-	DDPMSG("%s, NFC SRCLK GPIO Value = %d\n", __func__, nfc_srclk);
+	mutex_lock(&g_bdg_data.pre_init_lock);
+	nfc_srclk = gpio_get_value(g_bdg_data.mt6382_nfc_srclk);
+	DDPINFO("%s, NFC SRCLK GPIO Value = %d\n", __func__, nfc_srclk);
 
 	//suspend need to disable MT6382 first and enable SRCLK first
-	if (nfc_srclk != mt6382_nfc_gpio_value) { //the state of gpio has been updated
-		mt6382_nfc_gpio_value = nfc_srclk;
+	if (nfc_srclk != atomic_read(&g_bdg_data.bdg_clock_out_status)) { //the state of gpio has been updated
+		atomic_set(&g_bdg_data.bdg_clock_out_status, nfc_srclk);
 
-		if (nfc_srclk == 1) {
-			//switch the mt6382 clock
-			DDPMSG("%s, NFC SRCLK switch the display clock = %d\n",
-				__func__, nfc_srclk);
-			nfc_clk_already_enabled = true;
-			bdg_clk_buf_nfc(nfc_srclk);
+		if(nfc_srclk == 1) {
+			clk_buf_disp_ctrl(nfc_srclk, g_bdg_data.dsi);
+			DDPINFO("%s, NFC SRCLK switch the display clock = %d\n",
+						__func__, nfc_srclk);
 		} else {
-			//switch the mt6382 clock
-			DDPMSG("%s, NFC SRCLK switch the display clock = %d\n",
-				__func__, nfc_srclk);
-			nfc_clk_already_enabled = false;
-			bdg_clk_buf_nfc(nfc_srclk);
+
+			clk_buf_disp_ctrl(nfc_srclk, g_bdg_data.dsi);
+			DDPINFO("%s, NFC SRCLK switch the display clock = %d\n",
+								__func__, nfc_srclk);
 		}
+
 	}
+	mutex_unlock(&g_bdg_data.pre_init_lock);
 }
 
 irqreturn_t nfc_eint_thread_handler(int irq, void *data)
 {
-	nfc_work_func();
+	queue_work(bdg_pre_init_wq, &g_bdg_data.pre_init_tast);
 
 	return IRQ_HANDLED;
 }
@@ -5937,11 +6008,11 @@ void nfc_request_eint_irq(void)
 	}
 
 	//get gpio
-	mt6382_nfc_srclk = of_get_named_gpio(node, "mt6382-nfc-srclk", 0);
-	if (mt6382_nfc_srclk < 0)
-		DDPMSG("%s: get NFC SRCLK GPIO failed (%d)", __func__, mt6382_nfc_srclk);
+	g_bdg_data.mt6382_nfc_srclk = of_get_named_gpio(node, "mt6382-nfc-srclk", 0);
+	if (g_bdg_data.mt6382_nfc_srclk < 0)
+		DDPMSG("%s: get NFC SRCLK GPIO failed (%d)", __func__, g_bdg_data.mt6382_nfc_srclk);
 	else
-		DDPMSG("%s: get NFC SRCLK GPIO Success (%d)", __func__, mt6382_nfc_srclk);
+		DDPMSG("%s: get NFC SRCLK GPIO Success (%d)", __func__, g_bdg_data.mt6382_nfc_srclk);
 
 	// get irq number
 	nfc_eint_irq = irq_of_parse_and_map(node, 0);
@@ -5957,10 +6028,9 @@ void nfc_request_eint_irq(void)
 	}
 
 	nfc_irq_already_requested = true;
-	mt6382_nfc_gpio_value = 0;
 
 	//get SRCLK status
-	nfc_work_func();
+	nfc_work_func(NULL);
 
 	// enable irq wake
 	irq_set_irq_wake(nfc_eint_irq, 1);

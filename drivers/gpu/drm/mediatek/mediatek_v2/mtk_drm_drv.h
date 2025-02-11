@@ -111,6 +111,19 @@ enum MTK_CONNECTOR_PROP {
 	CONNECTOR_PROP_MAX,
 };
 
+enum drm_kernel_pm_status {
+	KERNEL_PM_SUSPEND,
+	KERNEL_PM_RESUME,
+	KERNEL_SHUTDOWN,
+};
+
+struct mtk_drm_kernel_pm {
+	bool shutdown;
+	struct notifier_block nb;	/* Kernel suspend and resume event */
+	struct mutex lock;		/* To block any request after kernel suspend */
+	atomic_t status;
+	wait_queue_head_t wq;
+};
 
 struct mtk_drm_private {
 	struct drm_device *drm;
@@ -192,6 +205,7 @@ struct mtk_drm_private {
 	unsigned int top_clk_num;
 	struct clk **top_clk;
 	bool power_state;
+	struct mtk_drm_kernel_pm kernel_pm;
 
 	/* for rpo caps info */
 	unsigned int rsz_in_max[2];
@@ -217,7 +231,29 @@ struct mtk_drm_private {
 	bool already_first_config;
 
 	struct mml_drm_ctx *mml_ctx;
+
 	atomic_t need_recover;
+
+#ifdef OPLUS_FEATURE_DISPLAY_ADFR
+	struct workqueue_struct *fakeframe_wq;
+	struct hrtimer fakeframe_timer;
+	struct work_struct fakeframe_work;
+	/* add for mux switch control */
+	struct completion switch_te_gate;
+	bool vsync_switch_pending;
+	bool need_vsync_switch;
+	struct workqueue_struct *vsync_switch_wq;
+	struct work_struct vsync_switch_work;
+
+	/* indicate that whether the current frame backlight has been updated */
+	bool oplus_adfr_backlight_updated;
+	/* need qsync mode recovery after backlight status updated */
+	bool osync_mode_recovery;
+	/* set timer to reset qsync after the backlight is no longer updated */
+	struct hrtimer osync_mode_timer;
+	struct workqueue_struct *osync_mode_wq;
+	struct work_struct osync_mode_work;
+#endif /* OPLUS_FEATURE_DISPLAY_ADFR  */
 	unsigned int seg_id;
 };
 

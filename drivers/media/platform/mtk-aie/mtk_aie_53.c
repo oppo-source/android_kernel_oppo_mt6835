@@ -162,8 +162,9 @@ static int mtk_aie_resume(struct device *dev)
 			__func__);
 		return 0;
 	}
-
+#ifdef AIE_AOV
 	mtk_aov_notify(gaov_dev, AOV_NOTIFY_AIE_AVAIL, 0); //unavailable: 0 available: 1
+#endif
 	ret = pm_runtime_get_sync(dev);
 	if (ret) {
 		dev_info(dev, "%s: pm_runtime_get_sync failed:(%d)\n",
@@ -506,8 +507,9 @@ static int mtk_aie_ccf_disable(struct device *dev)
 static int mtk_aie_hw_connect(struct mtk_aie_dev *fd)
 {
 	int ret = 0;
-
+#ifdef AIE_AOV
 	mtk_aov_notify(gaov_dev, AOV_NOTIFY_AIE_AVAIL, 0); //unavailable: 0 available: 1
+#endif
 	pm_runtime_get_sync((fd->dev));
 
 	fd->fd_stream_count++;
@@ -1583,7 +1585,9 @@ static int mtk_aie_runtime_suspend(struct device *dev)
 
 	dev_info(dev, "%s: runtime suspend aie job)\n", __func__);
 	mtk_aie_ccf_disable(dev);
+#ifdef AIE_AOV
 	mtk_aov_notify(gaov_dev, AOV_NOTIFY_AIE_AVAIL, 1); //unavailable: 0 available: 1
+#endif
 	return 0;
 }
 

@@ -19,7 +19,7 @@
 #include <linux/errno.h>
 #include <linux/slab.h>
 #include <linux/string.h>
-
+#include <soc/oplus/system/oplus_project.h>
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
 #endif
@@ -52,7 +52,9 @@ static int pt_low_vol = LOW_BATTERY_LEVEL_0;
 static int pt_low_bat = BATTERY_PERCENT_LEVEL_0;
 static int pt_over_cur = BATTERY_OC_LEVEL_0;
 
-static int max_pt_low_vol = LOW_BATTERY_LEVEL_2;
+static int pt_low_bat_level = LOW_BATTERY_LEVEL_1;
+static int pt_bat_pc_level = BATTERY_PERCENT_LEVEL_1;
+static int pt_bat_oc_level = BATTERY_OC_LEVEL_1;
 
 #ifdef CONFIG_MTK_FLASHLIGHT_PT_STRICT
 static int pt_strict = 1;
@@ -62,6 +64,18 @@ static int pt_strict; /* always be zero in C standard */
 
 static int pt_is_low(int pt_low_vol, int pt_low_bat, int pt_over_cur);
 #endif
+
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
+const struct flashlight_device_id *flashlight_id;
+extern const struct flashlight_device_id flashlight_id_avatarl5[];
+extern const struct flashlight_device_id flashlight_id_avatarb5[];
+extern const struct flashlight_device_id flashlight_id_23281[];
+extern const struct flashlight_device_id flashlight_id_rado[];
+extern const struct flashlight_device_id flashlight_id_alphal5[];
+extern const struct flashlight_device_id flashlight_id_rado_gpio[];
+int flashlight_device_num = 0;
 
 /******************************************************************************
  * Flashlight operations
@@ -336,6 +350,30 @@ int flashlight_dev_register(
 	struct flashlight_dev *fdev;
 	int type_index, ct_index, part_index;
 	int i;
+	if (is_project(23281) || is_project(23282) || is_project(23283)) {
+		flashlight_id = flashlight_id_23281;
+		flashlight_device_num = 1;
+	} else if (is_project(24031) || is_project(24231) || is_project(24232) || is_project(24234)) {
+		flashlight_id = flashlight_id_avatarb5;
+		flashlight_device_num = 1;
+	} else if (is_project(23111) || is_project(23112) || is_project(23113) || is_project(23301) || is_project(23302) ||
+			is_project(23303) || is_project(23304) || is_project(23305) || is_project(23306) || is_project(23887)) {
+		flashlight_id = flashlight_id_avatarl5;
+		flashlight_device_num = 1;
+	} else if (is_project(24251) || is_project(24252) || is_project(24253) || is_project(24254) || is_project(24059)) {
+		flashlight_id = flashlight_id_alphal5;
+		flashlight_device_num = 1;
+	}
+
+	if (is_project(24601) || is_project(24683) || is_project(24684) || is_project(24699) ||
+            is_project(24611) || is_project(24707) || is_project(24617) || is_project(24721) ||
+            is_project(24745) || is_project(24746) || is_project(24615) || is_project(24747)) {
+		flashlight_id = flashlight_id_rado;
+		flashlight_device_num = 1;
+	} else if (is_project(24722) || is_project(24723)) {
+		flashlight_id = flashlight_id_rado_gpio;
+		flashlight_device_num = 1;
+	}
 
 	for (i = 0; i < flashlight_device_num; i++) {
 		if (!strncmp(name, flashlight_id[i].name,
@@ -547,17 +585,17 @@ EXPORT_SYMBOL(flashlight_pt_is_low);
 static int pt_arg_verify(int pt_low_vol, int pt_low_bat, int pt_over_cur)
 {
 	if (pt_low_vol < LOW_BATTERY_LEVEL_0 ||
-			pt_low_vol > LOW_BATTERY_LEVEL_3) {
+			pt_low_vol >= LOW_BATTERY_LEVEL_NUM) {
 		pr_info("PT low voltage (%d) is not valid\n", pt_low_vol);
 		return -1;
 	}
 	if (pt_low_bat < BATTERY_PERCENT_LEVEL_0 ||
-			pt_low_bat > BATTERY_PERCENT_LEVEL_1) {
+			pt_low_bat >= BATTERY_PERCENT_LEVEL_NUM) {
 		pr_info("PT low battery (%d) is not valid\n", pt_low_bat);
 		return -1;
 	}
 	if (pt_over_cur < BATTERY_OC_LEVEL_0 ||
-			pt_over_cur > BATTERY_OC_LEVEL_1) {
+			pt_over_cur >= BATTERY_OC_LEVEL_NUM) {
 		pr_info("PT over current (%d) is not valid\n", pt_over_cur);
 		return -1;
 	}
@@ -569,22 +607,9 @@ static int pt_is_low(int pt_low_vol, int pt_low_bat, int pt_over_cur)
 {
 	int is_low = 0;
 
-	if (max_pt_low_vol == LOW_BATTERY_LEVEL_3) {
-		if (pt_low_vol == LOW_BATTERY_LEVEL_2 ||
-			pt_low_vol == LOW_BATTERY_LEVEL_3) {
-			is_low = 1;
-			if (pt_strict)
-				is_low = 2;
-		}
-	} else {
-		if (pt_low_vol != LOW_BATTERY_LEVEL_0) {
-			is_low = 1;
-			if (pt_strict)
-				is_low = 2;
-		}
-	}
-	if (pt_low_bat != BATTERY_PERCENT_LEVEL_0
-			|| pt_over_cur != BATTERY_OC_LEVEL_0) {
+	if (pt_low_vol >= pt_low_bat_level ||
+			pt_low_bat >= pt_bat_pc_level ||
+			pt_over_cur >= pt_bat_oc_level) {
 		is_low = 1;
 		if (pt_strict)
 			is_low = 2;
@@ -622,47 +647,30 @@ static int pt_trigger(void)
 	return 0;
 }
 
-static void pt_low_vol_callback(enum LOW_BATTERY_LEVEL_TAG level)
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+static void pt_low_vol_callback(enum LOW_BATTERY_LEVEL_TAG level, void *data)
 {
-	if (level == LOW_BATTERY_LEVEL_0) {
-		pt_low_vol = LOW_BATTERY_LEVEL_0;
-	} else if (level == LOW_BATTERY_LEVEL_1) {
-		pt_low_vol = LOW_BATTERY_LEVEL_1;
-		if (max_pt_low_vol == LOW_BATTERY_LEVEL_2)
-			pt_trigger();
-	} else if (level == LOW_BATTERY_LEVEL_2) {
-		pt_low_vol = LOW_BATTERY_LEVEL_2;
+	pt_low_vol = level;
+
+	if (level >= pt_low_bat_level)
 		pt_trigger();
-	} else if (level == LOW_BATTERY_LEVEL_3) {
-		pt_low_vol = LOW_BATTERY_LEVEL_3;
-		pt_trigger();
-	} else {
-		/* unlimited cpu and gpu */
-	}
 }
 
 static void pt_low_bat_callback(enum BATTERY_PERCENT_LEVEL_TAG level)
 {
-	if (level == BATTERY_PERCENT_LEVEL_0) {
-		pt_low_bat = BATTERY_PERCENT_LEVEL_0;
-	} else if (level == BATTERY_PERCENT_LEVEL_1) {
-		pt_low_bat = BATTERY_PERCENT_LEVEL_1;
-		pt_trigger();
-	} else {
-		/* unlimited cpu and gpu*/
-	}
-}
+	pt_low_bat = level;
 
-static void pt_oc_callback(enum BATTERY_OC_LEVEL_TAG level)
-{
-	if (level == BATTERY_OC_LEVEL_0) {
-		pt_over_cur = BATTERY_OC_LEVEL_0;
-	} else if (level == BATTERY_OC_LEVEL_1) {
-		pt_over_cur = BATTERY_OC_LEVEL_1;
+	if (level >= pt_bat_pc_level)
 		pt_trigger();
-	} else {
-		/* unlimited cpu and gpu*/
-	}
+}
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
+
+static void pt_oc_callback(enum BATTERY_OC_LEVEL_TAG level, void *data)
+{
+	pt_over_cur = level;
+
+	if (level >= pt_bat_oc_level)
+		pt_trigger();
 }
 #endif
 
@@ -718,12 +726,14 @@ static long _flashlight_ioctl(
 
 	case FLASH_IOC_IS_LOW_POWER:
 		fl_arg.arg = 0;
+	#ifndef OPLUS_FEATURE_CAMERA_COMMON
 #ifdef CONFIG_MTK_FLASHLIGHT_PT
 		fl_arg.arg = pt_is_low(pt_low_vol, pt_low_bat, pt_over_cur);
 		if (fl_arg.arg)
 			pr_debug("Pt status: (%d,%d,%d)\n",
 					pt_low_vol, pt_low_bat, pt_over_cur);
 #endif
+	#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 		if (copy_to_user((void __user *)arg, (void *)&fl_arg,
 					sizeof(struct flashlight_user_arg))) {
 			pr_info("Failed to copy power status to user\n");
@@ -1103,9 +1113,11 @@ static ssize_t flashlight_pt_store(struct device *dev,
 
 	/* call callback function */
 	pt_strict = strict;
-	pt_low_vol_callback(low_vol);
+	#ifndef OPLUS_FEATURE_CAMERA_COMMON
+	pt_low_vol_callback(low_vol, NULL);
 	pt_low_bat_callback(low_bat);
-	pt_oc_callback(over_cur);
+	#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
+	pt_oc_callback(over_cur, NULL);
 #endif
 
 	ret = size;
@@ -1739,6 +1751,28 @@ static int fl_uninit(void)
 	return 0;
 }
 
+static int fl_parse_dt(struct device *dev)
+{
+	struct device_node *np;
+
+	if (!dev || !dev->of_node)
+		return -ENODEV;
+
+	np = dev->of_node;
+
+	if (of_property_read_u32(np, "low-battery-level", &pt_low_bat_level))
+		pr_info("Parse no dt, low-battery-level.\n");
+	if (of_property_read_u32(np, "battery-percent-level", &pt_bat_pc_level))
+		pr_info("Parse no dt, battert-percent-level.\n");
+	if (of_property_read_u32(np, "battery-oc-level", &pt_bat_oc_level))
+		pr_info("Parse no dt, battert-oc-level.\n");
+
+	pr_info("Parse dt pt=(%u,%u,%u).\n",
+		pt_low_bat_level, pt_bat_pc_level, pt_bat_oc_level);
+
+	return 0;
+}
+
 static int flashlight_probe(struct platform_device *dev)
 {
 	pr_debug("Probe start\n");
@@ -1824,6 +1858,8 @@ static int flashlight_probe(struct platform_device *dev)
 		pr_info("Failed to create device file(torch)\n");
 		goto err_create_torch_device_file;
 	}
+
+	fl_parse_dt(&dev->dev);
 
 	/* init flashlight */
 	fl_init();
@@ -1941,14 +1977,14 @@ static int __init flashlight_init(void)
 	}
 
 #ifdef CONFIG_MTK_FLASHLIGHT_PT
-	ret = register_low_battery_notify(
-			&pt_low_vol_callback, LOW_BATTERY_PRIO_FLASHLIGHT);
-	if (ret == LOW_BATTERY_LEVEL_3)
-		max_pt_low_vol = ret;
+	#ifndef OPLUS_FEATURE_CAMERA_COMMON
+	register_low_battery_notify(
+			&pt_low_vol_callback, LOW_BATTERY_PRIO_FLASHLIGHT, NULL);
 	register_bp_thl_notify(
 			&pt_low_bat_callback, BATTERY_PERCENT_PRIO_FLASHLIGHT);
+	#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 	register_battery_oc_notify(
-			&pt_oc_callback, BATTERY_OC_PRIO_FLASHLIGHT);
+			&pt_oc_callback, BATTERY_OC_PRIO_FLASHLIGHT, NULL);
 #endif
 
 	pr_debug("Init done\n");

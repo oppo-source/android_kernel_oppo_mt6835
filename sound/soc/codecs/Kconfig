@@ -299,6 +299,7 @@ config SND_SOC_ALL_CODECS
 	imply SND_SOC_WM9713
 	imply SND_SOC_WSA881X
 	imply SND_SOC_ZL38060
+        imply SND_SOC_FSA
 	help
 	  Normally ASoC codec drivers are only built if a machine driver which
 	  uses them is also built since they are only usable with a machine
@@ -1397,6 +1398,7 @@ config SND_SOC_STA529
 config SND_SOC_STAC9766
 	tristate
 	depends on SND_SOC_AC97_BUS
+	select REGMAP_AC97
 
 config SND_SOC_STI_SAS
 	tristate "codec Audio support for STI SAS codec"
@@ -2033,5 +2035,24 @@ config SND_SOC_LPASS_TX_MACRO
 	depends on COMMON_CLK
 	select REGMAP_MMIO
 	tristate "Qualcomm TX Macro in LPASS(Low Power Audio SubSystem)"
+
+#ifdef OPLUS_ARCH_EXTENDS
+config SND_SOC_FSA
+	tristate "usb type-c switch"
+	help
+	  This adds fsa driver for Mediatek boards
+	  that can be used with other platforms
+	  Select Y if you have such device.
+	  If unsure select "N".
+#endif /* OPLUS_ARCH_EXTENDS */
+
+config HSKEY_BLOCK
+	bool "Block hskey for 1s"
+	default n
+
+#ifdef OPLUS_ARCH_EXTENDS
+# Add for audio extern
+source "sound/soc/codecs/audio/Kconfig"
+#endif /* OPLUS_ARCH_EXTENDS */
 
 endmenu

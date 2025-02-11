@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 VERSION = 5
 PATCHLEVEL = 15
-SUBLEVEL = 104
+SUBLEVEL = 149
 EXTRAVERSION =
 NAME = Trick or Treat
 
@@ -689,6 +689,7 @@ ifdef need-config
 include include/config/auto.conf
 endif
 
+
 ifeq ($(KBUILD_EXTMOD),)
 # Objects we will link into vmlinux / subdirs we need to visit
 core-y		:= init/ usr/ arch/$(SRCARCH)/
@@ -1179,6 +1180,36 @@ export INSTALL_DTBS_PATH ?= $(INSTALL_PATH)/dtbs/$(KERNELRELEASE)
 
 MODLIB	= $(INSTALL_MOD_PATH)/lib/modules/$(KERNELRELEASE)
 export MODLIB
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+##/* add for oplus charge */
+KBUILD_CFLAGS += -DOPLUS_FEATURE_CHG_BASIC
+#endif
+
+#ifdef OPLUS_FEATURE_DISPLAY
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_ADFR
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_TEMP_COMPENSATION
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_AOD
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_FOD
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_DC
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_OSC
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_MIPI
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_LOGO
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_DP
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_APOLLO
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_ESD
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_KEVENT
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_SILENCE_REBOOT
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_CABC
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_KEVENT
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_DRE
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_AOD_RAMLESS
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_DFPS
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_PANELCHAPLIN
+KBUILD_CFLAGS += -DOPLUS_FEATURE_DISPLAY_PWM
+#endif OPLUS_FEATURE_DISPLAY
 
 PHONY += prepare0
 
@@ -1880,7 +1911,9 @@ quiet_cmd_depmod = DEPMOD  $(MODLIB)
 
 modules_install:
 	$(Q)$(MAKE) -f $(srctree)/scripts/Makefile.modinst
+ifndef modules_sign_only
 	$(call cmd,depmod)
+endif
 
 else # CONFIG_MODULES
 
@@ -1894,6 +1927,8 @@ modules modules_install:
 	@echo >&2 '*** to enable CONFIG_MODULES.'
 	@echo >&2 '***'
 	@exit 1
+
+KBUILD_MODULES :=
 
 endif # CONFIG_MODULES
 
@@ -1921,18 +1956,12 @@ $(single-ko): single_modpost
 $(single-no-ko): descend
 	@:
 
-ifeq ($(KBUILD_EXTMOD),)
-# For the single build of in-tree modules, use a temporary file to avoid
-# the situation of modules_install installing an invalid modules.order.
-MODORDER := .modules.tmp
-endif
-
+# Remove MODORDER when done because it is not the real one.
 PHONY += single_modpost
 single_modpost: $(single-no-ko) modules_prepare
 	$(Q){ $(foreach m, $(single-ko), echo $(extmod_prefix)$m;) } > $(MODORDER)
 	$(Q)$(MAKE) -f $(srctree)/scripts/Makefile.modpost
-
-KBUILD_MODULES := 1
+	$(Q)rm -f $(MODORDER)
 
 export KBUILD_SINGLE_TARGETS := $(addprefix $(extmod_prefix), $(single-no-ko))
 
@@ -1940,10 +1969,8 @@ export KBUILD_SINGLE_TARGETS := $(addprefix $(extmod_prefix), $(single-no-ko))
 build-dirs := $(foreach d, $(build-dirs), \
 			$(if $(filter $(d)/%, $(KBUILD_SINGLE_TARGETS)), $(d)))
 
-endif
+KBUILD_MODULES := 1
 
-ifndef CONFIG_MODULES
-KBUILD_MODULES :=
 endif
 
 # Handle descending into subdirectories listed in $(build-dirs)

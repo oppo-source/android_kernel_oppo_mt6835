@@ -2052,6 +2052,12 @@ static inline int dpmaif_txq_set_skb_data_to_drb(struct dpmaif_tx_queue *txq,
 
 	ccci_h = *(struct ccci_header *)skb->data;
 	skb_pull(skb, sizeof(struct ccci_header));
+	if (skb->len == 0) {
+		CCCI_NORMAL_LOG(0, TAG, "[%s] error: txq%d; skb->len=0; skb=0x%lX\n",
+			__func__, txq->index, (unsigned long)skb);
+		dev_kfree_skb_any(skb);
+		return 0;
+	}
 
 	if (skb->len == 0) {
 		CCCI_NORMAL_LOG(0, TAG, "[%s] error: txq%d; skb->len=0; skb=0x%lX\n",

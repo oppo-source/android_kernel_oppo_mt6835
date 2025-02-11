@@ -44,6 +44,9 @@ void mtk_drm_print_trace(char *fmt, ...)
 
 	tracing_mark_write(buf);
 }
+#ifdef OPLUS_FEATURE_DISPLAY
+EXPORT_SYMBOL(mtk_drm_print_trace);
+#endif /* OPLUS_FEATURE_DISPLAY */
 
 void drm_trace_tag_start(const char *tag)
 {
