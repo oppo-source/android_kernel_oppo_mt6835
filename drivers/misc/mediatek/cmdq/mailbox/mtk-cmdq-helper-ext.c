@@ -34,6 +34,10 @@ struct cmdq_sec_helper_fp *cmdq_sec_helper;
 
 #endif
 
+#ifdef OPLUS_FEATURE_DISPLAY
+#include <soc/oplus/system/oplus_mm_kevent_fb.h>
+#endif
+
 #ifndef cmdq_util_msg
 #define cmdq_util_msg(f, args...) cmdq_msg(f, ##args)
 #endif
@@ -2575,6 +2579,11 @@ void cmdq_pkt_err_dump_cb(struct cmdq_cb_data data)
 
 	cmdq_util_user_err(client->chan, "hwid:%d Begin of Error %u",
 		hwid, err_num[hwid]);
+#ifdef OPLUS_FEATURE_DISPLAY
+		if (err_num[hwid] < 5) {
+			mm_fb_display_kevent("DisplayDriverID@@508$$", MM_FB_KEY_RATELIMIT_1H, "cmdq timeout hwid:%d Begin of Error %u", hwid, err_num[hwid]);
+		}
+#endif
 	if (!err_num[hwid])
 		cmdq_util_helper->error_enable((u8)hwid);
 

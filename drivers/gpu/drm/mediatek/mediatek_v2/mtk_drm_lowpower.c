@@ -20,6 +20,10 @@
 #include "mtk_drm_mmp.h"
 #include "mtk_drm_trace.h"
 
+#ifdef OPLUS_FEATURE_DISPLAY_ADFR
+#include "oplus_adfr.h"
+#endif /* OPLUS_FEATURE_DISPLAY_ADFR  */
+
 #define MAX_ENTER_IDLE_RSZ_RATIO 300
 
 static void mtk_drm_idlemgr_enable_crtc(struct drm_crtc *crtc);
@@ -93,6 +97,8 @@ static void mtk_drm_vdo_mode_leave_idle(struct drm_crtc *crtc)
 		mtk_ddp_comp_io_cmd(comp, handle, DSI_LFR_SET, &en);
 	}
 
+	mtk_sodi_ddren(crtc, handle, true);
+
 	cmdq_pkt_flush(handle);
 	cmdq_pkt_destroy(handle);
 }
@@ -115,6 +121,12 @@ static void mtk_drm_idlemgr_enter_idle_nolock(struct drm_crtc *crtc)
 
 	if (!output_comp)
 		return;
+
+#ifdef OPLUS_FEATURE_DISPLAY_ADFR
+	if (oplus_adfr_is_support() && !index && !mtk_crtc->ddp_mode) {
+		oplus_adfr_handle_idle_mode(crtc, true);
+	}
+#endif /* OPLUS_FEATURE_DISPLAY_ADFR  */
 
 	mode = mtk_dsi_is_cmd_mode(output_comp);
 	idle_interval = mtk_drm_get_idle_check_interval(crtc);
@@ -383,6 +395,12 @@ static int mtk_drm_idlemgr_monitor_thread(void *data)
 		}
 
 		if (mtk_crtc_is_frame_trigger_mode(crtc) &&
+				atomic_read(&priv->crtc_rel_present[crtc_id]) <= 0) {
+			DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
+			continue;
+		}
+
+		if (mtk_crtc_is_frame_trigger_mode(crtc) &&
 				atomic_read(&priv->crtc_rel_present[crtc_id]) <
 				atomic_read(&priv->crtc_present[crtc_id])) {
 			DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
@@ -645,6 +663,9 @@ static void mtk_drm_idlemgr_enable_crtc(struct drm_crtc *crtc)
 
 	/* 1. power on mtcmos & init apsrc*/
 	mtk_drm_top_clk_prepare_enable(crtc->dev);
+
+	mtk_crtc_rst_module(crtc);
+
 	mtk_crtc_v_idle_apsrc_control(crtc, NULL, true, true,
 		MTK_APSRC_CRTC_DEFAULT, false);
 

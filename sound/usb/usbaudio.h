@@ -177,6 +177,7 @@ extern bool snd_usb_skip_validation;
  *  Don't apply implicit feedback sync mode
  * QUIRK_FLAG_IFACE_SKIP_CLOSE
  *  Don't closed interface during setting sample rate
+
  */
 
 #define QUIRK_FLAG_GET_SAMPLE_RATE	(1U << 0)

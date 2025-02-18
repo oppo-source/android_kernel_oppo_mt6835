@@ -58,6 +58,10 @@ struct mtk_cam_request_stream_data;
 
 #define IMG_PIX_ALIGN		2
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif /* OPLUS_FEATURE_CAMERA_COMMON */
+
 enum raw_module_id {
 	RAW_A = 0,
 	RAW_B = 1,

@@ -41,6 +41,10 @@ static unsigned int cmd_hist_ptr = MAX_CMD_HIST_ENTRY_CNT - 1;
 static struct cmd_hist_struct *cmd_hist;
 static struct ufs_hba *ufshba;
 static char *ufs_aee_buffer;
+static const char *ufs_null_device_strs = "nullnullnullnull";
+atomic_t ufs_init_done;
+int ufsplus_wb_status = 0;
+int ufsplus_hpb_status = 0;
 
 static void ufs_mtk_dbg_print_err_hist(char **buff, unsigned long *size,
 				  struct seq_file *m, u32 id,
@@ -553,6 +557,72 @@ static void probe_ufshcd_system_resume(void *data, const char *dev_name,
 	probe_ufshcd_pm(data, dev_name, err, time_us, pwr_mode, link_state,
 			UFSDBG_SYSTEM_RESUME);
 }
+//bsp.storage.ufs 2021.10.14 add for /proc/devinfo/ufs
+#ifdef OPLUS_DEVINFO_UFS
+/*feature-devinfo-v001-1-begin*/
+
+#ifdef CONFIG_SCSI_UFS_HPB
+static bool is_ufshpb_allowed(struct ufs_hba *hba)
+{
+	return !(hba->ufshpb_dev.hpb_disabled);
+}
+#else
+static bool is_ufshpb_allowed(struct ufs_hba *hba)
+{
+	pr_warn("ufshpb macro definition is not opened\n");
+	return false;
+}
+#endif
+
+static int create_devinfo_ufs(struct scsi_device *sdev)
+{
+	static char temp_version[5] = {0};
+	static char vendor[9] = {0};
+	static char model[17] = {0};
+	int ret = 0;
+	struct ufs_hba *hba = NULL;
+
+	pr_info("get ufs device vendor/model/rev\n");
+	WARN_ON(!sdev);
+	strncpy(temp_version, sdev->rev, 4);
+	strncpy(vendor, sdev->vendor, 8);
+	strncpy(model, sdev->model, 16);
+
+	ret = register_device_proc("ufs_version", temp_version, vendor);
+
+	if (ret) {
+		pr_err("%s create ufs_version fail, ret=%d",__func__,ret);
+		return ret;
+	}
+
+	ret = register_device_proc("ufs", model, vendor);
+
+	if (ret) {
+		pr_err("%s create ufs fail, ret=%d",__func__,ret);
+	}
+
+	hba = shost_priv(sdev->host);
+	if (hba && ufshcd_is_wb_allowed(hba)) {
+		ufsplus_wb_status = 1;
+	}
+	if (hba && is_ufshpb_allowed(hba)) {
+		ufsplus_hpb_status = 1;
+	}
+	ret = register_device_proc_for_ufsplus("ufsplus_status", &ufsplus_hpb_status, &ufsplus_wb_status);
+	if (ret) {
+		pr_err("%s create , ret=%d",__func__,ret);
+	}
+
+	return ret;
+}
+/*feature-devinfo-v001-1-end*/
+static void probe_android_vh_ufs_update_sdev(void *data, struct scsi_device *sdev)
+{
+	if (strcmp(sdev->model,ufs_null_device_strs) && atomic_inc_return(&ufs_init_done)==1){
+		create_devinfo_ufs(sdev);
+	}
+}
+#endif
 
 /* trace point enable condition */
 enum tp_en {
@@ -612,6 +682,9 @@ static struct tracepoints_table interests[] = {
 	{.name = "ufshcd_wl_runtime_resume", .func = probe_ufshcd_runtime_resume},
 	{.name = "ufshcd_wl_suspend", .func = probe_ufshcd_system_suspend},
 	{.name = "ufshcd_wl_resume", .func = probe_ufshcd_system_resume},
+#ifdef OPLUS_DEVINFO_UFS
+	{.name = "android_vh_ufs_update_sdev", .func = probe_android_vh_ufs_update_sdev},
+#endif
 };
 
 #define FOR_EACH_INTEREST(i) \
@@ -1024,6 +1097,10 @@ static int write_irq_affinity(char *buf)
 	cpumask_var_t new_mask;
 	int ret;
 
+	if (hba->dev_quirks & UFS_DEVICE_QUIRK_SAMSUNG_QLC) {
+		return 0;
+	}
+
 	if (!zalloc_cpumask_var(&new_mask, GFP_KERNEL))
 		return -ENOMEM;
 
@@ -1378,6 +1455,7 @@ int ufs_mtk_dbg_register(struct ufs_hba *hba)
 	 * Ignore any failure of AEE buffer allocation to still allow
 	 * command history dump in procfs.
 	 */
+	atomic_set(&ufs_init_done,0);
 	ufs_aee_buffer = kzalloc(UFS_AEE_BUFFER_SIZE, GFP_NOFS);
 
 	spin_lock_init(&cmd_hist_lock);

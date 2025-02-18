@@ -130,7 +130,7 @@ int bdg_tx_data_phy_cycle_calc(struct mtk_dsi *dsi,
 				unsigned int *bdg_tx_data_phy_cycle);
 
 //irqreturn_t bdg_eint_irq_handler(int irq, void *data);
-void bdg_first_init(void);
+void bdg_first_init(struct drm_device *drm);
 irqreturn_t bdg_eint_thread_handler(int irq, void *data);
 void bdg_request_eint_irq(void);
 //void bdg_free_eint_irq(void);
@@ -141,6 +141,8 @@ void bdg_clk_buf_nfc(bool onoff);
 irqreturn_t nfc_eint_thread_handler(int irq, void *data);
 void nfc_request_eint_irq(void);
 void bdg_spi_first_init(void);
+void nfc_work_func(struct work_struct *work_item);
+
 
 /***** NFC SRCLKENAI0 Interrupt Handler --- *****/
 #endif

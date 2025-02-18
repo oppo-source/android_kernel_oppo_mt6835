@@ -37,7 +37,11 @@ void notify_fsync_mgr_streaming(struct adaptor_ctx *ctx, unsigned int flag);
  *          long exposure => must return 0
  */
 int chk_s_exp_with_fl_by_fsync_mgr(struct adaptor_ctx *ctx,
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	u64 *ae_exp_arr, u32 ae_exp_cnt);
+#else
 	u32 *ae_exp_arr, u32 ae_exp_cnt);
+#endif
 
 void notify_fsync_mgr_update_tg(struct adaptor_ctx *ctx, u64 val);
 void notify_fsync_mgr_update_target_tg(struct adaptor_ctx *ctx, u64 val);
@@ -54,7 +58,11 @@ void notify_fsync_mgr_set_extend_framelength(
 	struct adaptor_ctx *ctx, u64 ext_fl);
 
 void notify_fsync_mgr_seamless_switch(struct adaptor_ctx *ctx,
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	u64 *ae_exp_arr, u32 ae_exp_max_cnt,
+#else
 	u32 *ae_exp_arr, u32 ae_exp_max_cnt,
+#endif
 	u32 orig_readout_time_us, u32 target_scenario_id);
 
 void notify_fsync_mgr_n_1_en(struct adaptor_ctx *ctx, u64 n, u64 en);
@@ -64,7 +72,11 @@ void notify_fsync_mgr_mstream_en(struct adaptor_ctx *ctx, u64 en);
 void notify_fsync_mgr_subsample_tag(struct adaptor_ctx *ctx, u64 sub_tag);
 
 void notify_fsync_mgr_set_shutter(struct adaptor_ctx *ctx,
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	u64 *ae_exp_arr, u32 ae_exp_cnt,
+#else
 	u32 *ae_exp_arr, u32 ae_exp_cnt,
+#endif
 	int do_set_exp_with_fl);
 
 

@@ -541,4 +541,9 @@ extern const struct usb_ep_ops mtu3_ep0_ops;
 
 int get_dp_switch_status(struct ssusb_mtk *ssusb);
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+extern bool is_usb_rdy(void);
+extern void Charger_Detect_Init(void);
+extern void Charger_Detect_Release(void);
+#endif
 #endif

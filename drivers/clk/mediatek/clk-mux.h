@@ -50,6 +50,7 @@ extern const struct clk_ops mtk_mux_clr_set_ops;
 extern const struct clk_ops mtk_mux_clr_set_upd_ops;
 extern const struct clk_ops mtk_mux_gate_ops;
 extern const struct clk_ops mtk_mux_gate_clr_set_upd_ops;
+extern const struct clk_ops mtk_mux_gate_clr_set_upd_2_ops;
 extern const struct clk_ops mtk_hwv_mux_ops;
 extern const struct clk_ops mtk_ipi_mux_ops;
 
@@ -72,6 +73,14 @@ extern const struct clk_ops mtk_ipi_mux_ops;
 		.ops = &_ops,						\
 	}
 
+#define MUX_GATE_CLR_SET_UPD_FLAGS_2(_id, _name, _parents, _mux_ofs,	\
+			_mux_set_ofs, _mux_clr_ofs, _shift, _width,	\
+			_gate, _upd_ofs, _upd, _flags)			\
+		GATE_CLR_SET_UPD_FLAGS(_id, _name, _parents, _mux_ofs,	\
+			_mux_set_ofs, _mux_clr_ofs, _shift, _width,	\
+			_gate, _upd_ofs, _upd, _flags,			\
+			mtk_mux_gate_clr_set_upd_2_ops)
+
 #define MUX_GATE_CLR_SET_UPD_FLAGS(_id, _name, _parents, _mux_ofs,	\
 			_mux_set_ofs, _mux_clr_ofs, _shift, _width,	\
 			_gate, _upd_ofs, _upd, _flags)			\
@@ -86,7 +95,7 @@ extern const struct clk_ops mtk_ipi_mux_ops;
 		MUX_GATE_CLR_SET_UPD_FLAGS(_id, _name, _parents,	\
 			_mux_ofs, _mux_set_ofs, _mux_clr_ofs, _shift,	\
 			_width, _gate, _upd_ofs, _upd,			\
-			CLK_SET_RATE_PARENT)
+			0)
 
 #define MUX_CLR_SET_UPD_FLAGS(_id, _name, _parents, _mux_ofs,		\
 			_mux_set_ofs, _mux_clr_ofs, _shift, _width,	\
@@ -101,7 +110,7 @@ extern const struct clk_ops mtk_ipi_mux_ops;
 			_upd_ofs, _upd)					\
 		MUX_CLR_SET_UPD_FLAGS(_id, _name, _parents,		\
 			_mux_ofs, _mux_set_ofs, _mux_clr_ofs, _shift,	\
-			_width, _upd_ofs, _upd, CLK_SET_RATE_PARENT)
+			_width, _upd_ofs, _upd, 0)
 
 #define MUX_CLR_SET(_id, _name, _parents, _mux_ofs,			\
 			_mux_set_ofs, _mux_clr_ofs, _shift, _width) {	\
@@ -114,7 +123,7 @@ extern const struct clk_ops mtk_ipi_mux_ops;
 		.mux_width = _width,					\
 		.parent_names = _parents,				\
 		.num_parents = ARRAY_SIZE(_parents),			\
-		.flags = CLK_SET_RATE_PARENT,				\
+		.flags = 0,				\
 		.ops = &mtk_mux_clr_set_ops,				\
 	}
 
@@ -137,7 +146,7 @@ extern const struct clk_ops mtk_ipi_mux_ops;
 		.upd_shift = _upd,					\
 		.parent_names = _parents,				\
 		.num_parents = ARRAY_SIZE(_parents),			\
-		.flags = CLK_SET_RATE_PARENT | CLK_USE_HW_VOTER,	\
+		.flags =  CLK_USE_HW_VOTER,	\
 		.ops = &mtk_hwv_mux_ops,				\
 	}
 
@@ -160,7 +169,7 @@ extern const struct clk_ops mtk_ipi_mux_ops;
 		.upd_shift = _upd,					\
 		.parent_names = _parents,				\
 		.num_parents = ARRAY_SIZE(_parents),			\
-		.flags = CLK_SET_RATE_PARENT | CLK_USE_HW_VOTER | _flags,	\
+		.flags = CLK_USE_HW_VOTER | _flags,	\
 		.ops = &mtk_hwv_mux_ops,				\
 	}
 
@@ -187,7 +196,7 @@ extern const struct clk_ops mtk_ipi_mux_ops;
 		.default_opp = _default_opp,				\
 		.parent_names = _parents,				\
 		.num_parents = ARRAY_SIZE(_parents),			\
-		.flags = CLK_SET_RATE_PARENT | CLK_USE_HW_VOTER | _flags,	\
+		.flags =  CLK_USE_HW_VOTER | _flags,	\
 		.ops = &mtk_ipi_mux_ops,				\
 	}
 

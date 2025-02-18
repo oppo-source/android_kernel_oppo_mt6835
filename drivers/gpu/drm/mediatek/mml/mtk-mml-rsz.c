@@ -240,6 +240,7 @@ static s32 rsz_prepare(struct mml_comp *comp, struct mml_task *task,
 	return ret;
 }
 
+
 static struct mml_pq_tile_init_result *get_tile_init_result(struct mml_task *task)
 {
 	return task->pq_task->tile_init.result;

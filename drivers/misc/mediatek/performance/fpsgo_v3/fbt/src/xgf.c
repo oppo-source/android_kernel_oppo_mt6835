@@ -67,6 +67,7 @@ static int xgf_ema2_enable;
 static int xgf_display_rate = DEFAULT_DFRC;
 static int is_xgff_mips_exp_enable;
 static int total_xgf_policy_cmd_num;
+static int xgf_filter_dep_task_enable;
 
 int fstb_frame_num = 20;
 EXPORT_SYMBOL(fstb_frame_num);
@@ -321,6 +322,40 @@ int xgf_check_specific_pid(int pid)
 }
 EXPORT_SYMBOL(xgf_check_specific_pid);
 
+int xgf_check_specific_process(int pid, int rpid)
+{
+	int ret = 0;
+	int tmp_process_id, main_process_id;
+	char tmp_process_name[16];
+	struct task_struct *gtsk = NULL;
+
+	main_process_id = xgf_get_process_id(rpid);
+	if (main_process_id < 0)
+		goto out;
+
+	tmp_process_id = xgf_get_process_id(pid);
+	if (tmp_process_id < 0)
+		goto out;
+
+	rcu_read_lock();
+	gtsk = find_task_by_vpid(tmp_process_id);
+	if (gtsk) {
+		get_task_struct(gtsk);
+		strncpy(tmp_process_name, gtsk->comm, 16);
+		tmp_process_name[15] = '\0';
+		put_task_struct(gtsk);
+	} else
+		tmp_process_name[0] = '\0';
+	rcu_read_unlock();
+
+	if ((tmp_process_id == main_process_id) ||
+		strstr(tmp_process_name, "surfaceflinger"))
+		ret = 1;
+
+out:
+	return ret;
+}
+
 void fpsgo_ctrl2xgf_set_display_rate(int dfrc_fps)
 {
 	xgf_lock(__func__);
@@ -526,8 +561,11 @@ static void xgf_delete_policy_cmd(struct xgf_policy_cmd *iter)
 	struct rb_node *rbn = NULL;
 
 	if (iter) {
-		min_iter = iter;
-		goto delete;
+		if (!iter->ema2_enable && !iter->filter_dep_task_enable) {
+			min_iter = iter;
+			goto delete;
+		} else
+			return;
 	}
 
 	if (RB_EMPTY_ROOT(&xgf_policy_cmd_tree))
@@ -579,7 +617,8 @@ static struct xgf_policy_cmd *xgf_get_policy_cmd(int tgid, int ema2_enable,
 		return NULL;
 
 	iter->tgid = tgid;
-	iter->ema2_enable = ema2_enable;
+	iter->ema2_enable = 0;
+	iter->filter_dep_task_enable = 0;
 	iter->ts = ts;
 
 	rb_link_node(&iter->rb_node, parent, p);
@@ -1275,6 +1314,7 @@ static int xgf_get_render(pid_t rpid, unsigned long long bufID, struct xgf_rende
 		iter->spid = 0;
 		iter->dep_frames = xgf_prev_dep_frames;
 		iter->ema2_enable = 0;
+		iter->filter_dep_task_enable = 0;
 		iter->ema2_pt = NULL;
 	}
 	hlist_add_head(&iter->hlist, &xgf_renders);
@@ -1470,6 +1510,7 @@ int gbe2xgf_get_dep_list_num(int pid, unsigned long long bufID)
 	struct xgf_dep *out_iter;
 	struct xgf_dep *pre_iter;
 	int counts = 0;
+	int pass_filter_flag = 0;
 
 	if (!pid)
 		goto out;
@@ -1495,18 +1536,31 @@ int gbe2xgf_get_dep_list_num(int pid, unsigned long long bufID)
 		while (out_rbn != NULL && pre_rbn != NULL) {
 			out_iter = rb_entry(out_rbn, struct xgf_dep, rb_node);
 			pre_iter = rb_entry(pre_rbn, struct xgf_dep, rb_node);
+			pass_filter_flag = 0;
 
 			if (out_iter->tid < pre_iter->tid) {
-				if (out_iter->render_dep)
-					counts++;
+				if (out_iter->render_dep) {
+					pass_filter_flag = !render_iter->filter_dep_task_enable ||
+						xgf_check_specific_process(out_iter->tid, pid);
+					if (pass_filter_flag)
+						counts++;
+				}
 				out_rbn = rb_next(out_rbn);
 			} else if (out_iter->tid > pre_iter->tid) {
-				if (pre_iter->render_dep)
-					counts++;
+				if (pre_iter->render_dep) {
+					pass_filter_flag = !render_iter->filter_dep_task_enable ||
+						xgf_check_specific_process(pre_iter->tid, pid);
+					if (pass_filter_flag)
+						counts++;
+				}
 				pre_rbn = rb_next(pre_rbn);
 			} else {
-				if ((out_iter->render_dep || pre_iter->render_dep))
-					counts++;
+				if ((out_iter->render_dep || pre_iter->render_dep)) {
+					pass_filter_flag = !render_iter->filter_dep_task_enable ||
+						xgf_check_specific_process(out_iter->tid, pid);
+					if (pass_filter_flag)
+						counts++;
+				}
 				out_rbn = rb_next(out_rbn);
 				pre_rbn = rb_next(pre_rbn);
 			}
@@ -1514,15 +1568,23 @@ int gbe2xgf_get_dep_list_num(int pid, unsigned long long bufID)
 
 		while (out_rbn != NULL) {
 			out_iter = rb_entry(out_rbn, struct xgf_dep, rb_node);
-			if (out_iter->render_dep)
-				counts++;
+			if (out_iter->render_dep) {
+				pass_filter_flag = !render_iter->filter_dep_task_enable ||
+						xgf_check_specific_process(out_iter->tid, pid);
+				if (pass_filter_flag)
+					counts++;
+			}
 			out_rbn = rb_next(out_rbn);
 		}
 
 		while (pre_rbn != NULL) {
 			pre_iter = rb_entry(pre_rbn, struct xgf_dep, rb_node);
-			if (pre_iter->render_dep)
-				counts++;
+			if (pre_iter->render_dep) {
+				pass_filter_flag = !render_iter->filter_dep_task_enable ||
+						xgf_check_specific_process(pre_iter->tid, pid);
+				if (pass_filter_flag)
+					counts++;
+			}
 			pre_rbn = rb_next(pre_rbn);
 		}
 	}
@@ -1543,6 +1605,7 @@ int fpsgo_fbt2xgf_get_dep_list_num(int pid, unsigned long long bufID)
 	struct xgf_dep *out_iter;
 	struct xgf_dep *pre_iter;
 	int counts = 0;
+	int pass_filter_flag = 0;
 
 	if (!pid)
 		goto out;
@@ -1570,6 +1633,7 @@ int fpsgo_fbt2xgf_get_dep_list_num(int pid, unsigned long long bufID)
 		while (out_rbn != NULL && pre_rbn != NULL) {
 			out_iter = rb_entry(out_rbn, struct xgf_dep, rb_node);
 			pre_iter = rb_entry(pre_rbn, struct xgf_dep, rb_node);
+			pass_filter_flag = 0;
 
 			if (out_iter->tid < pre_iter->tid) {
 				if (out_iter->render_dep && !xgf_filter_dep_task(out_iter->tid))
@@ -1619,6 +1683,7 @@ int gbe2xgf_get_dep_list(int pid, int count,
 	struct xgf_dep *out_iter;
 	struct xgf_dep *pre_iter;
 	int index = 0;
+	int pass_filter_flag = 0;
 
 	if (!pid || !count)
 		return 0;
@@ -1644,24 +1709,37 @@ int gbe2xgf_get_dep_list(int pid, int count,
 		while (out_rbn != NULL && pre_rbn != NULL) {
 			out_iter = rb_entry(out_rbn, struct xgf_dep, rb_node);
 			pre_iter = rb_entry(pre_rbn, struct xgf_dep, rb_node);
+			pass_filter_flag = 0;
 
 			if (out_iter->tid < pre_iter->tid) {
 				if (out_iter->render_dep && index < count) {
-					arr[index].pid = out_iter->tid;
-					index++;
+					pass_filter_flag = !render_iter->filter_dep_task_enable ||
+						xgf_check_specific_process(out_iter->tid, pid);
+					if (pass_filter_flag) {
+						arr[index].pid = out_iter->tid;
+						index++;
+					}
 				}
 				out_rbn = rb_next(out_rbn);
 			} else if (out_iter->tid > pre_iter->tid) {
 				if (pre_iter->render_dep && index < count) {
-					arr[index].pid = pre_iter->tid;
-					index++;
+					pass_filter_flag = !render_iter->filter_dep_task_enable ||
+						xgf_check_specific_process(pre_iter->tid, pid);
+					if (pass_filter_flag) {
+						arr[index].pid = pre_iter->tid;
+						index++;
+					}
 				}
 				pre_rbn = rb_next(pre_rbn);
 			} else {
 				if ((out_iter->render_dep || pre_iter->render_dep)
 					&& index < count) {
-					arr[index].pid = out_iter->tid;
-					index++;
+					pass_filter_flag = !render_iter->filter_dep_task_enable ||
+						xgf_check_specific_process(out_iter->tid, pid);
+					if (pass_filter_flag) {
+						arr[index].pid = out_iter->tid;
+						index++;
+					}
 				}
 				out_rbn = rb_next(out_rbn);
 				pre_rbn = rb_next(pre_rbn);
@@ -1671,8 +1749,12 @@ int gbe2xgf_get_dep_list(int pid, int count,
 		while (out_rbn != NULL) {
 			out_iter = rb_entry(out_rbn, struct xgf_dep, rb_node);
 			if (out_iter->render_dep && index < count) {
-				arr[index].pid = out_iter->tid;
-				index++;
+				pass_filter_flag = !render_iter->filter_dep_task_enable ||
+					xgf_check_specific_process(out_iter->tid, pid);
+				if (pass_filter_flag) {
+					arr[index].pid = out_iter->tid;
+					index++;
+				}
 			}
 			out_rbn = rb_next(out_rbn);
 		}
@@ -1680,8 +1762,12 @@ int gbe2xgf_get_dep_list(int pid, int count,
 		while (pre_rbn != NULL) {
 			pre_iter = rb_entry(pre_rbn, struct xgf_dep, rb_node);
 			if (pre_iter->render_dep && index < count) {
-				arr[index].pid = pre_iter->tid;
-				index++;
+				pass_filter_flag = !render_iter->filter_dep_task_enable ||
+					xgf_check_specific_process(pre_iter->tid, pid);
+				if (pass_filter_flag) {
+					arr[index].pid = pre_iter->tid;
+					index++;
+				}
 			}
 			pre_rbn = rb_next(pre_rbn);
 		}
@@ -1703,6 +1789,7 @@ int fpsgo_fbt2xgf_get_dep_list(int pid, int count,
 	struct xgf_dep *out_iter;
 	struct xgf_dep *pre_iter;
 	int index = 0;
+	int pass_filter_flag = 0;
 
 	if (!pid || !count)
 		return 0;
@@ -1730,6 +1817,7 @@ int fpsgo_fbt2xgf_get_dep_list(int pid, int count,
 		while (out_rbn != NULL && pre_rbn != NULL) {
 			out_iter = rb_entry(out_rbn, struct xgf_dep, rb_node);
 			pre_iter = rb_entry(pre_rbn, struct xgf_dep, rb_node);
+			pass_filter_flag = 0;
 
 			if (out_iter->tid < pre_iter->tid) {
 				if (out_iter->render_dep && index < count &&
@@ -2374,13 +2462,13 @@ int fpsgo_comp2xgf_qudeq_notify(int rpid, unsigned long long bufID, int cmd,
 
 			mutex_lock(&xgf_policy_cmd_lock);
 			policy = xgf_get_policy_cmd(r->parent, r->ema2_enable, ts, 0);
-			if (xgf_ema2_enable)
-				r->ema2_enable = 1;
-			else if (!policy)
-				r->ema2_enable = 0;
-			else {
-				policy->ts = ts;
+			if (policy) {
 				r->ema2_enable = policy->ema2_enable;
+				r->filter_dep_task_enable = policy->filter_dep_task_enable;
+				policy->ts = ts;
+			} else {
+				r->ema2_enable = xgf_ema2_enable ? 1 : 0;
+				r->filter_dep_task_enable = xgf_filter_dep_task_enable ? 1 : 0;
 			}
 			mutex_unlock(&xgf_policy_cmd_lock);
 
@@ -3115,8 +3203,11 @@ static ssize_t xgf_ema2_enable_by_pid_show(struct kobject *kobj,
 		iter = rb_entry(rbn, struct xgf_policy_cmd, rb_node);
 		length = scnprintf(temp + pos,
 			FPSGO_SYSFS_MAX_BUFF_SIZE - pos,
-			"%dth\ttgid:%d\tema2_enable:%d\tts:%llu\n",
-			i, iter->tgid, iter->ema2_enable, iter->ts);
+			"tgid:%d\tema2_enable:%d\tfilter_dep_task_enable:%d\tts:%llu\n",
+			iter->tgid,
+			iter->ema2_enable,
+			iter->filter_dep_task_enable,
+			iter->ts);
 		pos += length;
 		i++;
 	}
@@ -3148,12 +3239,16 @@ static ssize_t xgf_ema2_enable_by_pid_store(struct kobject *kobj,
 		if (scnprintf(acBuffer, FPSGO_SYSFS_MAX_BUFF_SIZE, "%s", buf)) {
 			if (sscanf(acBuffer, "%d %d", &tgid, &ema2_enable) == 2) {
 				mutex_lock(&xgf_policy_cmd_lock);
-				if (ema2_enable > 0)
+				if (ema2_enable > 0) {
 					iter = xgf_get_policy_cmd(tgid, !!ema2_enable, ts, 1);
-				else {
-					iter = xgf_get_policy_cmd(tgid, ema2_enable, ts, 0);
 					if (iter)
+						iter->ema2_enable = !!ema2_enable;
+				} else {
+					iter = xgf_get_policy_cmd(tgid, ema2_enable, ts, 0);
+					if (iter) {
+						iter->ema2_enable = 0;
 						xgf_delete_policy_cmd(iter);
+					}
 				}
 				mutex_unlock(&xgf_policy_cmd_lock);
 			}
@@ -3166,6 +3261,54 @@ out:
 }
 
 static KOBJ_ATTR_RW(xgf_ema2_enable_by_pid);
+
+static ssize_t xgf_filter_dep_task_enable_by_pid_show(struct kobject *kobj,
+		struct kobj_attribute *attr,
+		char *buf)
+{
+	return 0;
+}
+
+static ssize_t xgf_filter_dep_task_enable_by_pid_store(struct kobject *kobj,
+		struct kobj_attribute *attr,
+		const char *buf, size_t count)
+{
+	char *acBuffer = NULL;
+	int tgid;
+	int arg;
+	unsigned long long ts = fpsgo_get_time();
+	struct xgf_policy_cmd *iter;
+
+	acBuffer = kcalloc(FPSGO_SYSFS_MAX_BUFF_SIZE, sizeof(char), GFP_KERNEL);
+	if (!acBuffer)
+		goto out;
+
+	if ((count > 0) && (count < FPSGO_SYSFS_MAX_BUFF_SIZE)) {
+		if (scnprintf(acBuffer, FPSGO_SYSFS_MAX_BUFF_SIZE, "%s", buf)) {
+			if (sscanf(acBuffer, "%d %d", &tgid, &arg) == 2) {
+				mutex_lock(&xgf_policy_cmd_lock);
+				if (arg > 0) {
+					iter = xgf_get_policy_cmd(tgid, 0, ts, 1);
+					if (iter)
+						iter->filter_dep_task_enable = !!arg;
+				} else {
+					iter = xgf_get_policy_cmd(tgid, 0, ts, 0);
+					if (iter) {
+						iter->filter_dep_task_enable = 0;
+						xgf_delete_policy_cmd(iter);
+					}
+				}
+				mutex_unlock(&xgf_policy_cmd_lock);
+			}
+		}
+	}
+
+out:
+	kfree(acBuffer);
+	return count;
+}
+
+static KOBJ_ATTR_RW(xgf_filter_dep_task_enable_by_pid);
 
 atomic_t xgf_ko_enable;
 EXPORT_SYMBOL(xgf_ko_enable);
@@ -3702,6 +3845,41 @@ out:
 
 static KOBJ_ATTR_RW(xgff_mips_exp_enable);
 
+static ssize_t xgf_filter_dep_task_enable_show(struct kobject *kobj,
+		struct kobj_attribute *attr,
+		char *buf)
+{
+	return scnprintf(buf, PAGE_SIZE, "%d\n", xgf_filter_dep_task_enable);
+}
+
+static ssize_t xgf_filter_dep_task_enable_store(struct kobject *kobj,
+		struct kobj_attribute *attr,
+		const char *buf, size_t count)
+{
+	char *acBuffer = NULL;
+	int arg;
+
+	acBuffer = kcalloc(FPSGO_SYSFS_MAX_BUFF_SIZE, sizeof(char), GFP_KERNEL);
+	if (!acBuffer)
+		goto out;
+
+	if ((count > 0) && (count < FPSGO_SYSFS_MAX_BUFF_SIZE)) {
+		if (scnprintf(acBuffer, FPSGO_SYSFS_MAX_BUFF_SIZE, "%s", buf)) {
+			if (kstrtoint(acBuffer, 0, &arg) == 0) {
+				xgf_lock(__func__);
+				xgf_filter_dep_task_enable = !!arg;
+				xgf_unlock(__func__);
+			}
+		}
+	}
+
+out:
+	kfree(acBuffer);
+	return count;
+}
+
+static KOBJ_ATTR_RW(xgf_filter_dep_task_enable);
+
 int __init init_xgf(void)
 {
 	init_xgf_ko();
@@ -3716,6 +3894,8 @@ int __init init_xgf(void)
 		fpsgo_sysfs_create_file(xgf_kobj, &kobj_attr_xgf_status);
 		fpsgo_sysfs_create_file(xgf_kobj, &kobj_attr_xgf_ema2_enable_by_pid);
 		fpsgo_sysfs_create_file(xgf_kobj, &kobj_attr_xgff_mips_exp_enable);
+		fpsgo_sysfs_create_file(xgf_kobj, &kobj_attr_xgf_filter_dep_task_enable);
+		fpsgo_sysfs_create_file(xgf_kobj, &kobj_attr_xgf_filter_dep_task_enable_by_pid);
 	}
 
 	xgf_policy_cmd_tree = RB_ROOT;
@@ -3743,6 +3923,8 @@ int __exit exit_xgf(void)
 	fpsgo_sysfs_remove_file(xgf_kobj, &kobj_attr_xgf_status);
 	fpsgo_sysfs_remove_file(xgf_kobj, &kobj_attr_xgf_ema2_enable_by_pid);
 	fpsgo_sysfs_remove_file(xgf_kobj, &kobj_attr_xgff_mips_exp_enable);
+	fpsgo_sysfs_remove_file(xgf_kobj, &kobj_attr_xgf_filter_dep_task_enable);
+	fpsgo_sysfs_remove_file(xgf_kobj, &kobj_attr_xgf_filter_dep_task_enable_by_pid);
 
 	fpsgo_sysfs_remove_dir(&xgf_kobj);
 

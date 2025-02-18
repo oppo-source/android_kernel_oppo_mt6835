@@ -2108,8 +2108,8 @@ void mtk_imgsys_mod_get(struct mtk_imgsys_dev *imgsys_dev)
 	kref = &imgsys_dev->init_kref;
 	kref_get(kref);
 }
-
-static int mtk_imgsys_worker_power_on(void *data)
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+static int mtk_imgsys_hw_connect(struct mtk_imgsys_dev *imgsys_dev)
 {
 	int ret, i;
 	struct mtk_imgsys_dev *imgsys_dev = data;
@@ -2325,6 +2325,221 @@ static int mtk_imgsys_hw_connect(struct mtk_imgsys_dev *imgsys_dev)
 	dev_info(imgsys_dev->dev, "%s-", __func__);
 	return 0;
 }
+#else /*OPLUS_FEATURE_CAMERA_COMMON*/
+static int mtk_imgsys_worker_power_on(void *data)
+{
+	int ret, i;
+	struct mtk_imgsys_dev *imgsys_dev = data;
+	struct mtk_imgsys_dvfs *dvfs_info = &imgsys_dev->dvfs_info;
+	dev_info(imgsys_dev->dev, "%s+", __func__);
+	mtk_imgsys_power_ctrl_ccu(imgsys_dev, 1);
+	if (IS_ERR_OR_NULL(dvfs_info->mmdvfs_clk))
+		dev_info(dvfs_info->dev,
+			"%s: [ERROR] mmdvfs_clk is null\n", __func__);
+	else {
+		IMGSYS_SYSTRACE_BEGIN("imgsys_fw-init:mmdvfs-1\n");
+		mtk_mmdvfs_enable_vcp(true, VCP_PWR_USR_IMG);
+		IMGSYS_SYSTRACE_END();
+		IMGSYS_SYSTRACE_BEGIN("imgsys_fw-init:mmdvfs-2\n");
+		mtk_mmdvfs_enable_ccu(true, CCU_PWR_USR_IMG);
+		IMGSYS_SYSTRACE_END();
+	}
+	if (IS_ERR_OR_NULL(dvfs_info->reg))
+		dev_info(dvfs_info->dev,
+			"%s: [ERROR] reg is err or null\n", __func__);
+	else {
+		ret = regulator_enable(dvfs_info->reg);
+		if (ret)
+			dev_info(imgsys_dev->dev, "%s: failed (%d)", __func__, ret);
+	}
+	pm_runtime_get_sync(imgsys_dev->dev);
+	/*set default value for hw module*/
+	for (i = 0; i < (imgsys_dev->num_mods); i++)
+		imgsys_dev->modules[i].init(imgsys_dev);
+	kref_init(&imgsys_dev->init_kref);
+
+	pm_runtime_put_sync(imgsys_dev->dev);
+	if (!imgsys_quick_onoff_enable()) {
+		#if DVFS_QOS_READY
+		mtk_imgsys_power_ctrl(imgsys_dev, true);
+		#else
+		pm_runtime_get_sync(imgsys_dev->dev);
+		#endif
+	} else
+		dev_info(imgsys_dev->dev,
+			"%s: imgsys_quick_onoff_enable(%d)\n",
+			__func__, imgsys_quick_onoff_enable());
+	complete(&imgsys_dev->comp);
+	dev_info(imgsys_dev->dev, "%s-", __func__);
+	return 0;
+}
+
+static int mtk_imgsys_worker_hcp_init(struct mtk_imgsys_dev *imgsys_dev)
+{
+	int ret;
+	unsigned int mode;
+#ifndef USE_KERNEL_ION_BUFFER
+	struct buf_va_info_t *buf;
+	struct dma_buf *dbuf;
+#else
+	int fd;
+#endif
+	struct img_init_info info;
+	struct resource *imgsys_resource = imgsys_dev->imgsys_resource;
+	u32 user_cnt = 0;
+
+#if MTK_CM4_SUPPORT
+	struct img_ipi_param ipi_param;
+
+	memset(&ipi_param, 0, sizeof(ipi_param));
+	ipi_param.usage = IMG_IPI_INIT;
+	scp_ipi_register(imgsys_dev->scp_pdev, SCP_IPI_DIP, imgsys_scp_handler,
+		imgsys_dev);
+	ret = scp_ipi_send(imgsys_dev->scp_pdev, SCP_IPI_DIP, &ipi_param,
+			   sizeof(ipi_param), 200);
+#else
+	IMGSYS_SYSTRACE_BEGIN("imgsys_fw-init:allocate_buffer\n");
+	{
+		dev_info(imgsys_dev->dev, "%s+", __func__);
+
+		mtk_imgsys_hw_working_buf_pool_reinit(imgsys_dev);
+		/* ALLOCATE IMGSYS WORKING BUFFER FIRST */
+		mode = imgsys_dev->imgsys_pipe[0].init_info.is_smvr;
+		ret = mtk_hcp_allocate_working_buffer(imgsys_dev->scp_pdev, mode);
+		if (ret) {
+			dev_info(imgsys_dev->dev, "%s: mtk_hcp_allocate_working_buffer failed %d\n",
+				__func__, ret);
+			goto err_power_off;
+		}
+
+		mtk_hcp_purge_msg(imgsys_dev->scp_pdev);
+
+		/* IMGSYS HW INIT */
+		memset(&info, 0, sizeof(info));
+		info.drv_data = (u64)&imgsys_dev;
+		info.header_version = HEADER_VER;
+		info.dip_param_size = sizeof(struct dip_param);
+		info.param_pack_size = sizeof(struct frame_param_pack);
+		info.frameparam_size = sizeof(struct img_ipi_frameparam);
+		info.reg_phys_addr = imgsys_resource->start;
+		info.reg_range = resource_size(imgsys_resource);
+		/* TODO */
+#ifdef USE_KERNEL_ION_BUFFER
+		fd = hcp_get_ion_buffer_fd(imgsys_dev->scp_pdev,
+		IMG_MEM_FOR_HW_ID);
+		info.hw_buf_fd = fd;
+		info.hw_buf_size =
+				mtk_hcp_get_reserve_mem_size(DIP_MEM_FOR_HW_ID);
+#else
+		buf = get_first_sd_buf();
+		if (!buf) {
+			pr_info("%s: no single device buff added\n", __func__);
+		} else {
+			dbuf = (struct dma_buf *)buf->dma_buf_putkva;
+			info.hw_buf_size = dbuf->size;
+			info.hw_buf_fd = buf->buf_fd;
+		}
+#endif
+		mtk_hcp_get_init_info(imgsys_dev->scp_pdev, &info);
+		info.sec_tag = imgsys_dev->imgsys_pipe[0].init_info.sec_tag;
+		info.full_wd = imgsys_dev->imgsys_pipe[0].init_info.sensor.full_wd;
+		info.full_ht = imgsys_dev->imgsys_pipe[0].init_info.sensor.full_ht;
+		info.smvr_mode = imgsys_dev->imgsys_pipe[0].init_info.is_smvr;
+		ret = imgsys_send(imgsys_dev->scp_pdev, HCP_IMGSYS_INIT_ID,
+			(void *)&info, sizeof(info), 0, 1);
+	}
+#endif
+
+	if (ret) {
+		dev_info(imgsys_dev->dev, "%s: send SCP_IPI_DIP_FRAME failed %d\n",
+			__func__, ret);
+		goto err_power_off;
+	}
+
+	ret = gce_work_pool_init(imgsys_dev);
+	if (ret) {
+		dev_info(imgsys_dev->dev, "%s: gce work pool allocate failed %d\n",
+			__func__, ret);
+		goto err_power_off;
+	}
+	IMGSYS_SYSTRACE_END();
+	imgsys_timeout_idx = 0;
+	/* calling cmdq stream on */
+	imgsys_cmdq_streamon(imgsys_dev);
+
+	imgsys_queue_init(&imgsys_dev->runnerque, imgsys_dev->dev, "imgsys-cmdq");
+	imgsys_queue_enable(&imgsys_dev->runnerque);
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+	mtk_hcp_init_KernelFence();
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
+
+	mtk_hcp_register(imgsys_dev->scp_pdev, HCP_IMGSYS_INIT_ID,
+		imgsys_init_handler, "imgsys_init_handler", imgsys_dev);
+	mtk_hcp_register(imgsys_dev->scp_pdev, HCP_IMGSYS_FRAME_ID,
+		imgsys_scp_handler, "imgsys_scp_handler", imgsys_dev);
+	mtk_hcp_register(imgsys_dev->scp_pdev, HCP_IMGSYS_CLEAR_HWTOKEN_ID,
+		imgsys_cleartoken_handler, "imgsys_cleartoken_handler", imgsys_dev);
+	mtk_hcp_register(imgsys_dev->scp_pdev, HCP_IMGSYS_AEE_DUMP_ID,
+		imgsys_aee_handler, "imgsys_aee_handler", imgsys_dev);
+	dev_info(imgsys_dev->dev, "%s-", __func__);
+
+	return 0;
+
+err_power_off:
+	if (!imgsys_quick_onoff_enable()) {
+	#if DVFS_QOS_READY
+		mtk_imgsys_power_ctrl(imgsys_dev, false);
+	#else
+		pm_runtime_put_sync(imgsys_dev->dev);
+	#endif
+	} else
+		dev_info(imgsys_dev->dev,
+			"%s: imgsys_quick_onoff_enable(%d)\n",
+			__func__, imgsys_quick_onoff_enable());
+	mtk_imgsys_mod_put(imgsys_dev);
+
+	user_cnt = atomic_read(&imgsys_dev->imgsys_user_cnt);
+	if (user_cnt != 0)
+		dev_info(imgsys_dev->dev,
+			"%s: [ERROR] imgsys user count is not yet return to zero(%d)\n",
+			__func__, user_cnt);
+	return -EBUSY;
+}
+
+static int mtk_imgsys_hw_connect(struct mtk_imgsys_dev *imgsys_dev)
+{
+	u32 user_cnt = 0;
+	struct task_struct *power_task;
+	int ret = 0;
+
+	IMGSYS_SYSTRACE_BEGIN("imgsys_fw-init:\n");
+	dev_info(imgsys_dev->dev, "%s+", __func__);
+	user_cnt = atomic_read(&imgsys_dev->imgsys_user_cnt);
+	if (user_cnt != 0)
+		dev_info(imgsys_dev->dev,
+			"%s: [ERROR] imgsys user count is not zero(%d)\n",
+			__func__, user_cnt);
+
+	atomic_set(&imgsys_dev->imgsys_user_cnt, 0);
+	init_completion(&imgsys_dev->comp);
+	power_task =
+		kthread_create(mtk_imgsys_worker_power_on, (void *)imgsys_dev, "imgsys_power_on");
+	if (!IS_ERR(power_task)) {
+		sched_set_normal(power_task, -20);
+		wake_up_process(power_task);
+	} else
+		mtk_imgsys_worker_power_on((void *)imgsys_dev);
+	ret = mtk_imgsys_worker_hcp_init(imgsys_dev);
+	wait_for_completion(&imgsys_dev->comp);
+	IMGSYS_SYSTRACE_END();
+	if (ret) {
+		dev_info(imgsys_dev->dev, "hcp init fail");
+		return ret;
+	}
+	dev_info(imgsys_dev->dev, "%s-", __func__);
+	return 0;
+}
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 
 static void mtk_imgsys_hw_disconnect(struct mtk_imgsys_dev *imgsys_dev)
 {

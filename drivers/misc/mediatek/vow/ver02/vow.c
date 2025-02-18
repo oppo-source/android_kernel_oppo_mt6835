@@ -721,7 +721,12 @@ static int vow_service_GetParameter(unsigned long arg)
 		VOWDRV_DEBUG("vow get parameter fail\n");
 		return -EFAULT;
 	}
-	if (vow_info_ap[3] > VOW_MODEL_SIZE ||
+	if (VENDOR_ID_BREENO == vow_info_ap[5]) {
+		//ignore breeno model size
+		VOWDRV_DEBUG("ignore vow Modle size check in case of breeno %d\n",
+			     (unsigned int)vow_info_ap[3]);
+	}
+	else if (vow_info_ap[3] > VOW_MODEL_SIZE ||
 	    vow_info_ap[3] < VOW_MODEL_SIZE_THRES) {
 		VOWDRV_DEBUG("vow Modle Size is incorrect %d\n",
 			     (unsigned int)vow_info_ap[3]);
@@ -919,12 +924,14 @@ static bool vow_service_SetSpeakerModel(unsigned long arg)
 	char *ptr8;
 #endif
 
-	I = vow_service_FindFreeSpeakerModel();
-	if (I == -1)
-		return false;
-
 	if (vow_service_GetParameter(arg) != 0)
 		return false;
+	I  = vow_service_SearchSpeakerModelWithKeyword(vowserv.vow_info_apuser[1]);
+	if (I  < 0) {
+		I = vow_service_FindFreeSpeakerModel();
+		if (I == -1)
+			return false;
+	}
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_SCP_SUPPORT)
 	mutex_lock(&vow_sendspkmdl_mutex);
 	vowserv.vow_speaker_model[I].model_ptr =

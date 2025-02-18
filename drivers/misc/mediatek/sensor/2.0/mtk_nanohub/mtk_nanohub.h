@@ -39,7 +39,10 @@ struct SensorState {
 	bool enable;
 	int flushcnt;
 	uint32_t gain;
-	char name[16];
+// #ifdef OPLUS_FEATURE_SENSOR
+	// char name[16];
+	char name[32];
+// #endif
 	char vendor[16];
 };
 
@@ -436,7 +439,10 @@ struct mag_dev_info_t {
 };
 
 struct sensorInfo_t {
-	char name[16];
+// #ifdef OPLUS_FEATURE_SENSOR
+	// char name[16];
+	char name[32];
+// #endif
 	struct mag_dev_info_t mag_dev_info;
 };
 

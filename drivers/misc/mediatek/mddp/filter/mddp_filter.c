@@ -508,7 +508,7 @@ static struct pernet_operations mddp_net_ops = {
 };
 
 
-void mddp_netfilter_hook(void)
+void mddp_netfilter_hook(struct completion *comp)
 {
 	if (mddp_netfilter_is_hook == 0) {
 		int ret = 0;
@@ -524,11 +524,15 @@ void mddp_netfilter_hook(void)
 			mddp_wan_netdev->netdev_ops = &mddp_wan_netdev_ops;
 			netif_tx_wake_all_queues(mddp_wan_netdev);
 			mddp_netfilter_is_hook = 1;
+			MDDP_F_LOG(MDDP_LL_NOTICE,
+				"%s: Register hook, mddp_netfilter_is_hook = %d, ret = %d!\n",
+				__func__, mddp_netfilter_is_hook, ret);
 		}
 	}
+	complete(comp);
 }
 
-void mddp_netfilter_unhook(void)
+void mddp_netfilter_unhook(struct completion *comp)
 {
 	if (mddp_netfilter_is_hook == 1) {
 		unregister_pernet_subsys(&mddp_net_ops);
@@ -536,7 +540,11 @@ void mddp_netfilter_unhook(void)
 		mddp_wan_netdev->netdev_ops = mddp_wan_netdev_ops_save;
 		netif_tx_wake_all_queues(mddp_wan_netdev);
 		mddp_netfilter_is_hook = 0;
+		MDDP_F_LOG(MDDP_LL_NOTICE,
+			"%s: mddp_netfilter_is_hook = %d\n",
+			__func__, mddp_netfilter_is_hook);
 	}
+	complete(comp);
 }
 
 int32_t mddp_filter_init(void)
@@ -566,7 +574,10 @@ int32_t mddp_filter_init(void)
 static atomic_t mddp_filter_quit = ATOMIC_INIT(0);
 void mddp_filter_uninit(void)
 {
-	mddp_netfilter_unhook();
+	struct completion comp;
+
+	init_completion(&comp);
+	mddp_netfilter_unhook(&comp);
 	atomic_set(&mddp_filter_quit, 1);
 	mddp_f_uninit_nat_tuple();
 	mddp_f_uninit_router_tuple();

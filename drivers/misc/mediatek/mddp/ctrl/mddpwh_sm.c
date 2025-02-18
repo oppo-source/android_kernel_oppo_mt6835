@@ -246,6 +246,14 @@ static void mddpwh_sm_dummy_act(struct mddp_app_t *app)
 	mddp_f_dev_del_lan_dev(app->ap_cfg.dl_dev_name);
 }
 
+
+static void mddpwh_sm_err_handling(struct mddp_app_t *app)
+{
+	// Device is already deactivated and expected to be unhooked.
+	// schedule unhook_work to complete "work_comp" to avoid infinite wait_for_completion
+	schedule_work(&mddp_unhook_work);
+}
+
 //------------------------------------------------------------------------------
 // MDDPWH State machine.
 //------------------------------------------------------------------------------
@@ -295,7 +303,7 @@ static struct mddp_sm_entry_t mddpwh_deactivated_state_machine_s[] = {
 {MDDP_EVT_FUNC_ENABLE,    MDDP_STATE_ENABLING,     mddpwh_sm_enable},
 {MDDP_EVT_FUNC_DISABLE,   MDDP_STATE_DISABLING,    mddpwh_sm_disable},
 {MDDP_EVT_FUNC_ACT,       MDDP_STATE_ACTIVATING,   mddpwh_sm_act},
-{MDDP_EVT_FUNC_DEACT,     MDDP_STATE_DEACTIVATED,  NULL},
+{MDDP_EVT_FUNC_DEACT,     MDDP_STATE_DEACTIVATED,  mddpwh_sm_err_handling},
 {MDDP_EVT_MD_RSP_OK,      MDDP_STATE_DEACTIVATED,  NULL},
 {MDDP_EVT_MD_RSP_FAIL,    MDDP_STATE_DEACTIVATED,  NULL},
 {MDDP_EVT_DUMMY,          MDDP_STATE_DEACTIVATED,  NULL} /* End of SM. */
@@ -924,13 +932,19 @@ static void wfpm_reset_work_func(struct work_struct *work)
 	app->reset_cnt++;
 	mddp_check_feature();
 	mddpw_wfpm_send_smem_layout();
-	if (app->state != MDDP_STATE_DISABLED)
+	if (app->state != MDDP_STATE_DISABLED){
+		mddp_f_dev_del_wan_dev(app->ap_cfg.ul_dev_name);
+		mddp_f_dev_del_lan_dev(app->ap_cfg.dl_dev_name);
 		mddp_sm_on_event(app, MDDP_EVT_FUNC_ENABLE);
+	}
 }
 
 static void mddp_hook_work_func(struct work_struct *work)
 {
-	mddp_netfilter_hook();
+	struct mddp_app_t       *app;
+
+	app = mddp_get_app_inst(MDDP_APP_TYPE_WH);
+	mddp_netfilter_hook(&app->work_comp);
 }
 
 static void mddp_unhook_work_func(struct work_struct *work)
@@ -938,9 +952,9 @@ static void mddp_unhook_work_func(struct work_struct *work)
 	struct mddp_app_t       *app;
 
 	app = mddp_get_app_inst(MDDP_APP_TYPE_WH);
-	mddp_netfilter_unhook();
 	mddp_f_dev_del_wan_dev(app->ap_cfg.ul_dev_name);
 	mddp_f_dev_del_lan_dev(app->ap_cfg.dl_dev_name);
+	mddp_netfilter_unhook(&app->work_comp);
 }
 
 static void md_rsp_fail_work_func(struct work_struct *work)

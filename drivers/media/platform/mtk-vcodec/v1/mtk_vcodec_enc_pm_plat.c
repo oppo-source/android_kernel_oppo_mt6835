@@ -499,3 +499,4 @@ void mtk_venc_pmqos_frame_req(struct mtk_vcodec_dev *dev)
 {
 
 }
+

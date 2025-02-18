@@ -896,6 +896,13 @@ static enum mml_mode tp_query_mode(struct mml_dev *mml, struct mml_frame_info *i
 		goto decouple;
 	}
 
+	if (MML_FMT_IS_RGB(info->dest[0].data.format))
+		goto decouple;
+
+	if (!MML_FMT_COMPRESS(info->src.format)) {
+		*reason = mml_query_format;
+		goto decouple;
+	}
 	/* get mid opp frequency */
 	tp = mml_topology_get_cache(mml);
 	if (!tp || !tp->opp_cnt) {

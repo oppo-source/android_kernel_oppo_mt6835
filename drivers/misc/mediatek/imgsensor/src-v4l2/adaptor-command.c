@@ -8,8 +8,9 @@
 #include "adaptor-common-ctrl.h"
 
 #include "adaptor-command.h"
-
-
+#if defined(OPLUS_FEATURE_CAMERA_COMMON) && defined(CONFIG_OPLUS_CAM_EVENT_REPORT_MODULE)
+#include "oplus_cam_olc_exception.h"
+#endif
 #define sd_to_ctx(__sd) container_of(__sd, struct adaptor_ctx, sd)
 
 static int get_sensor_mode_info(struct adaptor_ctx *ctx, u32 mode_id,
@@ -126,7 +127,30 @@ static int s_cmd_fsync_sync_frame_start_end(struct adaptor_ctx *ctx, void *arg)
 	return ret;
 }
 
+#if defined(OPLUS_FEATURE_CAMERA_COMMON) && defined(CONFIG_OPLUS_CAM_EVENT_REPORT_MODULE)
+static int s_cmd_update_olc_status(struct adaptor_ctx *ctx, void *arg) {
+	struct olc_params *olc_data_ptr = NULL;
+	int ret = 0;
+	unsigned char payload[PAYLOAD_LENGTH] = {0x00};
+	/* error handling (unexpected case) */
+	if (unlikely(arg == NULL)) {
+		ret = -ENOIOCTLCMD;
+		adaptor_logi(ctx,
+			"ERROR: V4L2_CMD_OLC_EVENT, idx:%d, input arg is nullptr, return:%d\n",
+			ctx->idx);
+		return ret;
+	}
+	olc_data_ptr = (struct olc_params*) arg;
 
+	scnprintf(payload, sizeof(payload),
+		"NULL$$EventField@@%s$$FieldData@@0x%x$$detailData@@subdev=%s, time_after_sof=%llu, frame_time=%llu",
+		acquireEventField(EXCEP_SOF_TIMEOUT), (CAM_RESERVED_ID << 20 | CAM_MODULE_ID << 12 | EXCEP_SOF_TIMEOUT),
+		olc_data_ptr->name, olc_data_ptr->time_after_sof, olc_data_ptr->frame_time);
+	ret = cam_olc_raise_exception(EXCEP_SOF_TIMEOUT, payload);
+	adaptor_logd(ctx,"olc raise execption ret:%d\n", ret);
+	return ret;
+}
+#endif
 /*---------------------------------------------------------------------------*/
 // adaptor command framework/entry
 /*---------------------------------------------------------------------------*/
@@ -143,6 +167,9 @@ static const struct command_entry command_list[] = {
 
 	/* SET */
 	{V4L2_CMD_FSYNC_SYNC_FRAME_START_END, s_cmd_fsync_sync_frame_start_end},
+#if defined(OPLUS_FEATURE_CAMERA_COMMON) && defined(CONFIG_OPLUS_CAM_EVENT_REPORT_MODULE)
+	{V4L2_CMD_OLC_EVENT, s_cmd_update_olc_status},
+#endif
 };
 
 long adaptor_command(struct v4l2_subdev *sd, unsigned int cmd, void *arg)

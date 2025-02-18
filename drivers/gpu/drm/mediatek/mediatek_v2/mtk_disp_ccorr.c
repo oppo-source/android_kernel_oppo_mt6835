@@ -26,6 +26,7 @@
 #include "mtk_dump.h"
 #include "mtk_drm_helper.h"
 #include "platform/mtk_drm_platform.h"
+#include "mtk_drm_mmp.h"
 
 #ifdef CONFIG_LEDS_MTK_MODULE
 #define CONFIG_LEDS_BRIGHTNESS_CHANGED
@@ -57,6 +58,19 @@
 #define CCORR_REG(idx) (idx * 4 + 0x80)
 #define CCORR_CLIP(val, min, max) ((val >= max) ? \
 	max : ((val <= min) ? min : val))
+
+
+#ifdef OPLUS_FEATURE_DISPLAY
+extern unsigned int oplus_display_brightness;
+
+static int set_ccorr0_force_linear = 0;
+static int oplus_set_ccorr_matrix = 0;
+static unsigned int ccorr_offset_temp[3] = {0, 0, 0};
+#endif /* OPLUS_FEATURE_DISPLAY  */
+
+#ifdef OPLUS_FEATURE_DISPLAY
+extern bool g_ccorr_probe_ready;
+#endif
 
 static unsigned int g_ccorr_8bit_switch[DISP_CCORR_TOTAL];
 static unsigned int g_ccorr_relay_value[DISP_CCORR_TOTAL];
@@ -169,7 +183,8 @@ static atomic_t g_ccorr_is_init_valid = ATOMIC_INIT(0);
 
 static DEFINE_MUTEX(g_ccorr_global_lock);
 // For color conversion bug fix
-//static bool need_offset;
+static bool need_offset;
+
 #define OFFSET_VALUE (1024)
 
 /* TODO */
@@ -352,8 +367,8 @@ static int disp_ccorr_write_coef_reg(struct mtk_ddp_comp *comp,
 	if (lock)
 		mutex_lock(&g_ccorr_global_lock);
 
-	DDPINFO("%s:ccorr id:%d,aosp ccorr:%d,nonlinear:%d\n", __func__, id,
-		disp_aosp_ccorr, g_disp_ccorr_without_gamma);
+	//DDPINFO("%s:ccorr id:%d,aosp ccorr:%d,nonlinear:%d\n", __func__, id,
+	//	disp_aosp_ccorr, g_disp_ccorr_without_gamma);
 	/* to avoid different show of dual pipe, pipe1 use pipe0's config data */
 	id = conv_to_pipe0_index(id);
 	ccorr = g_disp_ccorr_coef[id];
@@ -386,9 +401,43 @@ static int disp_ccorr_write_coef_reg(struct mtk_ddp_comp *comp,
 		}
 		ccorr = multiply_matrix;
 
-		ccorr->offset[0] = g_disp_ccorr_coef[id]->offset[0];
-		ccorr->offset[1] = g_disp_ccorr_coef[id]->offset[1];
-		ccorr->offset[2] = g_disp_ccorr_coef[id]->offset[2];
+		#ifdef OPLUS_FEATURE_DISPLAY
+		if (oplus_set_ccorr_matrix == 1) {
+			if (((g_prim_ccorr_force_linear && (disp_ccorr_linear&0x01)) ||
+				(g_prim_ccorr_pq_nonlinear && (disp_ccorr_linear == 0x0))) &&
+				(disp_ccorr_number == 1) &&
+				(need_offset || (g_disp_ccorr_temp_linear == 1))) {
+				g_disp_ccorr_without_gamma = g_disp_ccorr_temp_linear;
+				ccorr->offset[0] = ccorr_offset_temp[0];
+				ccorr->offset[1] = ccorr_offset_temp[1];
+				ccorr->offset[2] = ccorr_offset_temp[2];
+			} else {
+				ccorr->offset[0] = g_disp_ccorr_coef[id]->offset[0];
+				ccorr->offset[1] = g_disp_ccorr_coef[id]->offset[1];
+				ccorr->offset[2] = g_disp_ccorr_coef[id]->offset[2];
+			}
+		} else {
+			if (set_ccorr0_force_linear == 1) {
+				if (((g_prim_ccorr_force_linear && (disp_ccorr_linear&0x01)) ||
+					(g_prim_ccorr_pq_nonlinear && (disp_ccorr_linear == 0x0))) &&
+					(disp_ccorr_number == 1) && (g_disp_ccorr_temp_linear == 1)) {
+					g_disp_ccorr_without_gamma = g_disp_ccorr_temp_linear;
+					ccorr->offset[0] = ccorr_offset_temp[0];
+					ccorr->offset[1] = ccorr_offset_temp[1];
+					ccorr->offset[2] = ccorr_offset_temp[2];
+				}
+			} else {
+				ccorr->offset[0] = g_disp_ccorr_coef[id]->offset[0];
+				ccorr->offset[1] = g_disp_ccorr_coef[id]->offset[1];
+				ccorr->offset[2] = g_disp_ccorr_coef[id]->offset[2];
+			}
+		}
+
+		DDPINFO("%s:ccorr id:%d,aosp ccorr:%d,nonlinear:%d\n", __func__, id,
+			disp_aosp_ccorr, g_disp_ccorr_without_gamma);
+		DDPDBG("ccorr color matrix offset {%d, %d, %d}\n",
+			ccorr->offset[0], ccorr->offset[1], ccorr->offset[2]);
+		#endif
 	//}
 
 	// For 6885 need to left shift one bit
@@ -664,8 +713,12 @@ void disp_pq_notify_backlight_changed(int bl_1024)
 	DDPINFO("%s: %d\n", __func__, bl_1024);
 
 	if (m_new_pq_persist_property[DISP_PQ_CCORR_SILKY_BRIGHTNESS]) {
-		if (default_comp != NULL &&
-			g_ccorr_relay_value[index_of_ccorr(default_comp->id)] != 1) {
+		if (default_comp != NULL
+			#ifdef OPLUS_FEATURE_DISPLAY_APOLLO
+			/* to keep value of backlight for FOD while screen is turning on */
+			/* &&g_ccorr_relay_value[index_of_ccorr(default_comp->id)] != 1 */
+			#endif /* OPLUS_FEATURE_DISPLAY_APOLLO */
+			) {
 			atomic_set(&g_irq_backlight_change, 1);
 			disp_ccorr_set_interrupt(default_comp, 1);
 
@@ -816,6 +869,7 @@ int disp_ccorr_set_color_matrix(struct mtk_ddp_comp *comp, struct cmdq_pkt *hand
 		DDPPR_ERR("%s: cmdq can not be NULL\n", __func__);
 		return -EFAULT;
 	}
+
 	if (identity_matrix && (disp_ccorr_number == 1) &&
 			(!g_prim_ccorr_force_linear) && (disp_ccorr_linear & 0x01))
 		return ret;
@@ -903,16 +957,26 @@ int disp_ccorr_set_color_matrix(struct mtk_ddp_comp *comp, struct cmdq_pkt *hand
 		}
 	}
 
-	// offset part
-/*	if ((matrix[12] != 0) || (matrix[13] != 0) || (matrix[14] != 0))
-		need_offset = true;
-	else
-		need_offset = false;
-*/
+	if (oplus_set_ccorr_matrix == 1) {
+		g_disp_ccorr_without_gamma = ccorr_without_gamma;
+		// offset part
+		if ((matrix[12] != 0) || (matrix[13] != 0) || (matrix[14] != 0)) {
+			need_offset = true;
+		} else {
+			g_disp_ccorr_without_gamma = 0;
+			need_offset = false;
+		}
+	}
 
 	g_disp_ccorr_coef[id]->offset[0] = (matrix[12] << 1) << ccorr_offset_mask;
 	g_disp_ccorr_coef[id]->offset[1] = (matrix[13] << 1) << ccorr_offset_mask;
 	g_disp_ccorr_coef[id]->offset[2] = (matrix[14] << 1) << ccorr_offset_mask;
+
+	#ifdef OPLUS_FEATURE_DISPLAY
+	ccorr_offset_temp[0] = (matrix[12] << 1) << ccorr_offset_mask;
+	ccorr_offset_temp[1] = (matrix[13] << 1) << ccorr_offset_mask;
+	ccorr_offset_temp[2] = (matrix[14] << 1) << ccorr_offset_mask;
+	#endif
 
 	//if only ccorr0 hw exist and aosp forece linear or
 	//pq force nonlinear,id should be 0, g_disp_ccorr_coef
@@ -942,7 +1006,9 @@ int disp_ccorr_set_color_matrix(struct mtk_ddp_comp *comp, struct cmdq_pkt *hand
 		g_disp_ccorr_coef[id]->offset[1],
 		g_disp_ccorr_coef[id]->offset[2], hint);
 
-	g_disp_ccorr_without_gamma = ccorr_without_gamma;
+	if (oplus_set_ccorr_matrix != 1) {
+		g_disp_ccorr_without_gamma = ccorr_without_gamma;
+	}
 	g_disp_ccorr_temp_linear = g_disp_ccorr_without_gamma;
 
 	disp_aosp_ccorr = true;
@@ -998,6 +1064,32 @@ int disp_ccorr_set_RGB_Gain(struct mtk_ddp_comp *comp,
 	return ret;
 }
 
+static bool is_doze_active(void)
+{
+	struct drm_crtc *crtc;
+	struct mtk_drm_crtc *mtk_crtc;
+	struct mtk_crtc_state *mtk_state;
+
+	if (!default_comp)
+		return false;
+	crtc = &default_comp->mtk_crtc->base;
+	mtk_crtc = to_mtk_crtc(crtc);
+
+	DDP_MUTEX_LOCK(&mtk_crtc->lock, __func__, __LINE__);
+	mtk_state = to_mtk_crtc_state(crtc->state);
+	if(!mtk_state){
+		DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
+		return false;
+	}
+
+	if (mtk_state->prop_val[CRTC_PROP_DOZE_ACTIVE]){
+		DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
+		return true;
+	}
+	DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
+	return false;
+}
+
 int mtk_drm_ioctl_set_ccorr(struct drm_device *dev, void *data,
 		struct drm_file *file_priv)
 {
@@ -1006,6 +1098,18 @@ int mtk_drm_ioctl_set_ccorr(struct drm_device *dev, void *data,
 	struct drm_crtc *crtc = private->crtc[0];
 	struct DRM_DISP_CCORR_COEF_T *ccorr_config = data;
 	int ret;
+
+	if (m_new_pq_persist_property[DISP_PQ_CCORR_SILKY_BRIGHTNESS] &&
+		is_doze_active() &&
+		ccorr_config->silky_bright_flag == 1 &&
+		ccorr_config->FinalBacklight != 0) {
+		DDPINFO("%s, in aod state, brightness = %d",
+				__func__, ccorr_config->FinalBacklight);
+		mtk_leds_brightness_set("lcd-backlight",
+			ccorr_config->FinalBacklight, 0, (0X01<<SET_BACKLIGHT_LEVEL));
+
+		return 0;
+	}
 
 	if (ccorr_config->hw_id != DRM_DISP_CCORR_TOTAL) {
 		DDPINFO("hw_id = %d", ccorr_config->hw_id);
@@ -1032,6 +1136,9 @@ int mtk_drm_ioctl_set_ccorr(struct drm_device *dev, void *data,
 			DDPINFO("brightness = %d, silky_bright_flag = %d",
 				ccorr_config->FinalBacklight,
 				ccorr_config->silky_bright_flag);
+#ifdef OPLUS_FEATURE_DISPLAY
+			oplus_display_brightness = ccorr_config->FinalBacklight;
+#endif /* OPLUS_FEATURE_DISPLAY  */
 			mtk_leds_brightness_set("lcd-backlight",
 				ccorr_config->FinalBacklight, 0, (0X01<<SET_BACKLIGHT_LEVEL));
 		}
@@ -1339,9 +1446,12 @@ static void mtk_ccorr_config(struct mtk_ddp_comp *comp,
 static void mtk_ccorr_start(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle)
 {
 	DDPINFO("%s\n", __func__);
-
-	disp_aosp_ccorr = false;
-	g_disp_ccorr_without_gamma = CCORR_INVERSE_GAMMA;
+	if (set_ccorr0_force_linear != 1) {
+		if (oplus_set_ccorr_matrix != 1) {
+			disp_aosp_ccorr = false;
+			g_disp_ccorr_without_gamma = CCORR_INVERSE_GAMMA;
+		}
+	}
 
 	if (disp_ccorr_number == 2) {
 		if (comp->id == DDP_COMPONENT_CCORR0) {
@@ -1657,9 +1767,19 @@ static void mtk_get_ccorr_property(struct device_node *node)
 	if (ret)
 		DDPPR_ERR("read ccorr_prim_force_linear failed\n");
 
-	DDPINFO("%s:ccorr_bit:%d,ccorr_number:%d,ccorr_linear:%d,ccorr0 force linear:%d\n",
+	#ifdef OPLUS_FEATURE_DISPLAY
+	ret = of_property_read_u32(node, "set_ccorr_force_linear", &set_ccorr0_force_linear);
+	if (ret)
+		DDPPR_ERR("read set_ccorr_force_linear failed\n");
+	#endif
+
+	ret = of_property_read_u32(node, "oplus_set_ccorr_matrix", &oplus_set_ccorr_matrix);
+	if (ret)
+		DDPPR_ERR("read oplus_set_ccorr_matrix failed\n");
+
+	DDPINFO("%s:ccorr_bit:%d,ccorr_number:%d,ccorr_linear:%d,ccorr0 force linear:%d,set_ccorr0_force_linear:%d,oplus_set_ccorr_matrix:%d\n",
 		__func__, disp_ccorr_caps.ccorr_bit, disp_ccorr_caps.ccorr_number,
-		disp_ccorr_caps.ccorr_linear, ccorr0_force_linear);
+		disp_ccorr_caps.ccorr_linear, ccorr0_force_linear, set_ccorr0_force_linear, oplus_set_ccorr_matrix);
 
 	disp_ccorr_number = disp_ccorr_caps.ccorr_number;
 	disp_ccorr_linear = disp_ccorr_caps.ccorr_linear;
@@ -1741,6 +1861,9 @@ static int mtk_disp_ccorr_probe(struct platform_device *pdev)
 #ifdef CONFIG_LEDS_BRIGHTNESS_CHANGED
 	if (comp_id == DDP_COMPONENT_CCORR0)
 		mtk_leds_register_notifier(&leds_init_notifier);
+#endif
+#ifdef OPLUS_FEATURE_DISPLAY
+	g_ccorr_probe_ready = true;
 #endif
 	DDPINFO("%s-\n", __func__);
 

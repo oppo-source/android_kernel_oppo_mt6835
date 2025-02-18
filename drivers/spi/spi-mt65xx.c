@@ -829,7 +829,6 @@ static int mtk_spi_fifo_transfer(struct spi_master *master,
 			/*reference to core layer timeout (ns) */
 			if (ktime_get_ns() - cur_time > MTK_SPI_TRANSFER_TIMEOUT)
 				return -ETIMEDOUT;
-
 			cpu_relax();
 		} while (!irq_status);
 
@@ -933,6 +932,7 @@ static int mtk_spi_dma_transfer(struct spi_master *master,
 	mb();
 	spi_debug("spi setting Done.Dump reg before Transfer start:\n");
 	spi_dump_reg(mdata, master);
+
 	mtk_spi_enable_transfer(master);
 
 	return 1;

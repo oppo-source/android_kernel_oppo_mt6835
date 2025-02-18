@@ -18,13 +18,16 @@
 #include <linux/slab.h>
 #include <linux/usb/role.h>
 #include <linux/workqueue.h>
+#ifdef OPLUS_FEATURE_CHG_BASIC
 #include <linux/proc_fs.h>
+#endif
 
 #include "extcon-mtk-usb.h"
 
 #if IS_ENABLED(CONFIG_TCPC_CLASS)
 #include "tcpm.h"
 #endif
+
 
 static const unsigned int usb_extcon_cable[] = {
 	EXTCON_USB,
@@ -41,6 +44,7 @@ static void mtk_usb_extcon_update_role(struct work_struct *work)
 
 	cur_dr = extcon->c_role;
 	new_dr = role->d_role;
+	extcon->c_role = new_dr;
 
 	dev_info(extcon->dev, "cur_dr(%d) new_dr(%d)\n", cur_dr, new_dr);
 
@@ -76,7 +80,6 @@ static void mtk_usb_extcon_update_role(struct work_struct *work)
 	if (extcon->role_sw)
 		usb_role_switch_set_role(extcon->role_sw, new_dr);
 
-	extcon->c_role = new_dr;
 	kfree(role);
 }
 
@@ -250,10 +253,18 @@ static int mtk_usb_extcon_vbus_init(struct mtk_extcon_info *extcon)
 		goto fail;
 	}
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	extcon->vbus =  devm_regulator_get(dev, "vbus");
+#else
 	extcon->vbus =  devm_regulator_get_exclusive(dev, "vbus");
+#endif
 	if (IS_ERR(extcon->vbus)) {
 		/* try to get by name */
+#ifdef OPLUS_FEATURE_CHG_BASIC
+		extcon->vbus =  devm_regulator_get(dev, "usb-otg-vbus");
+#else
 		extcon->vbus =  devm_regulator_get_exclusive(dev, "usb-otg-vbus");
+#endif
 		if (IS_ERR(extcon->vbus)) {
 			dev_err(dev, "failed to get vbus\n");
 			ret = PTR_ERR(extcon->vbus);
@@ -286,15 +297,21 @@ static int mtk_extcon_tcpc_notifier(struct notifier_block *nb,
 	struct mtk_extcon_info *extcon =
 			container_of(nb, struct mtk_extcon_info, tcpc_nb);
 	struct device *dev = extcon->dev;
+#ifndef OPLUS_FEATURE_CHG_BASIC
+/* oplus add for DX-2 charge */
 	bool vbus_on;
+#endif
 
 	switch (event) {
+#ifndef OPLUS_FEATURE_CHG_BASIC
+	/* oplus add for DX-2 charge */
 	case TCP_NOTIFY_SOURCE_VBUS:
 		dev_info(dev, "source vbus = %dmv\n",
 				 noti->vbus_state.mv);
 		vbus_on = (noti->vbus_state.mv) ? true : false;
 		mtk_usb_extcon_set_vbus(extcon, vbus_on);
 		break;
+#endif
 	case TCP_NOTIFY_TYPEC_STATE:
 		dev_info(dev, "old_state=%d, new_state=%d\n",
 				noti->typec_state.old_state,
@@ -327,12 +344,10 @@ static int mtk_extcon_tcpc_notifier(struct notifier_block *nb,
 		if (noti->swap_state.new_role == PD_ROLE_UFP &&
 				extcon->c_role != USB_ROLE_DEVICE) {
 			dev_info(dev, "switch role to device\n");
-			mtk_usb_extcon_set_role(extcon, USB_ROLE_NONE);
 			mtk_usb_extcon_set_role(extcon, USB_ROLE_DEVICE);
 		} else if (noti->swap_state.new_role == PD_ROLE_DFP &&
 				extcon->c_role != USB_ROLE_HOST) {
 			dev_info(dev, "switch role to host\n");
-			mtk_usb_extcon_set_role(extcon, USB_ROLE_NONE);
 			mtk_usb_extcon_set_role(extcon, USB_ROLE_HOST);
 		}
 		break;

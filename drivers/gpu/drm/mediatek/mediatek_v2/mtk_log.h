@@ -13,6 +13,10 @@
 #include <aee.h>
 #endif
 
+#ifdef OPLUS_FEATURE_DISPLAY
+#include <soc/oplus/system/oplus_project.h>
+#endif /* OPLUS_FEATURE_DISPLAY  */
+
 extern unsigned long long mutex_time_start;
 extern unsigned long long mutex_time_end;
 extern long long mutex_time_period;
@@ -105,8 +109,9 @@ int mtk_dprec_logger_pr(unsigned int type, char *fmt, ...);
 
 #define DDPIRQ(fmt, arg...)                                                    \
 	do {                                                                   \
+		mtk_dprec_logger_pr(DPREC_LOGGER_DEBUG, fmt, ##arg);   \
 		if (g_irq_log)                                                 \
-			mtk_dprec_logger_pr(DPREC_LOGGER_DEBUG, fmt, ##arg);   \
+			pr_info("[DISP]" pr_fmt(fmt), ##arg);     \
 	} while (0)
 
 #define DDP_MUTEX_LOCK(lock, name, line)                                       \
@@ -153,6 +158,7 @@ int mtk_dprec_logger_pr(unsigned int type, char *fmt, ...);
 		DDPINFO("M_ULOCK_NST[%d]:%s[%d] -\n", i, name, line);	\
 	} while (0)
 
+/* #ifdef OPLUS_FEATURE_DISPLAY */
 #if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
 #define DDPAEE(string, args...)                                                \
 	do {                                                                   \
@@ -162,12 +168,21 @@ int mtk_dprec_logger_pr(unsigned int type, char *fmt, ...);
 		if (r < 0) {	\
 			pr_err("snprintf error\n");	\
 		}	\
-		aee_kernel_warning_api(__FILE__, __LINE__,                     \
+		if (get_eng_version() == AGING) { \
+			pr_err("DDPAEE AGING exception\n");	\
+			aee_kernel_exception_api(__FILE__, __LINE__,                     \
 				       DB_OPT_DEFAULT |                        \
 					       DB_OPT_MMPROFILE_BUFFER,        \
 				       str, string, ##args);                   \
+		} else {	\
+			aee_kernel_warning_api(__FILE__, __LINE__,                     \
+				       DB_OPT_DEFAULT |                        \
+					       DB_OPT_MMPROFILE_BUFFER,        \
+				       str, string, ##args);                   \
+		}	\
 		DDPPR_ERR("[DDP Error]" string, ##args);                       \
 	} while (0)
+/*# endif */ /* OPLUS_FEATURE_DISPLAY */
 
 #define DDPAEE_FATAL(string, args...)                                          \
 	do {										\

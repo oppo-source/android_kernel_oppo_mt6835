@@ -31,3 +31,6 @@ obj-$(CONFIG_MTK_BOARD_THERMAL)	+= board_temp.o
 obj-$(CONFIG_MTK_VTSKIN_THERMAL)	+= vtskin_temp.o
 
 obj-$(CONFIG_MTK_WIFI_THERMAL) += wifi_cooling.o
+#OPLUS_FEATURE_CAMERA_COMMON
+obj-$(CONFIG_MTK_PMIC_THERMAL) += camera_temp.o
+#end OPLUS_FEATURE_CAMERA_COMMON

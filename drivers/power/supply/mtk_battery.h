@@ -716,6 +716,10 @@ struct battery_temperature_table {
 	unsigned int rbat_pull_up_r;
 	unsigned int rbat_pull_up_volt;
 	unsigned int bif_ntc_r;
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	unsigned int rbat_pull_down_r;
+	unsigned int ntc_series_r;
+#endif
 };
 
 enum Fg_interrupt_flags {
@@ -851,7 +855,11 @@ struct simulator_log {
 #define SHUTDOWN_TIME 40
 #define AVGVBAT_ARRAY_SIZE 30
 #define INIT_VOLTAGE 3450
+#ifdef OPLUS_FEATURE_CHG_BASIC
+#define BATTERY_SHUTDOWN_TEMPERATURE 90
+#else
 #define BATTERY_SHUTDOWN_TEMPERATURE 60
+#endif
 
 struct shutdown_condition {
 	bool is_overheat;
@@ -965,6 +973,12 @@ struct mtk_battery {
 	bool ntc_disable_nafg;
 	bool cmd_disable_nafg;
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	/*fcc*/
+	int prev_batt_fcc;
+	int prev_batt_remaining_capacity;
+#endif /* OPLUS_FEATURE_CHG_BASIC */
+
 	/*battery plug in out*/
 	int chr_type;
 	bool disable_plug_int;
@@ -983,6 +997,10 @@ struct mtk_battery {
 	int tbat;
 	int soc;
 	int ui_soc;
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	int tbat_precise;
+	int removed_bat_decidegc;
+#endif
 	ktime_t uisoc_oldtime;
 	int d_saved_car;
 	struct zcv_filter zcvf;

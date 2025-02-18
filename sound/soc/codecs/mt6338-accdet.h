@@ -126,6 +126,8 @@ struct head_dts_data {
 	unsigned int moisture_comp_vth;
 	unsigned int moisture_comp_vref2;
 	unsigned int moisture_use_ext_res;
+	/*2024/03/14, add for supporting type-c mic and ground switch to fix headset detect bug */
+	unsigned int accdet_typec_used;
 };
 
 enum {

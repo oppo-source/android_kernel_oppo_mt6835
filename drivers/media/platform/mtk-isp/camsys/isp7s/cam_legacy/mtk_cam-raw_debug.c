@@ -13,6 +13,10 @@
 #include <aee.h>
 #endif
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#include <linux/iopoll.h>
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
+
 #define ADD_FBC_DMA(name)	 #name
 static const char * const fbc_r1_list[] = {
 	ADD_FBC_DMA(IMGO_R1),

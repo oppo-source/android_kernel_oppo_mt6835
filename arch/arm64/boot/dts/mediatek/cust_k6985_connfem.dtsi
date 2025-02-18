@@ -19,7 +19,8 @@
 			<&qm42195 &qm45197>,	/* [12] Disable A band, Qorvo eFEM SKU1 RxL */
 			<&qm42195 &qm45197>,	/* [13] Disable A band, Qorvo eFEM SKU2-1, RxL */
 			<&qm42195 &qm45197>,	/* [14] Disable A band, Qorvo eFEM SKU5 RxL */
-			<&qm42195 &qm45197>;	/* [15] Disable A band, Undefined, use SKU1 RxL */
+			<&qm42195 &qm45197>,	/* [15] Disable A band, Undefined, use SKU1 RxL */
+			<&qm42195 &qm45639>;	/* [16] Qorvo eFEM customized setting */
 
 		hwid {
 			gpio = <&pio 43 0x0>,
@@ -149,6 +150,13 @@
 				fe-conn-spdt = [83];
 				fe-reserved = [80];
 			};
+			flags-16 {
+				rx-mode = [11];
+				fe-ant-cnt = [81];
+				fe-main-bt-share-lp2g = [80];
+				fe-conn-spdt = [80];
+				fe-reserved = [80];
+			};
 		};
 
 		wifi {
@@ -216,6 +224,9 @@
 				/* Undefiend, open-loop; */
 				only-2g;
 			};
+			flags-16 {
+				/* open-loop; */
+			};
 		};
 
 		bt {
@@ -280,6 +291,10 @@
 				epa_elna;
 			};
 			flags-15 {
+				/* Undefined, use flags-4 configuration */
+				epa_elna;
+			};
+			flags-16 {
 				/* Undefined, use flags-4 configuration */
 				epa_elna;
 			};

@@ -888,12 +888,9 @@ static void mtu3_shutdown(struct platform_device *pdev)
 	unsigned long flags;
 
 	dev_info(ssusb->dev, "%s role %d\n", __func__, otg_sx->current_role);
-
 	spin_lock_irqsave(&mtu->lock, flags);
-
 	if (mtu->is_active && otg_sx->current_role == USB_ROLE_DEVICE)
 		mtu3_stop(ssusb->u3d);
-
 	spin_unlock_irqrestore(&mtu->lock, flags);
 }
 

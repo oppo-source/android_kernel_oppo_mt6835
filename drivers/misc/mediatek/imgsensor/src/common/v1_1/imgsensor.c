@@ -56,8 +56,12 @@
 
 #include "seninf_drv.h"
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif
 static DEFINE_MUTEX(gimgsensor_mutex);
 static DEFINE_MUTEX(gimgsensor_open_mutex);
+extern int register_device_proc(char *name, char *version, char *manufacture);
 
 struct IMGSENSOR gimgsensor;
 MUINT32 last_id;
@@ -91,7 +95,55 @@ void IMGSENSOR_PROFILE(struct timespec64 *ptv, char *tag)
 {
 }
 #endif
+void register_imgsensor_deviceinfo(char *name, char *version, u8 module_id)
+{
+    char *manufacture;
+    if (name == NULL || version == NULL)
+    {
+        printk("register_imgsensor_deviceinfo name or version is NULL");
+        return;
+    }
 
+    switch (module_id)
+    {
+        case IMGSENSOR_MODULE_ID_SUNNY:  /* Sunny */
+            manufacture = DEVICE_MANUFACUTRE_SUNNY;
+            break;
+        case IMGSENSOR_MODULE_ID_TRULY:  /* Truly */
+            manufacture = DEVICE_MANUFACUTRE_TRULY;
+            break;
+        case IMGSENSOR_MODULE_ID_SEMCO:  /* Semco */
+            manufacture = DEVICE_MANUFACUTRE_SEMCO;
+            break;
+        case IMGSENSOR_MODULE_ID_LITEON:  /* Lite-ON */
+            manufacture = DEVICE_MANUFACUTRE_LITEON;
+            break;
+        case IMGSENSOR_MODULE_ID_QTECH:  /* Q-Tech */
+            manufacture = DEVICE_MANUFACUTRE_QTECH;
+            break;
+        case IMGSENSOR_MODULE_ID_OFILM:  /* O-Film */
+            manufacture = DEVICE_MANUFACUTRE_OFILM;
+            break;
+        case IMGSENSOR_MODULE_ID_SHINE:  /* Shine */
+            manufacture = DEVICE_MANUFACUTRE_SHINE;
+            break;
+        case IMGSENSOR_MODULE_ID_HOLITECH:  /* Holitech */
+            manufacture = DEVICE_MANUFACUTRE_HOLITECH;
+            break;
+        case IMGSENSOR_MODULE_ID_CXT:  /* C & T */
+            manufacture = DEVICE_MANUFACUTRE_CXT;
+            break;
+        case IMGSENSOR_MODULE_ID_LCE:  /* LCE */
+            manufacture = DEVICE_MANUFACUTRE_LCE;
+            break;
+        case IMGSENSOR_MODULE_ID_TXD:  /* TXD */
+            manufacture = DEVICE_MANUFACUTRE_TXD;
+            break;
+        default:
+            manufacture = DEVICE_MANUFACUTRE_NA;
+      }
+      register_device_proc(name, version, manufacture);
+}
 /******************************************************************************
  * sensor function adapter
  ******************************************************************************/
@@ -1002,6 +1054,21 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 
 	/*in case that some structure are passed from user sapce by ptr */
 	switch (pFeatureCtrl->FeatureId) {
+	#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	case SENSOR_FEATURE_SET_SENSOR_OTP:
+		ret = imgsensor_sensor_feature_control(psensor,
+					pFeatureCtrl->FeatureId,
+					(unsigned char *)pFeaturePara,
+					(unsigned int *)&FeatureParaLen);
+		break;
+	case SENSOR_FEATURE_GET_SENSOR_OTP_ALL:
+		ret = imgsensor_sensor_feature_control(psensor,
+					pFeatureCtrl->FeatureId,
+					(unsigned char *)pFeaturePara,
+					(unsigned int *)&FeatureParaLen);
+		break;
+	#endif
+
 	case SENSOR_FEATURE_SET_MCLK_DRIVE_CURRENT:
 	{
 		MUINT32 __current = (*(MUINT32 *)pFeaturePara);
@@ -1805,7 +1872,7 @@ static inline int adopt_CAMERA_HW_FeatureControl(void *pBuf)
 	case SENSOR_FEATURE_GET_PDAF_DATA:
 	case SENSOR_FEATURE_GET_4CELL_DATA:
 		{
-#define PDAF_DATA_SIZE 4096
+#define PDAF_DATA_SIZE 9492
 			char *pPdaf_data = NULL;
 			unsigned long long *pFeaturePara_64 =
 				(unsigned long long *)pFeaturePara;

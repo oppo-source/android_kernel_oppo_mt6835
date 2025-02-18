@@ -599,6 +599,7 @@ static void mt6985_set_force_opp_level(struct mtk_dvfsrc *dvfsrc, u32 level)
 		}
 		goto out;
 	}
+
 	dvfsrc->opp_forced = true;
 	dvfsrc_rmw(dvfsrc, DVFSRC_HALT_CONTROL, 1, 0x1, 1);
 	udelay(STARTUP_TIME);

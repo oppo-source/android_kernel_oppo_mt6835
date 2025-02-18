@@ -13,6 +13,7 @@ enum conap_scp_drv_type {
 	DRV_TYPE_EM			= 3,
 	DRV_TYPE_FLP		= 4,
 	DRV_TYPE_GEOFENCE	= 5,
+	DRV_TYPE_EXTRA      = 6,
 	CONAP_SCP_DRV_NUM
 };
 
@@ -34,6 +35,12 @@ struct conap_scp_drv_cb {
 	/* notify was resetted */
 	void (*conap_scp_state_notify_cb)(int state);
 };
+
+/*
+ * 1: ready
+ * 0: not ready
+ */
+int conap_scp_is_ready(void);
 
 /*
  * >= 0: success

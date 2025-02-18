@@ -1009,6 +1009,20 @@ void mtk_map_util_freq(void *data, unsigned long util, unsigned long freq,
 	}
 }
 EXPORT_SYMBOL_GPL(mtk_map_util_freq);
+
+void nonlinear_map_util_freq(void *data, unsigned long util, unsigned long freq,
+		unsigned long cap, unsigned long *next_freq, struct cpufreq_policy *policy,
+		bool *need_freq_update)
+{
+	unsigned int first_cpu;
+	int cluster_id;
+
+	first_cpu = cpumask_first(policy->related_cpus);
+	cluster_id = topology_physical_package_id(first_cpu);
+
+	if (cluster_id < MAX_CLUSTERS && init_flag[cluster_id] == 1)
+		mtk_map_util_freq(NULL, util, freq, policy->cpus, next_freq);
+}
 #endif
 #else
 
