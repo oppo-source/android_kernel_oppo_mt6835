@@ -318,6 +318,7 @@ struct ufs_mtk_host {
 #if defined(CONFIG_UFSFEATURE)
 	struct ufsf_feature ufsf;
 #endif
+	struct delayed_work iostack_work;
 };
 
 #define UFSHCD_MAX_TAG	256

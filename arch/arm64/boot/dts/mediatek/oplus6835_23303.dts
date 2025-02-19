@@ -406,6 +406,23 @@
 				     <0x300000>; /* dram */
 };
 
+&odm {
+	oplus_mm_config: oplus,mm_config {
+		compatible = "oplus,mm_osvelte-config";
+		ram-4g {
+			oplus_boost_pool {
+				feature-disable;
+			};
+			oplus_bsp_uxmem_opt {
+				feature-disable;
+			};
+			oplus_bsp_zram_opt {
+				balance_anon_file_reclaim_always_true;
+			};
+		};
+	};
+};
+
 #include <oplus6835_23303/cust.dtsi>
 #include "mediatek/cust_mt6835_avatarl5_thermal.dtsi"
 /*#include "mediatek/cust_mt6985_luna_thermal.dtsi"*/

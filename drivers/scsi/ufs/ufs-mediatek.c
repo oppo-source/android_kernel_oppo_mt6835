@@ -2782,6 +2782,37 @@ static void ufs_mtk_fix_ahit(struct ufs_hba *hba)
 	ufs_mtk_setup_clk_gating(hba);
 }
 
+/*feature-iostack-v001-begin*/
+#define IOSTACK_WORK_DELAY  (10 * HZ)
+static void iostack_monitor_work(struct work_struct *work)
+{
+	struct ufs_mtk_host *host = container_of(to_delayed_work(work),
+							struct ufs_mtk_host,
+							iostack_work);
+	struct ufs_hba *hba = host->hba;
+	struct ufs_hba_private *hba_priv = (struct ufs_hba_private *)hba->android_vendor_data1;
+	unsigned int mcq_irqs = 0;
+	unsigned int hba_irqs = 0;
+	unsigned int self_block = hba->host->host_self_blocked;
+	u32 i;
+
+	hba_irqs = kstat_irqs_usr(hba->irq);
+	if (hba_priv->is_mcq_enabled) {
+		for ( i = 0; i < hba_priv->mcq_nr_intr; i++ ) {
+			mcq_irqs += kstat_irqs_usr(hba_priv->mcq_intr_info[i].intr);
+		}
+	}
+	pr_err("iostack:hba_irqs = %d, mcq_irqs = %d, self-block = %d\n", hba_irqs, mcq_irqs, self_block);
+	schedule_delayed_work(&host->iostack_work, IOSTACK_WORK_DELAY);
+}
+
+static void ufs_iostack_init(struct ufs_mtk_host *host)
+{
+	INIT_DELAYED_WORK(&host->iostack_work, iostack_monitor_work);
+	schedule_delayed_work(&host->iostack_work, IOSTACK_WORK_DELAY);
+}
+/*feature-iostack-v001-end*/
+
 /**
  * ufs_mtk_init - find other essential mmio bases
  * @hba: host controller instance
@@ -2908,6 +2939,7 @@ static int ufs_mtk_init(struct ufs_hba *hba)
 					  unsigned int,
 					  void __user *))ufs_mtk_ioctl;
 #endif
+	ufs_iostack_init(host);
 	goto out;
 
 out_variant_clear:
