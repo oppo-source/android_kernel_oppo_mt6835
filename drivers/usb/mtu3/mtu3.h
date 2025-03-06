@@ -441,6 +441,10 @@ struct mtu3 {
 
 	unsigned is_gadget_ready:1;
 	unsigned async_callbacks:1;
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	struct work_struct draw_work;
+	unsigned vbus_draw;
+#endif
 	int ep_slot_mode;
 
 	unsigned u3_lpm:1;

@@ -411,6 +411,10 @@
 		ocp_reg = <0xf>;    /* 4.75A*/
 		sc,charge-detect-enable;
 		sc,disable-qc;
+		sc,cc_pull_up_idrive = <0x09>;
+		sc,cc_pull_down_idrive = <0x43>;
+		sc,continuous_time = <0x4E>;
+		sc,bmc_width = <0x86 0x3d 0x3b 0x10>;
 		/*
 		 * Charger name
 		 * Main charger: primary_chg

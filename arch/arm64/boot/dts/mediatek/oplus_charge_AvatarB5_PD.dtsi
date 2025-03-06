@@ -22,10 +22,21 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&rt1711h_int_n>;
 		pd-data {
-			pd,vid = <0x29cf>;
-			pd,pid = <0x1711>;
-			pd,source-cap-ext = <0x171129cf 0x00000000 0x00000000
-					 0x00000000 0x00000000 0x02000000>;
+			pd,vid = <0x311c>;
+			pd,pid = <0x6600>;
+			pd,source-cap-ext = /bits/ 8 <0x1c 0x31 0x00 0x66
+						      0x00 0x00 0x00 0x00
+						      0x00 0x00 0x00 0x00
+						      0x00 0x00 0x00 0x00
+						      0x00 0x00 0x00 0x00
+						      0x00 0x00 0x01 0x05
+						      0x00>;
+			pd,sink-cap-ext = /bits/ 8 <0x1c 0x31 0x00 0x66
+							   0x00 0x00 0x00 0x00
+							   0x01 0x00 0x00 0x00
+							   0x00 0x00 0x00 0x00
+							   0x01 0x00 0x00 0x00
+							   0x00 0x00 0x00 0x00>;
 			pd,mfrs = "RichtekTCPC";
 
 			/*
@@ -50,9 +61,9 @@
 			* PPS 3V~5.9V, 3A <0xC0761E3C>
 			*/
 			pd,source-pdo-size = <1>;
-			pd,source-pdo-data = <0x00019032>;
-			pd,sink-pdo-size = <1>;
-			pd,sink-pdo-data = <0x000190c8>;
+			pd,source-pdo-data = <0x00019064>;
+			pd,sink-pdo-size = <3>;
+			pd,sink-pdo-data = <0x360190c8 0x0002d096 0xc0dc3252>;
 
 			/*
 			* No DP, host + device
@@ -73,8 +84,8 @@
 			pd,country_nr = <0>;
 
 			bat-info0 {
-				bat,vid = <0x29cf>;
-				bat,pid = <0x1711>;
+				bat,vid = <0x311c>;
+				bat,pid = <0x6600>;
 				bat,mfrs = "bat1";
 				bat,design_cap = <17>;
 			};
@@ -91,10 +102,10 @@
 			local_vconn_supply;
 
 			//attemp_discover_cable_dfp;
-			attemp_enter_dp_mode;
-			attemp_discover_cable;
-			attemp_discover_id;
-			attemp_discover_svid;
+			//attempt_enter_dp_mode;
+			attempt_discover_cable;
+			attempt_discover_id;
+			attempt_discover_svid;
 
 			/* 0: disable, 1: prefer_snk, 2: prefer_src */
 			pr_check = <0>;
@@ -140,6 +151,19 @@
 			pinmux = <PINMUX_GPIO5__FUNC_GPIO5>;
 			input-enable;
 			bias-disable;
+		};
+	};
+};
+
+&mtk_lpm {
+	irq-remain = <&edge_keypad>,
+		    <&level_btif_tx &level_btif_rx>,
+		    <&level_usb_host>,
+		    <&level_i2c3>;
+	irq-remain-list {
+		level_i2c3: level_i2c3 {
+			target = <&i2c3>;
+			value = <0 0 0 0>;
 		};
 	};
 };
