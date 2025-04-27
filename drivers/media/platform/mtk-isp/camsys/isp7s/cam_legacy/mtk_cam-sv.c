@@ -36,6 +36,10 @@
 
 #define MTK_CAMSV_STOP_HW_TIMEOUT			(33 * USEC_PER_MSEC)
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif /* OPLUS_FEATURE_CAMERA_COMMON */
+
 static unsigned int debug_sv_fbc;
 module_param(debug_sv_fbc, uint, 0644);
 MODULE_PARM_DESC(debug_sv_fbc, "debug: sv fbc");

@@ -2086,6 +2086,24 @@ void mtk_vcodec_dec_release(struct mtk_vcodec_ctx *ctx)
 	vdec_check_release_lock(ctx);
 }
 
+static bool mtk_vdec_dvfs_params_change(struct mtk_vcodec_ctx *ctx)
+{
+	bool need_update = false;
+
+	if (ctx->state == MTK_STATE_HEADER) {
+		if (!ctx->is_active)
+			need_update = true;
+
+		if (ctx->dec_param_change & MTK_DEC_PARAM_OPERATING_RATE) {
+			need_update = true;
+			ctx->dec_param_change &= (~MTK_DEC_PARAM_OPERATING_RATE);
+		}
+
+	}
+
+	return need_update;
+}
+
 /*
  * check decode ctx is active or not
  * active: ctx is decoding frame
@@ -2173,9 +2191,9 @@ void mtk_vdec_check_alive_work(struct work_struct *ws)
 		mutex_lock(&ctx->vcp_active_mutex);
 		if (ctx->is_vcp_active) {
 			ctx->is_active = 1;
-			mtk_vdec_dvfs_update_active_state(ctx);
+			mtk_vdec_dvfs_update_dvfs_params(ctx);
 			kfree(caws);
-			mtk_v4l2_debug(0, "[VDVFS] %s [%d] is active now", __func__, ctx->id);
+			mtk_v4l2_debug(0, "[VDVFS] %s [%d] is active/update_params now", __func__, ctx->id);
 		} else {
 			mtk_v4l2_debug(4, "[VDVFS] [%d] vcp inactive, skip dvfs check", ctx->id);
 			kfree(caws);
@@ -2199,7 +2217,7 @@ void mtk_vdec_check_alive_work(struct work_struct *ws)
 					if (ctx->is_active) {
 						need_update = true;
 						ctx->is_active = 0;
-						mtk_vdec_dvfs_update_active_state(ctx);
+						mtk_vdec_dvfs_update_dvfs_params(ctx);
 						mtk_v4l2_debug(0, "[VDVFS] ctx %d inactive",
 							ctx->id);
 					}
@@ -2207,7 +2225,7 @@ void mtk_vdec_check_alive_work(struct work_struct *ws)
 					if (!ctx->is_active) {
 						need_update = true;
 						ctx->is_active = 1;
-						mtk_vdec_dvfs_update_active_state(ctx);
+						mtk_vdec_dvfs_update_dvfs_params(ctx);
 						mtk_v4l2_debug(0, "[VDVFS] ctx %d active", ctx->id);
 					}
 					ctx->last_decoded_frame_cnt = ctx->decoded_frame_cnt;
@@ -3454,7 +3472,7 @@ static void vb2ops_vdec_buf_queue(struct vb2_buffer *vb)
 
 #ifdef VDEC_CHECK_ALIVE
 	/* ctx resume, queue work for check alive timer */
-	if (!ctx->is_active && ctx->state == MTK_STATE_HEADER) {
+	if (mtk_vdec_dvfs_params_change(ctx)) {
 		retrigger_ctx_work = kzalloc(sizeof(*retrigger_ctx_work), GFP_KERNEL);
 		INIT_WORK(&retrigger_ctx_work->work, mtk_vdec_check_alive_work);
 		retrigger_ctx_work->ctx = ctx;
@@ -3588,6 +3606,7 @@ static void vb2ops_vdec_buf_queue(struct vb2_buffer *vb)
 	src_mem->index = vb->index;
 	src_mem->hdr10plus_buf = &buf->hdr10plus_buf;
 	ctx->dec_params.timestamp = src_vb2_v4l2->vb2_buf.timestamp;
+	ctx->bs_list[src_mem->index + 1] = (uintptr_t)src_mem;
 
 	mtk_v4l2_debug(2,
 		"[%d] buf id=%d va=%p DMA=%lx size=%zx length=%zu dmabuf=%p pts %llu",

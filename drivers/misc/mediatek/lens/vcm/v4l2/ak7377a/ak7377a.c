@@ -36,7 +36,11 @@
  * number of control steps.
  */
 #define AK7377A_MOVE_STEPS			100
-#define AK7377A_MOVE_DELAY_US			5000
+#define AK7377A_MOVE_DELAY_US			1000
+
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif /* OPLUS_FEATURE_CAMERA_COMMON */
 
 /* ak7377a device structure */
 struct ak7377a_device {
@@ -48,6 +52,8 @@ struct ak7377a_device {
 	struct pinctrl *vcamaf_pinctrl;
 	struct pinctrl_state *vcamaf_on;
 	struct pinctrl_state *vcamaf_off;
+	/* active or standby mode */
+	bool active;
 };
 
 #define VCM_IOC_POWER_ON         _IO('V', BASE_VIDIOC_PRIVATE + 3)
@@ -81,6 +87,9 @@ static int ak7377a_set_position(struct ak7377a_device *ak7377a, u16 val)
 		if (ret < 0) {
 			usleep_range(AK7377A_MOVE_DELAY_US,
 				     AK7377A_MOVE_DELAY_US + 1000);
+			#ifdef OPLUS_FEATURE_CAMERA_COMMON
+			LOG_INF("ak7377a Set postition:%u fail.", val);
+			#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 		} else {
 			break;
 		}
@@ -125,7 +134,7 @@ static int ak7377a_release(struct ak7377a_device *ak7377a)
 	}
 
 	i2c_smbus_write_byte_data(client, 0x02, 0x20);
-
+	ak7377a->active = false;
 	LOG_INF("-\n");
 
 	return 0;
@@ -145,7 +154,7 @@ static int ak7377a_init(struct ak7377a_device *ak7377a)
 
 	/* 00:active mode , 10:Standby mode , x1:Sleep mode */
 	ret = i2c_smbus_write_byte_data(client, 0x02, 0x00);
-
+	ak7377a->active = true;
 	LOG_INF("-\n");
 
 	return 0;
@@ -272,21 +281,39 @@ static int ak7377a_close(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 static long ak7377a_ops_core_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	int ret = 0;
-
+	struct ak7377a_device *ak7377a = sd_to_ak7377a_vcm(sd);
+	struct i2c_client *client = v4l2_get_subdevdata(&ak7377a->sd);
 	LOG_INF("+\n");
+	client->addr = AK7377A_I2C_SLAVE_ADDR >> 1;
 
 	switch (cmd) {
-
 	case VCM_IOC_POWER_ON:
 	{
 		// customized area
-		LOG_INF("active mode\n");
+		/* 00:active mode , 10:Standby mode , x1:Sleep mode */
+		if (ak7377a->active)
+			return 0;
+		ret = i2c_smbus_write_byte_data(client, 0x02, 0x00);
+		if (ret) {
+			LOG_INF("I2C failure!!!\n");
+		} else {
+			ak7377a->active = true;
+			LOG_INF("stand by mode, power on!!!\n");
+		}
 	}
 	break;
 	case VCM_IOC_POWER_OFF:
 	{
 		// customized area
-		LOG_INF("stand by mode\n");
+		if (!ak7377a->active)
+			return 0;
+		ret = i2c_smbus_write_byte_data(client, 0x02, 0x40);
+		if (ret) {
+			LOG_INF("I2C failure!!!\n");
+		} else {
+			ak7377a->active = false;
+			LOG_INF("stand by mode, power off !!!!!!!!!!!!\n");
+		}
 	}
 	break;
 	default:

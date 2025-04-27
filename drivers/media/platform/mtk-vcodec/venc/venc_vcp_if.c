@@ -186,6 +186,7 @@ static int venc_vcp_ipi_send(struct venc_inst *inst, void *msg, int len, bool is
 		goto ipi_err_wait_and_unlock;
 	}
 	if (!is_ack) {
+		inst->vcu_inst.in_ipi = true;
 		/* wait for VCP's ACK */
 		timeout = msecs_to_jiffies(IPI_TIMEOUT_MS);
 		if (*(__u32 *)msg == AP_IPIMSG_ENC_SET_PARAM &&
@@ -208,10 +209,15 @@ static int venc_vcp_ipi_send(struct venc_inst *inst, void *msg, int len, bool is
 		} else
 			ret = wait_event_timeout(inst->vcu_inst.wq_hd,
 				inst->vcu_inst.signaled, timeout);
+		inst->vcu_inst.in_ipi = false;
 		inst->vcu_inst.signaled = false;
 
 		if (ret == 0 || inst->vcu_inst.failure) {
 			mtk_vcodec_err(inst, "wait vcp ipi %X ack time out or fail!%d %d",
+				*(u32 *)msg, ret, inst->vcu_inst.failure);
+			goto ipi_err_wait_and_unlock;
+		} else if (inst->vcu_inst.abort) {
+			mtk_vcodec_err(inst, "wait vcp ipi %X ack abort ret %d! (%d)",
 				*(u32 *)msg, ret, inst->vcu_inst.failure);
 			goto ipi_err_wait_and_unlock;
 		}
@@ -742,6 +748,10 @@ static int vcp_venc_notify_callback(struct notifier_block *this,
 				if (inst != NULL) {
 					inst->vcu_inst.failure = VENC_IPI_MSG_STATUS_FAIL;
 					inst->vcu_inst.abort = 1;
+					if (inst->vcu_inst.in_ipi) {
+						inst->vcu_inst.signaled = true;
+						wake_up(&inst->vcu_inst.wq_hd);
+					}
 				}
 				venc_check_release_lock(ctx);
 				mtk_venc_queue_error_event(ctx);

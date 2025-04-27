@@ -22,6 +22,10 @@
 static bool gPktReused;
 static struct cmdq_reuse reuse_c3d0[4913 * 2], reuse_c3d1[4913 * 2];
 
+#ifdef OPLUS_FEATURE_DISPLAY
+extern bool g_c3d_probe_ready;
+#endif
+
 struct DISP_C3D_REG_17BIN {
 	unsigned int lut3d_reg[C3D_3DLUT_SIZE_17BIN];
 };
@@ -375,6 +379,7 @@ static void disp_c3d_config_sram(struct mtk_ddp_comp *comp)
 
 	if (c3d_sram_pkt == NULL)
 		return;
+
 	if (comp->mtk_crtc->is_dual_pipe && c3d1_sram_pkt == NULL)
 		return;
 	c3d_sram_pkt->no_pool = true;
@@ -416,7 +421,6 @@ static void disp_c3d_config_sram(struct mtk_ddp_comp *comp)
 				reuse_c3d1[sram_offset/4 * 2 + 1].val = cfg[sram_offset/4];
 			}
 		}
-
 		cmdq_pkt_reuse_buf_va(c3d_sram_pkt, reuse_c3d0, reuse_buf_size);
 		if (comp->mtk_crtc->is_dual_pipe)
 			cmdq_pkt_reuse_buf_va(c3d1_sram_pkt, reuse_c3d1, reuse_buf_size);
@@ -676,6 +680,32 @@ int mtk_drm_ioctl_c3d_eventctl(struct drm_device *dev, void *data,
 	return ret;
 }
 
+static bool is_doze_active(void)
+{
+	struct drm_crtc *crtc;
+	struct mtk_drm_crtc *mtk_crtc;
+	struct mtk_crtc_state *mtk_state;
+
+	if (!default_comp)
+		return false;
+	crtc = &default_comp->mtk_crtc->base;
+	mtk_crtc = to_mtk_crtc(crtc);
+
+	DDP_MUTEX_LOCK(&mtk_crtc->lock, __func__, __LINE__);
+	mtk_state = to_mtk_crtc_state(crtc->state);
+	if(!mtk_state){
+		DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
+		return false;
+	}
+
+	if (mtk_state->prop_val[CRTC_PROP_DOZE_ACTIVE]){
+		DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
+		return true;
+	}
+	DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
+	return false;
+}
+
 int mtk_drm_ioctl_c3d_set_lut(struct drm_device *dev, void *data,
 			struct drm_file *file_priv)
 {
@@ -686,9 +716,18 @@ int mtk_drm_ioctl_c3d_set_lut(struct drm_device *dev, void *data,
 	struct drm_crtc *crtc = private->crtc[0];
 	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
 
+	if (is_doze_active()) {
+		pr_notice("%s, in doze state\n", __func__);
+		return 0;
+	}
 	gSkipUpdateSram = false;
 
 	C3DAPI_LOG("line: %d\n", __LINE__);
+
+	if (is_doze_active()) {
+		pr_notice("%s, in doze state\n", __func__);
+		return 0;
+	}
 
 	memcpy(&c3dIocData, (struct DISP_C3D_LUT *)data,
 				sizeof(struct DISP_C3D_LUT));
@@ -1280,6 +1319,9 @@ static int mtk_disp_c3d_probe(struct platform_device *pdev)
 		dev_err(dev, "Failed to add component: %d\n", ret);
 		mtk_ddp_comp_pm_disable(&priv->ddp_comp);
 	}
+#ifdef OPLUS_FEATURE_DISPLAY
+	g_c3d_probe_ready = true;
+#endif
 	pr_notice("%s-\n", __func__);
 
 	return ret;

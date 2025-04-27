@@ -37,7 +37,7 @@ static struct erofs_attr erofs_attr_##_name = {			\
 	.attr = {.name = __stringify(_name), .mode = _mode },	\
 	.attr_id = attr_##_id,					\
 	.struct_type = struct_##_struct,			\
-	.offset = offsetof(struct _struct, _name),\
+	.offset = offsetof(struct _struct, _name),		\
 }
 
 #define EROFS_ATTR_RW(_name, _id, _struct)	\

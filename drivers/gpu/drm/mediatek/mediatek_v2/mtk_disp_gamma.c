@@ -69,6 +69,9 @@ static struct mtk_ddp_comp *default_comp;
 static struct mtk_ddp_comp *default_comp1;
 
 unsigned int g_gamma_data_mode;
+#ifdef OPLUS_FEATURE_DISPLAY
+extern bool g_gamma_probe_ready;
+#endif
 
 struct gamma_color_protect {
 	unsigned int gamma_color_protect_support;
@@ -483,7 +486,7 @@ static int mtk_gamma_12bit_set_lut(struct mtk_ddp_comp *comp,
 				struct drm_crtc *crtc = &mtk_crtc->base;
 				struct mtk_drm_private *priv = crtc->dev->dev_private;
 				struct mtk_ddp_comp *comp_gamma1 =
-							priv->ddp_comp[DDP_COMPONENT_GAMMA1];
+					priv->ddp_comp[DDP_COMPONENT_GAMMA1];
 
 				ret = mtk_gamma_write_12bit_lut_reg(comp_gamma1, handle, 0);
 			}
@@ -544,7 +547,11 @@ int mtk_drm_ioctl_set_12bit_gammalut(struct drm_device *dev, void *data,
 	atomic_set(&g_gamma_sof_filp, 1);
 	if (g_gamma_flip_comp[0]->mtk_crtc != NULL) {
 		mtk_drm_idlemgr_kick(__func__, &g_gamma_flip_comp[0]->mtk_crtc->base, 1);
-		mtk_crtc_check_trigger(g_gamma_flip_comp[0]->mtk_crtc, true, true);
+		#ifdef OPLUS_FEATURE_DISPLAY
+			mtk_crtc_check_trigger(g_gamma_flip_comp[0]->mtk_crtc, true, true);
+		#else
+			mtk_crtc_check_trigger(g_gamma_flip_comp[0]->mtk_crtc, true, true);
+		#endif
 	}
 	DDPINFO("%s:update IOCTL g_gamma_sof_filp to 1\n", __func__);
 	CRTC_MMP_EVENT_END(0, gamma_ioctl, 0, 1);
@@ -1164,6 +1171,9 @@ static int mtk_disp_gamma_probe(struct platform_device *pdev)
 		wake_up_process(gamma_sof_irq_event_task);
 	}
 
+#ifdef OPLUS_FEATURE_DISPLAY
+	g_gamma_probe_ready = true;
+#endif
 	DDPINFO("%s-\n", __func__);
 
 	return ret;

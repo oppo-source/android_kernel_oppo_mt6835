@@ -146,11 +146,11 @@ struct mtk_composite {
  */
 #define MUX_GATE(_id, _name, _parents, _reg, _shift, _width, _gate)	\
 	MUX_GATE_FLAGS(_id, _name, _parents, _reg, _shift, _width,	\
-		_gate, CLK_SET_RATE_PARENT)
+		_gate, 0)
 
 #define MUX(_id, _name, _parents, _reg, _shift, _width)			\
 	MUX_FLAGS(_id, _name, _parents, _reg,				\
-		  _shift, _width, CLK_SET_RATE_PARENT)
+		  _shift, _width, 0)
 
 #define MUX_FLAGS(_id, _name, _parents, _reg, _shift, _width, _flags) {	\
 		.id = _id,						\
@@ -247,6 +247,7 @@ void mtk_free_clk_data(struct clk_onecell_data *clk_data);
 #define HWV_CHK_FULL_STA		BIT(3)
 #define CLK_ENABLE_QUICK_SWITCH		BIT(4)
 #define CLK_IPI_EN_DEFAULT_OPP		BIT(5)
+#define MUX_ROUND_CLOSEST		BIT(6)
 
 struct mtk_pll_div_table {
 	u32 div;

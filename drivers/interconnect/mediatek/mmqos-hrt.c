@@ -17,6 +17,10 @@
 #define MULTIPLY_RATIO(value) ((value)*1000)
 #define DIVIDE_RATIO(value) ((value)/1000)
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
+
 struct mmqos_hrt *mmqos_hrt;
 static bool disp_report_bw;
 
@@ -298,6 +302,11 @@ static void set_camera_max_bw(u32 bw)
 	struct task_struct *thread_vcp;
 
 	pr_notice("%s: %d\n", __func__, bw);
+
+	if (mmqos_hrt->cam_max_bw == 0 && bw > 0)
+		thread_vcp = kthread_run(enable_vcp_blocking, NULL, "enable vcp");
+	else if (mmqos_hrt->cam_max_bw > 0 && bw == 0)
+		mtk_mmdvfs_enable_vcp(false, VCP_PWR_USR_MMQOS);
 
 	if (mmqos_hrt->cam_max_bw == 0 && bw > 0)
 		thread_vcp = kthread_run(enable_vcp_blocking, NULL, "enable vcp");

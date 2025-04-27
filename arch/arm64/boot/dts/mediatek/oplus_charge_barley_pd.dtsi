@@ -1,0 +1,11 @@
+#include "mediatek/tcpc_rt1715.dtsi"
+
+&rt1715_typec {
+	charger = <&sy6974b>;
+	status = "okay";
+};
+
+&charger {
+	/delete-property/ qcom,pd_disable;
+	/delete-property/ qcom,pd_not_support;
+};

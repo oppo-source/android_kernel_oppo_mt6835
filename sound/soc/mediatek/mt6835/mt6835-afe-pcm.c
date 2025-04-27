@@ -36,6 +36,15 @@
 #if IS_ENABLED(CONFIG_MTK_SCP_AUDIO)
 #include "../audio_scp/mtk-scp-audio-pcm.h"
 #endif
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+#include "../feedback/oplus_audio_kernel_fb.h"
+#ifdef dev_err
+#undef dev_err
+#define dev_err dev_err_fb_fatal_delay
+#endif
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
+
 /* FORCE_FPGA_ENABLE_IRQ use irq in fpga */
 /* #define FORCE_FPGA_ENABLE_IRQ */
 
@@ -3180,8 +3189,13 @@ static irqreturn_t mt6835_afe_irq_handler(int irq_id, void *dev)
 	status_mcu = status & mcu_en & AFE_IRQ_STATUS_BITS;
 
 	if (ret || status_mcu == 0) {
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+		dev_err_not_fb(afe->dev, "%s(), irq status err, ret %d, status 0x%x, mcu_en 0x%x\n",
+			__func__, ret, status, mcu_en);
+#else
 		dev_err(afe->dev, "%s(), irq status err, ret %d, status 0x%x, mcu_en 0x%x\n",
 			__func__, ret, status, mcu_en);
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 
 		goto err_irq;
 	}
@@ -6694,6 +6708,12 @@ static int mt6835_afe_pcm_dev_probe(struct platform_device *pdev)
 
 err_pm_disable:
 	pm_runtime_disable(&pdev->dev);
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	if (ret) {
+		pr_err_fb_fatal_delay("%s:failed ret=%d", __func__, ret);
+	}
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 
 	return ret;
 }

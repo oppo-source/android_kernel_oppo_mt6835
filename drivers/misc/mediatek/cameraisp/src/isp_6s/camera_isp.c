@@ -6538,7 +6538,7 @@ static int ISP_probe(struct platform_device *pDev)
 	int camsv_shift = 0;
 #endif
 
-	LOG_INF("- E. ISP driver probe.\n");
+	LOG_DBG("- E. ISP driver probe.\n");
 
 /* Get platform_device parameters */
 #ifdef CONFIG_OF
@@ -6580,7 +6580,7 @@ static int ISP_probe(struct platform_device *pDev)
 	isp_devs[dev_idx].dev->coherent_dma_mask = (u64)DMA_BIT_MASK(34);
 #endif
 #endif
-	LOG_INF("G_u4DevNodeCt=%d, devnode(%s), map_addr=0x%lx\n",
+	LOG_DBG("G_u4DevNodeCt=%d, devnode(%s), map_addr=0x%lx\n",
 		atomic_read(&G_u4DevNodeCt),
 		pDev->dev.of_node->name,
 		(unsigned long)isp_devs[dev_idx].regs);
@@ -6645,7 +6645,7 @@ static int ISP_probe(struct platform_device *pDev)
 				/* Reset irq ref cnt after request_irq by disable_irq. */
 				disable_irq(isp_devs[dev_idx].irq);
 
-				LOG_INF(
+				LOG_DBG(
 				"G_u4DevNodeCt=%d, devnode(%s), irq=%d, ISR: %s\n",
 					atomic_read(&G_u4DevNodeCt), pDev->dev.of_node->name,
 					isp_devs[dev_idx].irq,
@@ -7057,7 +7057,7 @@ EXIT:
 			ISP_UnregCharDev();
 	}
 
-	LOG_INF("- X. ISP driver probe.\n");
+	LOG_DBG("- X. ISP driver probe.\n");
 
 	return Ret;
 }

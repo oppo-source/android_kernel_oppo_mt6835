@@ -247,18 +247,35 @@
 #define MT6375_MSK_WD0_TDET	GENMASK(2, 0)
 #define MT6375_SFT_WD0_TDET	(0)
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+
+enum mt6375_debug_msg_type {
+	DEBUG_MSG_VCONN_RVP,
+	DEBUG_MSG_VCONN_OCP,
+	DEBUG_MSG_VCONN_OVP,
+	DEBUG_MSG_VCONN_UVP,
+	DEBUG_MSG_VCONN_OPEN,
+	DEBUG_MSG_VCONN_CLOSE,
+	DEBUG_MSG_POWER_STATUS_CHANGE,
+};
+
+struct mt6375_debug_data {
+	void *priv_data;
+	void (*msg_handler)(void *data, int msg_type);
+};
+#endif /* OPLUS_FEATURE_CHG_BASIC */
+
 struct mt6375_tcpc_data {
 	struct device *dev;
 	struct regmap *rmap;
 	struct tcpc_desc *desc;
 	struct tcpc_device *tcpc;
-	struct kthread_worker irq_worker;
-	struct kthread_work irq_work;
-	struct task_struct *irq_worker_task;
 	struct iio_channel *adc_iio;
 	int irq;
 	u16 did;
-	u16 curr_irq_mask;
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	struct mt6375_debug_data debug_data;
+#endif /* OPLUS_FEATURE_CHG_BASIC */
 	bool wd0_state;
 	bool wd0_enable;
 	u8 wd0_tsleep;
@@ -426,7 +443,12 @@ static const u8 mt6375_wd_volcmp_reg[MT6375_WD_CHAN_NUM] = {
 
 struct tcpc_desc def_tcpc_desc = {
 	.role_def = TYPEC_ROLE_DRP,
+#ifndef OPLUS_FEATURE_CHG_BASIC
+/* oplus add for pd svooc flow */
 	.rp_lvl = TYPEC_CC_RP_DFT,
+#else
+	.rp_lvl = TYPEC_RP_DFT,
+#endif
 	.vconn_supply = TCPC_VCONN_SUPPLY_ALWAYS,
 	.name = "type_c_port0",
 	.en_wd = false,
@@ -618,10 +640,7 @@ static int mt6375_init_alert_mask(struct mt6375_tcpc_data *ddata)
 
 	mask |= TCPC_REG_ALERT_FAULT;
 	ret = mt6375_write16(ddata, TCPC_V10_REG_ALERT_MASK, mask);
-	ddata->curr_irq_mask = mask;
-	if (ret < 0)
-		return ret;
-	return 0;
+	return (ret < 0) ? ret : 0;
 }
 
 static int __mt6375_set_cc(struct mt6375_tcpc_data *ddata, int rp_lvl,
@@ -1353,6 +1372,9 @@ static int mt6375_set_cc_toggling(struct mt6375_tcpc_data *ddata, int rp_lvl)
 	ret = mt6375_write8(ddata, MT6375_REG_LPWRCTRL3, 0xD8);
 	if (ret < 0)
 		return ret;
+	ret = tcpci_update_local_cc(ddata->tcpc, TYPEC_CC_DRP); 
+	if (ret < 0)
+		return ret;
 #if CONFIG_TCPC_LOW_POWER_MODE
 	tcpci_set_low_power_mode(ddata->tcpc, true, TYPEC_CC_DRP);
 #else
@@ -1585,15 +1607,19 @@ static int mt6375_set_alert_mask(struct tcpc_device *tcpc, u32 mask)
 	struct mt6375_tcpc_data *ddata = tcpc_get_dev_data(tcpc);
 
 	MT6375_DBGINFO("%s: mask = 0x%04x\n", __func__, mask);
-	ddata->curr_irq_mask = mask;
 	return mt6375_write16(ddata, TCPC_V10_REG_ALERT_MASK, mask);
 }
 
 static int mt6375_get_alert_mask(struct tcpc_device *tcpc, u32 *mask)
 {
+	int ret = 0;
+	u16 data = 0;
 	struct mt6375_tcpc_data *ddata = tcpc_get_dev_data(tcpc);
 
-	*mask = ddata->curr_irq_mask;
+	ret = mt6375_read16(ddata, TCPC_V10_REG_ALERT_MASK, &data);
+	if (ret < 0)
+		return ret;
+	*mask = data;
 	MT6375_DBGINFO("%s: mask = 0x%04x\n", __func__, *mask);
 	return 0;
 }
@@ -1634,14 +1660,33 @@ static int mt6375_get_power_status(struct tcpc_device *tcpc, u16 *status)
 		goto out;
 	tcpc->vbus_safe0v = ret ? true : false;
 out:
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	if (ddata->debug_data.msg_handler)
+		ddata->debug_data.msg_handler(ddata->debug_data.priv_data,
+					      DEBUG_MSG_POWER_STATUS_CHANGE);
+#endif /* OPLUS_FEATURE_CHG_BASIC */
 	return 0;
 }
 
 static int mt6375_get_fault_status(struct tcpc_device *tcpc, u8 *status)
 {
 	struct mt6375_tcpc_data *ddata = tcpc_get_dev_data(tcpc);
+	int ret;
 
-	return mt6375_read8(ddata, TCPC_V10_REG_FAULT_STATUS, status);
+	ret = mt6375_read8(ddata, TCPC_V10_REG_FAULT_STATUS, status);
+	if (ret < 0)
+		return ret;
+	if (*status & TCPC_V10_REG_FAULT_STATUS_VCONN_OC) {
+		TCPC_INFO("%s: vconn oc fault\n", __func__);
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	if (ddata->debug_data.msg_handler)
+		ddata->debug_data.msg_handler(
+			ddata->debug_data.priv_data,
+			DEBUG_MSG_VCONN_OCP);
+#endif /* OPLUS_FEATURE_CHG_BASIC */
+	}
+
+	return ret;
 }
 
 static int mt6375_get_cc(struct tcpc_device *tcpc, int *cc1, int *cc2)
@@ -1781,7 +1826,12 @@ static int mt6375_set_vconn(struct tcpc_device *tcpc, int en)
 	mdelay(1);
 	ret = (en ? mt6375_set_bits : mt6375_clr_bits)
 		(ddata, MT6375_REG_I2CTORSTCTRL, MT6375_MSK_VCONN_UVP_OCP_CPEN);
-
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	if (ddata->debug_data.msg_handler)
+		ddata->debug_data.msg_handler(ddata->debug_data.priv_data,
+					      en ? DEBUG_MSG_VCONN_OPEN :
+						   DEBUG_MSG_VCONN_CLOSE);
+#endif /* OPLUS_FEATURE_CHG_BASIC */
 	return ret;
 }
 
@@ -2311,52 +2361,17 @@ static struct tcpc_ops mt6375_tcpc_ops = {
 	.set_otp_fwen = mt6375_enable_typec_otp_fwen,
 };
 
-static void mt6375_irq_work_handler(struct kthread_work *work)
-{
-	struct mt6375_tcpc_data *ddata = container_of(work,
-						      struct mt6375_tcpc_data,
-						      irq_work);
-	int ret = 0;
-	u8 data = 0;
-
-	MT6375_DBGINFO("++\n");
-	reinit_completion(&ddata->tcpc->alert_done);
-
-	tcpci_lock_typec(ddata->tcpc);
-
-	do {
-		ret = tcpci_alert(ddata->tcpc);
-		if (ret < 0)
-			break;
-		ret = mt6375_read8(ddata, 0x1df, &data);
-		if (ret < 0)
-			break;
-		MT6375_DBGINFO("data = %x\n", data);
-		if (data & 0x01) {
-			ret = mt6375_write8(ddata, 0x1df, 0x01);
-			if (ret < 0)
-				break;
-		} else
-			break;
-	} while (1);
-
-	atomic_dec_if_positive(&ddata->tcpc->suspend_pending);
-	tcpci_unlock_typec(ddata->tcpc);
-	complete(&ddata->tcpc->alert_done);
-	enable_irq(ddata->irq);
-	pm_relax(ddata->dev);
-	MT6375_DBGINFO("--\n");
-}
-
 static irqreturn_t mt6375_pd_evt_handler(int irq, void *data)
 {
 	struct mt6375_tcpc_data *ddata = data;
 
 	MT6375_DBGINFO("++\n");
-	atomic_inc(&ddata->tcpc->suspend_pending);
 	pm_stay_awake(ddata->dev);
-	disable_irq_nosync(ddata->irq);
-	kthread_queue_work(&ddata->irq_worker, &ddata->irq_work);
+	tcpci_lock_typec(ddata->tcpc);
+	tcpci_alert(ddata->tcpc);
+	tcpci_unlock_typec(ddata->tcpc);
+	pm_relax(ddata->dev);
+	MT6375_DBGINFO("--\n");
 	return IRQ_HANDLED;
 }
 
@@ -2371,19 +2386,7 @@ static int mt6375_tcpc_init_irq(struct mt6375_tcpc_data *ddata)
 	mt6375_bulk_write(ddata, MT6375_REG_MTINT1, mt6375_vend_alert_clearall,
 			  ARRAY_SIZE(mt6375_vend_alert_clearall));
 	mt6375_write16(ddata, TCPC_V10_REG_ALERT_MASK, 0);
-	ddata->curr_irq_mask = 0;
 	mt6375_write16(ddata, TCPC_V10_REG_ALERT, 0x8FFF);
-
-	kthread_init_worker(&ddata->irq_worker);
-	ddata->irq_worker_task = kthread_run(kthread_worker_fn,
-					     &ddata->irq_worker, "%s",
-					     ddata->desc->name);
-	if (IS_ERR(ddata->irq_worker_task)) {
-		dev_err(ddata->dev, "%s create tcpc task fail\n", __func__);
-		return -EINVAL;
-	}
-	sched_set_fifo(ddata->irq_worker_task);
-	kthread_init_work(&ddata->irq_work, mt6375_irq_work_handler);
 
 	ret = platform_get_irq_byname(to_platform_device(ddata->dev), "pd_evt");
 	if (ret < 0) {
@@ -2391,6 +2394,7 @@ static int mt6375_tcpc_init_irq(struct mt6375_tcpc_data *ddata)
 		return ret;
 	}
 	ddata->irq = ret;
+	device_init_wakeup(ddata->dev, true);
 	ret = devm_request_threaded_irq(ddata->dev, ret, NULL,
 					mt6375_pd_evt_handler, IRQF_ONESHOT,
 					dev_name(ddata->dev), ddata);
@@ -2398,7 +2402,6 @@ static int mt6375_tcpc_init_irq(struct mt6375_tcpc_data *ddata)
 		dev_err(ddata->dev, "failed to request irq %d\n", ddata->irq);
 		return ret;
 	}
-	device_init_wakeup(ddata->dev, true);
 
 	return 0;
 }
@@ -2683,11 +2686,8 @@ static void mt6375_shutdown(struct platform_device *pdev)
 {
 	struct mt6375_tcpc_data *ddata = platform_get_drvdata(pdev);
 
-	if (ddata->irq) {
+	if (ddata->irq)
 		disable_irq(ddata->irq);
-		kthread_flush_worker(&ddata->irq_worker);
-		kthread_stop(ddata->irq_worker_task);
-	}
 
 	alarm_cancel(&ddata->hidet_debtimer);
 	cancel_delayed_work_sync(&ddata->hidet_dwork);
@@ -2713,6 +2713,38 @@ static int tcpc_mt6375_prepare(struct device *dev)
 static const struct dev_pm_ops tcpc_mt6375_pm_ops = {
 	.prepare = tcpc_mt6375_prepare,
 };
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+int tcpc_mt6375_reg_debug_msg_handler(struct tcpc_device *tcpc,
+				      void (*msg_handler)(void *, int),
+				      void *priv_data)
+{
+	struct mt6375_tcpc_data *ddata;
+
+	if (tcpc == NULL || msg_handler == NULL)
+		return -EINVAL;
+
+	ddata = tcpc_get_dev_data(tcpc);
+	ddata->debug_data.priv_data = priv_data;
+	ddata->debug_data.msg_handler = msg_handler;
+
+	return 0;
+}
+EXPORT_SYMBOL(tcpc_mt6375_reg_debug_msg_handler);
+
+void tcpc_mt6375_unreg_debug_msg_handler(struct tcpc_device *tcpc)
+{
+	struct mt6375_tcpc_data *ddata;
+
+	if (tcpc == NULL)
+		return;
+
+	ddata = tcpc_get_dev_data(tcpc);
+	ddata->debug_data.priv_data = NULL;
+	ddata->debug_data.msg_handler = NULL;
+}
+EXPORT_SYMBOL(tcpc_mt6375_unreg_debug_msg_handler);
+#endif /* OPLUS_FEATURE_CHG_BASIC */
 
 static const struct of_device_id __maybe_unused mt6375_tcpc_of_match[] = {
 	{ .compatible = "mediatek,mt6375-tcpc", },

@@ -763,6 +763,7 @@ static inline bool pe_transit_startup_state(
 		return false;
 
 	pd_dpm_notify_pe_startup(pd_port);
+	pd_enable_timer(pd_port, PD_TIMER_INT_INVAILD);
 	PE_TRANSIT_STATE(pd_port, startup_state);
 
 	return true;

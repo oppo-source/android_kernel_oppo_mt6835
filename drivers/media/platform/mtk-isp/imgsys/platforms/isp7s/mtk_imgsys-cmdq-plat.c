@@ -732,6 +732,14 @@ static void imgsys_cmdq_cb_work_plat7s(struct work_struct *work)
 			cb_param->frm_info->frm_owner);
 		/* Calling PMQOS API if last frame */
 		if (cb_param->frm_info->total_taskcnt == cb_frm_cnt) {
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+			mutex_lock(&(imgsys_dev->dvfs_qos_lock));
+			#if DVFS_QOS_READY
+			mtk_imgsys_mmdvfs_mmqos_cal_plat7s(imgsys_dev, cb_param->frm_info, 0);
+			mtk_imgsys_mmdvfs_set_plat7s(imgsys_dev, cb_param->frm_info, 0);
+			#endif
+			mutex_unlock(&(imgsys_dev->dvfs_qos_lock));
+#else /*OPLUS_FEATURE_CAMERA_COMMON*/
 			if (is_stream_off == 0) {
 				mutex_lock(&(imgsys_dev->dvfs_qos_lock));
 				#if DVFS_QOS_READY
@@ -744,6 +752,7 @@ static void imgsys_cmdq_cb_work_plat7s(struct work_struct *work)
 				pr_info(
 					"%s: [ERROR] cb(%p) pipe already streamoff(%d), bypass mmdvfs flow!\n",
 					__func__, cb_param, is_stream_off);
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 			if (imgsys_cmdq_ts_enable_plat7s() || imgsys_wpe_bwlog_enable_plat7s()) {
 				IMGSYS_CMDQ_SYSTRACE_BEGIN(
 					"%s_%s|%s",
@@ -2169,7 +2178,9 @@ void mtk_imgsys_mmdvfs_reset_plat7s(struct mtk_imgsys_dev *imgsys_dev)
 
 	dvfs_info->cur_volt = volt;
 	dvfs_info->cur_freq = freq;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
 	dvfs_info->freq = freq;
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 	dvfs_info->vss_task_cnt = 0;
 	dvfs_info->smvr_task_cnt = 0;
 }

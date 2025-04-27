@@ -3462,8 +3462,12 @@ static ssize_t mtk_cam_seninf_show_status(struct device *dev,
 #endif
 
 #define FT_30_FPS 33
-#define PKT_CNT_CHK_MARGIN 110
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#define PKT_CNT_CHK_MARGIN 200
+#else
+#define PKT_CNT_CHK_MARGIN 110
+#endif
 #define MAX_DELAY_STEP 100
 
 /**
@@ -3796,10 +3800,13 @@ static int mtk_cam_seninf_debug(struct seninf_ctx *ctx)
 static int mtk_cam_get_csi_irq_status(struct seninf_ctx *ctx)
 {
 	void *base_csi;
+	struct seninf_core *core = ctx->core;
 	int ret = 0;
 
-	if (!ctx->streaming)
+	if (!ctx->streaming || core->refcnt == 0){
+		dev_info(ctx->dev,"CSI_RX%d stream off or runtime_suspend\n", ctx->port);
 		return 0;
+	}
 
 	base_csi = ctx->reg_if_csi2[(uint32_t)ctx->seninfIdx];
 	ret = SENINF_READ_REG(base_csi, SENINF_CSI2_IRQ_STATUS);

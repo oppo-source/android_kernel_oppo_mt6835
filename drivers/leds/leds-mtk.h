@@ -34,7 +34,10 @@ struct mt_led_data {
 		int flag);
 	struct mutex	led_access;
 };
-
+#ifdef OPLUS_FEATURE_DISPLAY_APOLLO
+unsigned int mBrightnessValue = 1;
+bool mApolloDisable = false;
+#endif /* OPLUS_FEATURE_DISPLAY_APOLLO */
 int mt_leds_parse_dt(struct mt_led_data *mdev, struct fwnode_handle *fwnode);
 int mt_leds_classdev_register(struct device *parent,
 					 struct mt_led_data *led_dat);

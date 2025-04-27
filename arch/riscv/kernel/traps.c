@@ -53,6 +53,9 @@ void die(struct pt_regs *regs, const char *str)
 	if (kexec_should_crash(current))
 		crash_kexec(regs);
 
+	if (regs && kexec_should_crash(current))
+		crash_kexec(regs);
+
 	bust_spinlocks(0);
 	add_taint(TAINT_DIE, LOCKDEP_NOW_UNRELIABLE);
 	spin_unlock_irqrestore(&die_lock, flags);

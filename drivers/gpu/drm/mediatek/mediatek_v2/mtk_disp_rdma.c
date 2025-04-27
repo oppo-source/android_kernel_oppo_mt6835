@@ -31,6 +31,17 @@
 #include "mtk_disp_rdma.h"
 #include "platform/mtk_drm_platform.h"
 //#include "swpm_me.h"
+#ifdef OPLUS_FEATURE_DISPLAY
+#include <soc/oplus/system/oplus_mm_kevent_fb.h>
+#endif
+
+#ifdef OPLUS_FEATURE_DISPLAY_ADFR
+#include "oplus_adfr.h"
+
+unsigned long long last_rdma_start_time = 0;
+extern int g_commit_pid;
+extern int oplus_adfr_cancel_fakeframe(void);
+#endif  /* OPLUS_FEATURE_DISPLAY_ADFR */
 
 int disp_met_set(void *data, u64 val);
 
@@ -332,6 +343,13 @@ static irqreturn_t mtk_disp_rdma_irq_handler(int irq, void *dev_id)
 				atomic_set(&mtk_crtc->signal_irq_for_pre_fence, 1);
 				wake_up_interruptible(&(mtk_crtc->signal_irq_for_pre_fence_wq));
 			}
+
+			#ifdef OPLUS_FEATURE_DISPLAY_ADFR
+			/* add for mux switch control */
+			if (oplus_adfr_is_support() && (oplus_adfr_get_vsync_mode() == OPLUS_EXTERNAL_TE_TP_VSYNC)) {
+				oplus_adfr_frame_done_vsync_switch(mtk_crtc);
+			}
+			#endif /*  OPLUS_FEATURE_DISPLAY_ADFR  */
 		}
 		mtk_drm_refresh_tag_end(&priv->ddp_comp);
 	}
@@ -368,6 +386,14 @@ static irqreturn_t mtk_disp_rdma_irq_handler(int irq, void *dev_id)
 				atomic_set(&mtk_crtc->pf_event, 1);
 				wake_up_interruptible(&mtk_crtc->present_fence_wq);
 			}
+			#ifdef OPLUS_FEATURE_DISPLAY_ADFR
+			last_rdma_start_time = sched_clock();
+			mtk_drm_trace_c("%d|rdmastart|%d", g_commit_pid, 1);
+			mtk_drm_trace_c("%d|rdmastart|%d", g_commit_pid, 0);
+			if (oplus_adfr_fakeframe_is_enable()) {
+				oplus_adfr_cancel_fakeframe();
+			}
+			#endif /* OPLUS_FEATURE_DISPLAY_ADFR  */
 		}
 	}
 
@@ -403,6 +429,11 @@ static irqreturn_t mtk_disp_rdma_irq_handler(int irq, void *dev_id)
 				DDPAEE("%s: underflow! cnt=%d\n",
 				       mtk_dump_comp_str(rdma),
 				       priv->underflow_cnt);
+#ifdef OPLUS_FEATURE_DISPLAY
+				       if ((priv->underflow_cnt) < 5) {
+				       mm_fb_display_kevent("DisplayDriverID@@502$$", MM_FB_KEY_RATELIMIT_1H, "underflow cnt=%d", priv->underflow_cnt);
+				       }
+#endif
 			}
 		}
 
@@ -586,6 +617,8 @@ void mtk_rdma_cal_golden_setting(struct mtk_ddp_comp *comp,
 	unsigned int fill_rate = 0;	  /* 100 times */
 	unsigned long long consume_rate = 0; /* 100 times */
 
+	struct mtk_drm_private *priv = comp->mtk_crtc->base.dev->dev_private;
+
 	if (if_fps == 0) {
 		DDPPR_ERR("%s invalid vrefresh %u\n",
 			__func__, if_fps);
@@ -662,8 +695,6 @@ void mtk_rdma_cal_golden_setting(struct mtk_ddp_comp *comp,
 		gs[GS_RDMA_OUTPUT_VALID_FIFO_TH] = gs[GS_RDMA_PRE_ULTRA_TH_LOW];
 
 	if (rdma->data->dsi_buffer) {
-		struct mtk_drm_private *priv = comp->mtk_crtc->base.dev->dev_private;
-
 		if (priv->data->mmsys_id == MMSYS_MT6879)
 			gs[GS_RDMA_FIFO_SIZE] = 0x20;
 		else
@@ -684,16 +715,22 @@ void mtk_rdma_cal_golden_setting(struct mtk_ddp_comp *comp,
 		(gs[GS_RDMA_FIFO_SIZE] - gs[GS_RDMA_PRE_ULTRA_TH_LOW]);
 
 	/* DISP_RDMA_THRESHOLD_FOR_SODI */
-	gs[GS_RDMA_TH_LOW_FOR_SODI] =
-		DIV_ROUND_UP(consume_rate * (ultra_low_us + 50), FP);
-	gs[GS_RDMA_TH_HIGH_FOR_SODI] = DIV_ROUND_UP(
-		gs[GS_RDMA_FIFO_SIZE] * FP - (fill_rate - consume_rate) * 12,
-		FP);
-	if (gs[GS_RDMA_TH_HIGH_FOR_SODI] < gs[GS_RDMA_PRE_ULTRA_TH_HIGH])
-		gs[GS_RDMA_TH_HIGH_FOR_SODI] = gs[GS_RDMA_PRE_ULTRA_TH_HIGH];
+	if (priv->data->mmsys_id == MMSYS_MT6835)
+	{
+		gs[GS_RDMA_TH_LOW_FOR_SODI] = 0x3fff;
+		gs[GS_RDMA_TH_HIGH_FOR_SODI] = 0x3fff;
+	} else {
+		gs[GS_RDMA_TH_LOW_FOR_SODI] =
+			DIV_ROUND_UP(consume_rate * (ultra_low_us + 50), FP);
+		gs[GS_RDMA_TH_HIGH_FOR_SODI] = DIV_ROUND_UP(
+			gs[GS_RDMA_FIFO_SIZE] * FP - (fill_rate - consume_rate) * 12,
+			FP);
+		if (gs[GS_RDMA_TH_HIGH_FOR_SODI] < gs[GS_RDMA_PRE_ULTRA_TH_HIGH])
+			gs[GS_RDMA_TH_HIGH_FOR_SODI] = gs[GS_RDMA_PRE_ULTRA_TH_HIGH];
 
-	if (gs[GS_RDMA_TH_HIGH_FOR_SODI] >= gs[GS_RDMA_FIFO_SIZE])
-		gs[GS_RDMA_TH_HIGH_FOR_SODI] = gs[GS_RDMA_FIFO_SIZE] - 1;
+		if (gs[GS_RDMA_TH_HIGH_FOR_SODI] >= gs[GS_RDMA_FIFO_SIZE])
+			gs[GS_RDMA_TH_HIGH_FOR_SODI] = gs[GS_RDMA_FIFO_SIZE] - 1;
+	}
 
 	/* DISP_RDMA_THRESHOLD_FOR_DVFS */
 	gs[GS_RDMA_TH_LOW_FOR_DVFS] = gs[GS_RDMA_PRE_ULTRA_TH_LOW];

@@ -441,6 +441,10 @@ struct mtu3 {
 
 	unsigned is_gadget_ready:1;
 	unsigned async_callbacks:1;
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	struct work_struct draw_work;
+	unsigned vbus_draw;
+#endif
 	int ep_slot_mode;
 
 	unsigned u3_lpm:1;
@@ -541,4 +545,9 @@ extern const struct usb_ep_ops mtu3_ep0_ops;
 
 int get_dp_switch_status(struct ssusb_mtk *ssusb);
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+extern bool is_usb_rdy(void);
+extern void Charger_Detect_Init(void);
+extern void Charger_Detect_Release(void);
+#endif
 #endif

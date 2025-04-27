@@ -468,6 +468,7 @@ static const struct kvaser_usb_dev_cfg kvaser_usb_leaf_m32c_dev_cfg = {
 	.bittiming_const = &kvaser_usb_leaf_m32c_bittiming_const,
 };
 
+
 static const struct kvaser_usb_dev_cfg kvaser_usb_leaf_imx_dev_cfg_16mhz = {
 	.clock = {
 		.freq = 16000000,

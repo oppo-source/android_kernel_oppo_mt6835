@@ -1697,8 +1697,14 @@ static struct subdrv_static_ctx static_ctx = {
 	.sensor_mode_num = ARRAY_SIZE(mode_struct),
 	.list = feature_control_list,
 	.list_len = ARRAY_SIZE(feature_control_list),
+	#ifndef OPLUS_FEATURE_CAMERA_COMMON
 	.chk_s_off_sta = 1,
 	.chk_s_off_end = 0,
+	#else /*OPLUS_FEATURE_CAMERA_COMMON*/
+	.chk_s_off_before_s_on = 0,
+	.chk_s_off_before_control = 1,
+	.chk_s_off_after_s_off = 0,
+	#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 
 	.checksum_value = 0xAF3E324F,
 };
@@ -1817,7 +1823,7 @@ static u16 get_gain2reg(u32 gain)
 static void imx766_seamless_switch(struct subdrv_ctx *ctx, u8 *para, u32 *len)
 {
 	enum SENSOR_SCENARIO_ID_ENUM scenario_id;
-	u32 *ae_ctrl = NULL;
+	struct mtk_hdr_ae *ae_ctrl = NULL;
 	u64 *feature_data = (u64 *)para;
 
 	if (feature_data == NULL) {
@@ -1826,7 +1832,7 @@ static void imx766_seamless_switch(struct subdrv_ctx *ctx, u8 *para, u32 *len)
 	}
 	scenario_id = *feature_data;
 	if ((feature_data + 1) != NULL)
-		ae_ctrl = (u32 *)((uintptr_t)(*(feature_data + 1)));
+		ae_ctrl = (struct mtk_hdr_ae *)((uintptr_t)(*(feature_data + 1)));
 	else
 		DRV_LOGE(ctx, "no ae_ctrl input");
 
@@ -1864,16 +1870,16 @@ static void imx766_seamless_switch(struct subdrv_ctx *ctx, u8 *para, u32 *len)
 	if (ae_ctrl) {
 		switch (ctx->s_ctx.mode[scenario_id].hdr_mode) {
 		case HDR_RAW_STAGGER_2EXP:
-			set_multi_shutter_frame_length(ctx, ae_ctrl, 2, 0);
-			set_multi_gain(ctx, ae_ctrl + 5, 2);
+			set_multi_shutter_frame_length(ctx, (u64*)&ae_ctrl->exposure, 2, 0);
+			set_multi_gain(ctx, (u32*)&ae_ctrl->gain, 2);
 			break;
 		case HDR_RAW_STAGGER_3EXP:
-			set_multi_shutter_frame_length(ctx, ae_ctrl, 3, 0);
-			set_multi_gain(ctx, ae_ctrl + 5, 3);
+			set_multi_shutter_frame_length(ctx, (u64*)&ae_ctrl->exposure, 3, 0);
+			set_multi_gain(ctx, (u32*)&ae_ctrl->gain, 3);
 			break;
 		default:
-			set_shutter(ctx, *ae_ctrl);
-			set_gain(ctx, *(ae_ctrl + 5));
+			set_shutter(ctx, ae_ctrl->exposure.le_exposure);
+			set_gain(ctx, ae_ctrl->gain.le_gain);
 			break;
 		}
 	}

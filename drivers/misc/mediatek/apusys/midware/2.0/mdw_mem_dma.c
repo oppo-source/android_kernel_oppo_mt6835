@@ -14,6 +14,7 @@
 #include "mdw_cmn.h"
 #include "mdw_mem.h"
 #include "mdw_trace.h"
+#include "rv/mdw_rv_events.h"
 
 struct mdw_mem_dma_attachment {
 	struct sg_table *sgt;
@@ -301,7 +302,8 @@ static void mdw_dmabuf_release(struct dma_buf *dbuf)
 	struct mdw_mem_dma *mdbuf = m->priv;
 
 	mdw_mem_dma_show(mdbuf);
-
+        //add by zhenghaiqing@oppo.com for dma debug
+        trace_mdw_dma_free(dbuf->size, dbuf->android_kabi_reserved2, "APUSYS");
 	mdw_mem_dma_free_sgt(&mdbuf->sgt);
 	vunmap(mdbuf->vaddr);
 	vfree(mdbuf->buf);
@@ -381,7 +383,6 @@ int mdw_mem_dma_alloc(struct mdw_mem *mem)
 	mdbuf->dma_size = PAGE_ALIGN(mem->size);
 	mdw_mem_debug("alloc mem(0x%llx)(%u/%u)\n",
 		(uint64_t) mem, mem->size, mdbuf->dma_size);
-
 	if (mem->flags & F_MDW_MEM_HIGHADDR) {
 		dev = mdw_mem_rsc_get_dev(APUSYS_MEMORY_DATA);
 		if (dev)
@@ -432,6 +433,14 @@ int mdw_mem_dma_alloc(struct mdw_mem *mem)
 		ret = -ENOMEM;
 		goto free_sgt;
 	}
+
+	//add by zhenghaiqing@oppo.com for dma debug
+	/*
+	 * use android_kabi_reserved2 as inode no. but it has potential risk if
+	 * google uses it.
+	 */
+	mem->dbuf->android_kabi_reserved2 = file_inode(mem->dbuf->file)->i_ino;
+	trace_mdw_dma_alloc(mdbuf->dma_size, mem->dbuf->android_kabi_reserved2, "APUSYS");
 
 	mdbuf->mmem = mem;
 	mdbuf->mem_dev = dev;

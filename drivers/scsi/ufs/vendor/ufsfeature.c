@@ -37,15 +37,15 @@
  */
 
 #include "ufsfeature.h"
-#include "ufshcd.h"
-#include "ufs-mediatek.h"
+#include "../ufshcd.h"
+#include "../ufs-mediatek.h"
 
 static int ufsf_read_desc(struct ufs_hba *hba, u8 desc_id, u8 desc_index,
 			  u8 selector, u8 *desc_buf, u32 size)
 {
 	int err = 0;
 
-	pm_runtime_get_sync(hba->dev);
+	ufshcd_rpm_get_sync(hba);
 
 	err = ufshcd_query_descriptor_retry(hba, UPIU_QUERY_OPCODE_READ_DESC,
 					    desc_id, desc_index,
@@ -54,7 +54,7 @@ static int ufsf_read_desc(struct ufs_hba *hba, u8 desc_id, u8 desc_index,
 	if (err)
 		ERR_MSG("reading Device Desc failed. err = %d", err);
 
-	pm_runtime_put_sync(hba->dev);
+	ufshcd_rpm_put_sync(hba);
 
 	return err;
 }
@@ -82,17 +82,11 @@ static int ufsf_read_dev_desc(struct ufsf_feature *ufsf, u8 selector)
 	INFO_MSG("Driver Feature Version : (%.6X%s)", UFSFEATURE_DD_VER,
 		 UFSFEATURE_DD_VER_POST);
 
-#if defined(CONFIG_UFSSHPB)
-	ufsshpb_get_dev_info(ufsf, desc_buf);
-#endif
 #if defined(CONFIG_UFSTW)
 	ufstw_get_dev_info(ufsf, desc_buf);
 #endif
 #if defined(CONFIG_UFSHID)
 	ufshid_get_dev_info(ufsf, desc_buf);
-#endif
-#if defined(CONFIG_UFSRINGBUF)
-	ufsringbuf_get_dev_info(ufsf, desc_buf);
 #endif
 	return 0;
 }
@@ -107,18 +101,13 @@ static int ufsf_read_geo_desc(struct ufsf_feature *ufsf, u8 selector)
 	if (ret)
 		return ret;
 
-#if defined(CONFIG_UFSSHPB)
-	if (ufsshpb_get_state(ufsf) == HPB_NEED_INIT)
-		ufsshpb_get_geo_info(ufsf, geo_buf);
-#endif
-
 #if defined(CONFIG_UFSTW)
 	if (ufstw_get_state(ufsf) == TW_NEED_INIT)
 		ufstw_get_geo_info(ufsf, geo_buf);
 #endif
-#if defined(CONFIG_UFSRINGBUF)
-	if (ufsringbuf_get_state(ufsf) == RINGBUF_NEED_INIT)
-		ufsringbuf_get_geo_info(ufsf, geo_buf);
+#if defined(CONFIG_UFSHID)
+	if (ufshid_get_state(ufsf) == HID_NEED_INIT)
+		ufshid_get_geo_info(ufsf, geo_buf);
 #endif
 	return 0;
 }
@@ -126,36 +115,29 @@ static int ufsf_read_geo_desc(struct ufsf_feature *ufsf, u8 selector)
 static void ufsf_read_unit_desc(struct ufsf_feature *ufsf, int lun, u8 selector)
 {
 	u8 unit_buf[UFSF_QUERY_DESC_UNIT_MAX_SIZE];
-	int lu_enable, ret = 0;
+	int lu_enable, ret;
 
 	ret = ufsf_read_desc(ufsf->hba, QUERY_DESC_IDN_UNIT, lun, selector,
 			     unit_buf, UFSF_QUERY_DESC_UNIT_MAX_SIZE);
 	if (ret) {
 		ERR_MSG("read unit desc failed. ret (%d)", ret);
-		goto out;
+		return;
 	}
 
 	lu_enable = unit_buf[UNIT_DESC_PARAM_LU_ENABLE];
 	if (!lu_enable)
 		return;
 
-#if defined(CONFIG_UFSSHPB)
-	if (ufsshpb_get_state(ufsf) == HPB_NEED_INIT)
-		ufsshpb_get_lu_info(ufsf, lun, unit_buf);
-#endif
-
 #if defined(CONFIG_UFSTW)
 	if (ufstw_get_state(ufsf) == TW_NEED_INIT)
 		ufstw_alloc_lu(ufsf, lun, unit_buf);
 #endif
-out:
-	return;
 }
 
 void ufsf_device_check(struct ufs_hba *hba)
 {
 	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
-	int ret, lun;
+	int lun;
 	u32 status;
 
 	ufshcd_query_attr(ufsf->hba, UPIU_QUERY_OPCODE_READ_ATTR,
@@ -163,16 +145,19 @@ void ufsf_device_check(struct ufs_hba *hba)
 	INFO_MSG("UFS FEATURE SELECTOR Dev %d - D/D %d", status,
 		  UFSFEATURE_SELECTOR);
 
-	ret = ufsf_read_dev_desc(ufsf, UFSFEATURE_SELECTOR);
-	if (ret)
+	if (ufsf_read_dev_desc(ufsf, UFSFEATURE_SELECTOR))
 		return;
 
-	ret = ufsf_read_geo_desc(ufsf, UFSFEATURE_SELECTOR);
-	if (ret)
+	if (ufsf_read_geo_desc(ufsf, UFSFEATURE_SELECTOR))
 		return;
 
 	seq_scan_lu(lun)
 		ufsf_read_unit_desc(ufsf, lun, UFSFEATURE_SELECTOR);
+}
+
+inline void ufsf_rpm_put_noidle(struct ufs_hba *hba)
+{
+	pm_runtime_put_noidle(&hba->sdev_ufs_device->sdev_gendev);
 }
 
 static int ufsf_execute_dev_ctx_req(struct ufsf_feature *ufsf,
@@ -181,7 +166,7 @@ static int ufsf_execute_dev_ctx_req(struct ufsf_feature *ufsf,
 {
 	struct scsi_sense_hdr sshdr;
 	struct scsi_device *sdev;
-	int ret = 0;
+	int ret;
 
 	sdev = ufsf->sdev_ufs_lu[lun];
 	if (!sdev) {
@@ -201,21 +186,16 @@ static inline void ufsf_set_read_dev_ctx(unsigned char *cdb, int lba, int len)
 {
 	cdb[0] = READ_10;
 	cdb[1] = 0x02;
-	cdb[2] = GET_BYTE_3(lba);
-	cdb[3] = GET_BYTE_2(lba);
-	cdb[4] = GET_BYTE_1(lba);
-	cdb[5] = GET_BYTE_0(lba);
-	cdb[6] = GET_BYTE_2(len);
-	cdb[7] = GET_BYTE_1(len);
-	cdb[8] = GET_BYTE_0(len);
+	put_unaligned_be32(lba, cdb + 2);
+	put_unaligned_be24(len, cdb + 6);
 }
 
-int ufsf_issue_req_dev_ctx(struct ufsf_feature *ufsf, int lun,
+static int ufsf_issue_req_dev_ctx(struct ufsf_feature *ufsf, int lun,
 			   unsigned char *buf, int buf_len)
 {
 	unsigned char cdb[10] = { 0 };
 	int cmd_len = buf_len >> OS_PAGE_SHIFT;
-	int ret = 0;
+	int ret;
 
 	ufsf_set_read_dev_ctx(cdb, READ10_DEBUG_LBA, cmd_len);
 
@@ -230,10 +210,10 @@ int ufsf_issue_req_dev_ctx(struct ufsf_feature *ufsf, int lun,
 static void ufsf_print_query_buf(unsigned char *field, int size)
 {
 	unsigned char buf[255];
-	int count = 0;
+	int count;
 	int i;
 
-	count += snprintf(buf, 8, "(0x00):");
+	count = snprintf(buf, 8, "(0x00):");
 
 	for (i = 0; i < size; i++) {
 		count += snprintf(buf + count, 4, " %.2X", field[i]);
@@ -252,23 +232,13 @@ static void ufsf_print_query_buf(unsigned char *field, int size)
 	printk(buf);
 }
 
-inline int ufsf_check_query(__u32 opcode)
-{
-	return (opcode & 0xffff0000) >> 16 == UFSFEATURE_QUERY_OPCODE;
-}
-
 static inline void ufsf_set_read10_debug_cmd(unsigned char *cdb, int lba,
 					     int len)
 {
 	cdb[0] = READ_10;
 	cdb[1] = 0x02;
-	cdb[2] = GET_BYTE_3(lba);
-	cdb[3] = GET_BYTE_2(lba);
-	cdb[4] = GET_BYTE_1(lba);
-	cdb[5] = GET_BYTE_0(lba);
-	cdb[6] = GET_BYTE_2(len);
-	cdb[7] = GET_BYTE_1(len);
-	cdb[8] = GET_BYTE_0(len);
+	put_unaligned_be32(lba, cdb + 2);
+	put_unaligned_be24(len, cdb + 6);
 }
 
 int ufsf_query_ioctl(struct ufsf_feature *ufsf, int lun, void __user *buffer,
@@ -286,8 +256,21 @@ int ufsf_query_ioctl(struct ufsf_feature *ufsf, int lun, void __user *buffer,
 	INFO_MSG("op %u idn %u sel %u size %u(0x%X)", opcode, ioctl_data->idn,
 		 selector, ioctl_data->buf_size, ioctl_data->buf_size);
 
-	buf_len = (ioctl_data->idn == QUERY_DESC_IDN_STRING) ?
-		IOCTL_DEV_CTX_MAX_SIZE : QUERY_DESC_MAX_SIZE;
+	switch (ioctl_data->idn) {
+	case QUERY_DESC_IDN_STRING:
+		buf_len = IOCTL_DEV_CTX_MAX_SIZE;
+		break;
+
+#if defined(CONFIG_UFSHID)
+	case QUERY_ATTR_IDN_HID_OPERATION:
+	case QUERY_ATTR_IDN_HID_FRAG_LEVEL:
+		buf_len = ioctl_data->buf_size;
+		break;
+#endif
+	default:
+		buf_len = QUERY_DESC_MAX_SIZE;
+		break;
+	}
 
 	kernel_buf = kzalloc(buf_len, GFP_KERNEL);
 	if (!kernel_buf) {
@@ -341,6 +324,55 @@ int ufsf_query_ioctl(struct ufsf_feature *ufsf, int lun, void __user *buffer,
 			goto out_release_mem;
 		}
 		break;
+
+	case UPIU_QUERY_OPCODE_WRITE_ATTR:
+		switch (ioctl_data->idn) {
+#if defined(CONFIG_UFSHID)
+		case QUERY_ATTR_IDN_HID_OPERATION:
+			err = copy_from_user(kernel_buf, buffer +
+				     sizeof(struct ufs_ioctl_query_data),
+				     ioctl_data->buf_size);
+			if (err)
+				goto out_release_mem;
+
+			err = ufshid_send_file_info(ufsf->hid_dev, lun,
+						    kernel_buf, buf_len,
+						    ioctl_data->idn);
+			if (err)
+				ERR_MSG("HID LBA Trigger fail. (%d)", err);
+
+			goto out_release_mem;
+#endif
+		default:
+			break;
+		}
+		break;
+
+	case UPIU_QUERY_OPCODE_READ_ATTR:
+		switch (ioctl_data->idn) {
+#if defined(CONFIG_UFSHID)
+		case QUERY_ATTR_IDN_HID_FRAG_LEVEL:
+			err = copy_from_user(kernel_buf, buffer +
+				     sizeof(struct ufs_ioctl_query_data),
+				     ioctl_data->buf_size);
+			if (err)
+				goto out_release_mem;
+
+			err = ufshid_send_file_info(ufsf->hid_dev, lun,
+						    kernel_buf, buf_len,
+						    ioctl_data->idn);
+			if (err) {
+				ERR_MSG("HID LBA Trigger fail. (%d)", err);
+				goto out_release_mem;
+			}
+
+			goto copy_buffer;
+#endif
+		default:
+			break;
+		}
+		break;
+
 	default:
 		ERR_MSG("invalid opcode %d", opcode);
 		err = -EINVAL;
@@ -356,7 +388,8 @@ int ufsf_query_ioctl(struct ufsf_feature *ufsf, int lun, void __user *buffer,
 		goto out_release_mem;
 
 copy_buffer:
-	if (opcode == UPIU_QUERY_OPCODE_READ_DESC) {
+	if (opcode == UPIU_QUERY_OPCODE_READ_DESC ||
+	    opcode == UPIU_QUERY_OPCODE_READ_ATTR) {
 		err = copy_to_user(buffer, ioctl_data,
 				   sizeof(struct ufs_ioctl_query_data));
 		if (err)
@@ -373,13 +406,35 @@ out:
 	return err;
 }
 
-bool ufsf_upiu_check_for_ccd(struct ufshcd_lrb *lrbp)
+/*
+ *  Mimic ufshcd_copy_sense_data()
+ */
+#define UFS_SENSE_SIZE	18
+static void ufsf_copy_sense_data(struct ufshcd_lrb *lrbp)
+{
+	unsigned int seg_len = be32_to_cpu(lrbp->ucd_rsp_ptr->header.dword_2) &
+		MASK_RSP_UPIU_DATA_SEG_LEN;
+	int len;
+
+	if (lrbp->sense_buffer && seg_len) {
+		int len_to_copy;
+
+		len = be16_to_cpu(lrbp->ucd_rsp_ptr->sr.sense_data_len);
+		len_to_copy = min_t(int, UFS_SENSE_SIZE, len);
+
+		memcpy(lrbp->sense_buffer, lrbp->ucd_rsp_ptr->sr.sense_data,
+		       len_to_copy);
+	}
+}
+
+void ufsf_upiu_check_for_ccd(struct ufshcd_lrb *lrbp)
 {
 	unsigned char *cdb = lrbp->cmd->cmnd;
 	int data_seg_len, sense_data_len;
+	struct utp_cmd_rsp *sr = &lrbp->ucd_rsp_ptr->sr;
 
 	if (cdb[0] != VENDOR_OP || cdb[1] != VENDOR_CCD)
-		return false;
+		return;
 
 	data_seg_len = be32_to_cpu(lrbp->ucd_rsp_ptr->header.dword_2) &
 				       MASK_RSP_UPIU_DATA_SEG_LEN;
@@ -394,14 +449,18 @@ bool ufsf_upiu_check_for_ccd(struct ufshcd_lrb *lrbp)
 		INFO_MSG("CCD info is correct!!");
 	}
 
+	INFO_MSG("sense : %02X %02X %02X %02X %02X %02X\n",
+		 sr->sense_data[0], sr->sense_data[1], sr->sense_data[2],
+		 sr->sense_data[3], sr->sense_data[4], sr->sense_data[5]);
+
 	/*
 	 * sense_len will be not set as Descriptor Type isn't 0x70
 	 * if not set sense_len, sense will not be able to copy
 	 * in sg_scsi_ioctl()
 	 */
-	scsi_req(lrbp->cmd->request)->sense_len = CCD_SENSE_DATA_LEN;
+	lrbp->cmd->req.sense_len = CCD_SENSE_DATA_LEN;
 
-	return true;
+	ufsf_copy_sense_data(lrbp);
 }
 
 inline int ufsf_get_scsi_device(struct ufs_hba *hba, struct scsi_device *sdev)
@@ -430,17 +489,15 @@ inline bool ufsf_is_valid_lun(int lun)
 inline void ufsf_slave_configure(struct ufsf_feature *ufsf,
 				 struct scsi_device *sdev)
 {
-	struct ufs_hba *hba = shost_priv(sdev->host);
+	if (!ufsf_is_valid_lun(sdev->lun))
+		return;
 
-	ufsf->hba = hba;
-	if (ufsf_is_valid_lun(sdev->lun)) {
-		ufsf->sdev_ufs_lu[sdev->lun] = sdev;
-		ufsf->slave_conf_cnt++;
-		INFO_MSG("lun[%d] sdev(%p) q(%p) slave_conf_cnt(%d)",
-			 (int)sdev->lun, sdev, sdev->request_queue,
-			 ufsf->slave_conf_cnt);
+	ufsf->sdev_ufs_lu[sdev->lun] = sdev;
+	ufsf->slave_conf_cnt++;
+	INFO_MSG("lun[%d] sdev(%p) q(%p) slave_conf_cnt(%d)",
+		 (int)sdev->lun, sdev, sdev->request_queue,
+		 ufsf->slave_conf_cnt);
 
-	}
 	schedule_work(&ufsf->device_check_work);
 }
 
@@ -448,81 +505,21 @@ inline int ufsf_prep_fn(struct ufsf_feature *ufsf, struct ufshcd_lrb *lrbp)
 {
 	int ret = 0;
 
-#if defined(CONFIG_UFSSHPB)
-	if (ufsshpb_get_state(ufsf) == HPB_PRESENT &&
-	    ufsf->issue_ioctl == false) {
-		ret = ufsshpb_prep_fn(ufsf, lrbp);
-		if (ret == -EAGAIN)
-			return ret;
-	}
-#endif
-
 #if defined(CONFIG_UFSTW)
 	if (ufstw_get_state(ufsf) == TW_PRESENT)
 		ufstw_prep_fn(ufsf, lrbp);
 #endif
-#if defined(CONFIG_UFSRINGBUF)
-	if (ufsringbuf_get_state(ufsf) == RINGBUF_PRESENT ||
-	    ufsringbuf_get_state(ufsf) == RINGBUF_RESET)
-		ufsringbuf_prep_fn(ufsf, lrbp);
-#endif
-
 	return ret;
-}
-
-inline void ufsf_prepare_reset_lu(struct ufsf_feature *ufsf)
-{
-#if defined(CONFIG_UFSTW)
-	INFO_MSG("run reset_lu.. tw_state(%d) -> TW_PREPARE_RESET",
-		 ufstw_get_state(ufsf));
-	ufstw_set_state(ufsf, TW_PREPARE_RESET);
-#endif
 }
 
 inline void ufsf_reset_lu(struct ufsf_feature *ufsf)
 {
 #if defined(CONFIG_UFSTW)
-	ufsf->reset_lu_pos = ufsf->hba->ufs_stats.event[UFS_EVT_DEV_RESET].pos;
-	schedule_work(&ufsf->reset_lu_work);
-#endif
-}
-
-inline void ufsf_reset_lu_handler(struct work_struct *work)
-{
-#if defined(CONFIG_UFSTW)
-	struct ufsf_feature *ufsf;
-	int retry;
-
-	ufsf = container_of(work, struct ufsf_feature, reset_lu_work);
-
-	retry = ufsf->hba->nutrs;
-
-	if (ufstw_get_state(ufsf) != TW_PREPARE_RESET)
-		return;
-
-	// check pos diff
-	while (ufsf->reset_lu_pos == ufsf->hba->ufs_stats.event[UFS_EVT_DEV_RESET].pos) {
-		if (--retry < 0)
-			break;
-
-		// In ufshcd_clear_cmd(), it waits 1s for each doorbell.
-		msleep(1000);
+	INFO_MSG("run reset_lu.. tw_state(%d)", ufstw_get_state(ufsf));
+	if (ufstw_get_state(ufsf) == TW_PRESENT) {
+		ufstw_set_state(ufsf, TW_RESET);
+		ufstw_reset(ufsf);
 	}
-
-	if ((ufsf->reset_lu_pos == ufsf->hba->ufs_stats.event[UFS_EVT_DEV_RESET].pos) ||
-	    (ufsf->hba->ufs_stats.event[UFS_EVT_DEV_RESET].val[ufsf->reset_lu_pos] != 0)) {
-		/*
-		 * TW is not reset in this LU
-		 * We just restore its state as PRESENT
-		*/
-		ufstw_set_state(ufsf, TW_PRESENT);
-		return;
-	}
-
-	INFO_MSG("run reset_lu.. tw_state(%d) -> TW_RESET",
-		 ufstw_get_state(ufsf));
-	ufstw_set_state(ufsf, TW_RESET);
-	ufstw_reset(ufsf);
 #endif
 }
 
@@ -553,13 +550,6 @@ inline void ufsf_reset_host(struct ufsf_feature *ufsf)
 	if (!eh_flags)
 		return;
 
-#if defined(CONFIG_UFSSHPB)
-	INFO_MSG("run reset_host.. hpb_state(%d) -> HPB_RESET",
-		 ufsshpb_get_state(ufsf));
-	if (ufsshpb_get_state(ufsf) == HPB_PRESENT)
-		ufsshpb_reset_host(ufsf);
-#endif
-
 #if defined(CONFIG_UFSTW)
 	INFO_MSG("run reset_host.. tw_state(%d) -> TW_RESET",
 		 ufstw_get_state(ufsf));
@@ -572,25 +562,12 @@ inline void ufsf_reset_host(struct ufsf_feature *ufsf)
 	if (ufshid_get_state(ufsf) == HID_PRESENT)
 		ufshid_reset_host(ufsf);
 #endif
-#if defined(CONFIG_UFSRINGBUF)
-	INFO_MSG("run reset_host.. ringbuf_state(%d) -> RINGBUF_RESET",
-		 ufsringbuf_get_state(ufsf));
-	if (ufsringbuf_get_state(ufsf) == RINGBUF_PRESENT)
-		ufsringbuf_reset_host(ufsf);
-#endif
 
 	schedule_work(&ufsf->reset_wait_work);
 }
 
 inline void ufsf_init(struct ufsf_feature *ufsf)
 {
-#if defined(CONFIG_UFSSHPB)
-	if (ufsshpb_get_state(ufsf) == HPB_NEED_INIT) {
-		INFO_MSG("init start.. hpb_state (%d)", HPB_NEED_INIT);
-		schedule_work(&ufsf->hpb_init_work);
-	}
-#endif
-
 #if defined(CONFIG_UFSTW)
 	if (ufstw_get_state(ufsf) == TW_NEED_INIT)
 		ufstw_init(ufsf);
@@ -599,23 +576,11 @@ inline void ufsf_init(struct ufsf_feature *ufsf)
 	if (ufshid_get_state(ufsf) == HID_NEED_INIT)
 		ufshid_init(ufsf);
 #endif
-#if defined(CONFIG_UFSRINGBUF)
-	if (ufsringbuf_get_state(ufsf) == RINGBUF_NEED_INIT)
-		ufsringbuf_init(ufsf);
-#endif
-
 	ufsf->check_init = true;
 }
 
 inline void ufsf_reset(struct ufsf_feature *ufsf)
 {
-#if defined(CONFIG_UFSSHPB)
-	if (ufsshpb_get_state(ufsf) == HPB_RESET) {
-		INFO_MSG("reset start.. hpb_state %d", HPB_RESET);
-		ufsshpb_reset(ufsf);
-	}
-#endif
-
 #if defined(CONFIG_UFSTW)
 	if (ufstw_get_state(ufsf) == TW_RESET) {
 		INFO_MSG("reset start.. tw_state %d",
@@ -627,19 +592,10 @@ inline void ufsf_reset(struct ufsf_feature *ufsf)
 	if (ufshid_get_state(ufsf) == HID_RESET)
 		ufshid_reset(ufsf);
 #endif
-#if defined(CONFIG_UFSRINGBUF)
-	if (ufsringbuf_get_state(ufsf) == RINGBUF_RESET)
-		ufsringbuf_reset(ufsf);
-#endif
 }
 
 inline void ufsf_remove(struct ufsf_feature *ufsf)
 {
-#if defined(CONFIG_UFSSHPB)
-	if (ufsshpb_get_state(ufsf) == HPB_PRESENT)
-		ufsshpb_remove(ufsf, HPB_NEED_INIT);
-#endif
-
 #if defined(CONFIG_UFSTW)
 	if (ufstw_get_state(ufsf) == TW_PRESENT)
 		ufstw_remove(ufsf);
@@ -647,10 +603,6 @@ inline void ufsf_remove(struct ufsf_feature *ufsf)
 #if defined(CONFIG_UFSHID)
 	if (ufshid_get_state(ufsf) == HID_PRESENT)
 		ufshid_remove(ufsf);
-#endif
-#if defined(CONFIG_UFSRINGBUF)
-	if (ufsringbuf_get_state(ufsf) == RINGBUF_PRESENT)
-		ufsringbuf_remove(ufsf);
 #endif
 }
 
@@ -665,15 +617,6 @@ static void ufsf_device_check_work_handler(struct work_struct *work)
 		ufsf_device_check(ufsf->hba);
 		ufsf_init(ufsf);
 	}
-
-#if defined(CONFIG_UFSSHPB)
-	if (ufsf->check_init && ufsf->num_lu == ufsf->slave_conf_cnt) {
-		if (ufsshpb_get_state(ufsf) == HPB_WAIT_INIT) {
-			INFO_MSG("wakeup ufsshpb_init_handler");
-			wake_up(&ufsf->hpb_wait);
-		}
-	}
-#endif
 	mutex_unlock(&ufsf->device_check_lock);
 
 }
@@ -710,46 +653,50 @@ static void ufsf_reset_wait_work_handler(struct work_struct *work)
 		ufsf_reset(ufsf);
 }
 
-#if defined(CONFIG_UFSHID)
-static void ufsf_on_idle(struct work_struct *work)
+static void ufsf_resume_work_handler(struct work_struct *work)
 {
-	struct ufsf_feature *ufsf;
+	struct ufsf_feature *ufsf = container_of(work, struct ufsf_feature, resume_work);
+	struct ufs_hba *hba = ufsf->hba;
+	bool is_link_off = ufshcd_is_link_off(hba);
 
-	ufsf = container_of(work, struct ufsf_feature, on_idle_work);
-	if (ufshid_get_state(ufsf) == HID_PRESENT &&
-	    !ufsf->hba->outstanding_reqs)
-		ufshid_on_idle(ufsf);
+	/*
+	 * Resume of UFS feature should be called after power & link state
+	 * are changed to active. Therefore, it is synchronized as follows.
+	 *
+	 * System PM: waits to acquire the semaphore used by ufshcd_wl_resume()
+	 * Runtime PM: resume using ufshcd_rpm_get_sync()
+	 */
+	down(&hba->host_sem);
+	ufshcd_rpm_get_sync(hba);
+
+	if (ufshcd_is_ufs_dev_active(hba) && ufshcd_is_link_active(hba))
+		ufsf_resume(ufsf, is_link_off);
+
+	ufshcd_rpm_put(hba);
+	up(&hba->host_sem);
 }
-#endif
 
-inline void ufsf_set_init_state(struct ufsf_feature *ufsf)
+inline void ufsf_set_init_state(struct ufs_hba *hba)
 {
+	struct ufsf_feature *ufsf = ufs_mtk_get_ufsf(hba);
+
+	ufsf->hba = hba;
 	ufsf->slave_conf_cnt = 0;
 	ufsf->issue_ioctl = false;
 
 	mutex_init(&ufsf->device_check_lock);
 	INIT_WORK(&ufsf->device_check_work, ufsf_device_check_work_handler);
 	INIT_WORK(&ufsf->reset_wait_work, ufsf_reset_wait_work_handler);
-	INIT_WORK(&ufsf->reset_lu_work, ufsf_reset_lu_handler);
-
-#if defined(CONFIG_UFSSHPB)
-	ufsshpb_set_state(ufsf, HPB_NEED_INIT);
-	INIT_WORK(&ufsf->hpb_init_work, ufsshpb_init_handler);
-	init_waitqueue_head(&ufsf->hpb_wait);
-#endif
+	INIT_WORK(&ufsf->resume_work, ufsf_resume_work_handler);
 #if defined(CONFIG_UFSTW)
 	ufstw_set_state(ufsf, TW_NEED_INIT);
 #endif
 #if defined(CONFIG_UFSHID)
-	INIT_WORK(&ufsf->on_idle_work, ufsf_on_idle);
 	ufshid_set_state(ufsf, HID_NEED_INIT);
-#endif
-#if defined(CONFIG_UFSRINGBUF)
-	ufsringbuf_set_state(ufsf, RINGBUF_NEED_INIT);
 #endif
 }
 
-inline void ufsf_suspend(struct ufsf_feature *ufsf)
+inline void ufsf_suspend(struct ufsf_feature *ufsf, bool is_system_pm)
 {
 	/*
 	 * Wait completion of reset_wait_work.
@@ -760,54 +707,32 @@ inline void ufsf_suspend(struct ufsf_feature *ufsf)
 	 */
 	flush_work(&ufsf->reset_wait_work);
 
-#if defined(CONFIG_UFSSHPB)
-	/*
-	 * if suspend failed, pm could call the suspend function again,
-	 * in this case, ufsshpb state already had been changed to SUSPEND state.
-	 * so, we will not call ufsshpb_suspend.
-	 */
-	if (ufsshpb_get_state(ufsf) == HPB_PRESENT)
-		ufsshpb_suspend(ufsf);
-#endif
 #if defined(CONFIG_UFSTW)
 	if (ufstw_get_state(ufsf) == TW_PRESENT)
 		ufstw_suspend(ufsf);
 #endif
 #if defined(CONFIG_UFSHID)
 	if (ufshid_get_state(ufsf) == HID_PRESENT)
-		ufshid_suspend(ufsf);
+		ufshid_suspend(ufsf, is_system_pm);
 #endif
 }
 
 inline void ufsf_resume(struct ufsf_feature *ufsf, bool is_link_off)
 {
-#if defined(CONFIG_UFSSHPB)
-	if (ufsshpb_get_state(ufsf) == HPB_SUSPEND ||
-	    ufsshpb_get_state(ufsf) == HPB_PRESENT) {
-		if (ufsshpb_get_state(ufsf) == HPB_PRESENT)
-			WARN_MSG("warning.. hpb state PRESENT in resuming");
-		ufsshpb_resume(ufsf);
-	}
-#endif
-
 #if defined(CONFIG_UFSTW)
 	if (ufstw_get_state(ufsf) == TW_SUSPEND)
 		ufstw_resume(ufsf, is_link_off);
 #endif
 #if defined(CONFIG_UFSHID)
 	if (ufshid_get_state(ufsf) == HID_SUSPEND)
-		ufshid_resume(ufsf);
-#endif
-#if defined(CONFIG_UFSRINGBUF)
-	if (ufsringbuf_get_state(ufsf) == RINGBUF_PRESENT)
-		ufsringbuf_resume(ufsf);
+		ufshid_resume(ufsf, is_link_off);
 #endif
 }
 
 inline void ufsf_change_lun(struct ufsf_feature *ufsf,
 			    struct ufshcd_lrb *lrbp)
 {
-	int ctx_lba = LI_EN_32(lrbp->cmd->cmnd + 2);
+	int ctx_lba = get_unaligned_be32(lrbp->cmd->cmnd + 2);
 
 	if (unlikely(ufsf->issue_ioctl == true &&
 	    ctx_lba == READ10_DEBUG_LBA)) {
@@ -815,35 +740,5 @@ inline void ufsf_change_lun(struct ufsf_feature *ufsf,
 		INFO_MSG("lun 0x%X lba 0x%X", lrbp->lun, ctx_lba);
 	}
 }
-
-/*
- * Wrapper functions for ufsshpb.
- */
-#if defined(CONFIG_UFSSHPB)
-inline void ufsf_hpb_noti_rb(struct ufsf_feature *ufsf, struct ufshcd_lrb *lrbp)
-{
-	if (ufsshpb_get_state(ufsf) == HPB_PRESENT)
-		ufsshpb_rsp_upiu(ufsf, lrbp);
-}
-
-#else
-inline void ufsf_hpb_noti_rb(struct ufsf_feature *ufsf,
-			     struct ufshcd_lrb *lrbp) {}
-#endif
-
-/*
- * Wrapper functions for ufshid.
- */
-#if defined(CONFIG_UFSHID) && defined(CONFIG_UFSHID_DEBUG)
-inline void ufsf_hid_acc_io_stat(struct ufsf_feature *ufsf,
-				 struct ufshcd_lrb *lrbp)
-{
-	if (ufshid_get_state(ufsf) == HID_PRESENT)
-		ufshid_acc_io_stat_during_trigger(ufsf, lrbp);
-}
-#else
-inline void ufsf_hid_acc_io_stat(struct ufsf_feature *ufsf,
-				 struct ufshcd_lrb *lrbp) {}
-#endif
 
 MODULE_LICENSE("GPL v2");

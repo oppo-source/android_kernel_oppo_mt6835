@@ -26,7 +26,11 @@
 #include "charger_class.h"
 #include "mtk_charger.h"
 #endif
+#ifdef CONFIG_OPLUS_PD_EXT_SUPPORT
+#include "../oplus/pd_ext/inc/tcpm.h"
+#else
 #include <tcpm.h>
+#endif
 
 #include <linux/mfd/mt6360-private.h>
 
