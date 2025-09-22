@@ -12,6 +12,10 @@
 #include "mtk_imgsys-worker.h"
 #include "mtk_imgsys-trace.h"
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif /* OPLUS_FEATURE_CAMERA_COMMON */
+
 int imgsys_queue_init(struct imgsys_queue *que, struct device *dev, char *name)
 {
 	int ret = 0;

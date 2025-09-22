@@ -29,6 +29,7 @@
 	supports-cqe;
 	dvfsrc-vcore-supply = <&dvfsrc_vcore>;
 	req-vcore = <650000>;
+	cap-mmc-hw-reset;
 };
 
 &mmc1 {
@@ -47,7 +48,7 @@
 	sd-uhs-sdr104;
 	sd-uhs-ddr50;
 	cd-debounce-delay-ms = <0>;
-	cd-gpios = <&pio 14 GPIO_ACTIVE_LOW>;
+	cd-gpios = <&pio 14 GPIO_ACTIVE_HIGH>;
 	no-mmc;
 	no-sdio;
 	dvfsrc-vcore-supply = <&dvfsrc_vcore>;
@@ -124,7 +125,7 @@
 				<PINMUX_GPIO78__FUNC_MSDC1_DAT3>,
 				<PINMUX_GPIO74__FUNC_MSDC1_CMD>;
 			input-enable;
-			drive-strength = <3>;
+			drive-strength = <2>;
 			bias-pull-up = <MTK_PUPD_SET_R1R0_01>;
 		};
 
@@ -142,7 +143,7 @@
 				<PINMUX_GPIO78__FUNC_MSDC1_DAT3>,
 				<PINMUX_GPIO74__FUNC_MSDC1_CMD>;
 			input-enable;
-			drive-strength = <3>;
+			drive-strength = <2>;
 			bias-pull-up = <MTK_PUPD_SET_R1R0_01>;
 		};
 

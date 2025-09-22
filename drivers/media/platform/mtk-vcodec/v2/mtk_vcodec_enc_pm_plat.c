@@ -3,6 +3,7 @@
  * Copyright (c) 2016 MediaTek Inc.
  * Author: Tiffany Lin <tiffany.lin@mediatek.com>
  */
+
 #include <linux/module.h>
 #include <linux/of_address.h>
 #include <linux/of_platform.h>
@@ -232,7 +233,7 @@ static bool mtk_enc_tput_init(struct mtk_vcodec_dev *dev)
 			return false;
 		}
 	}
-	mtk_venc_pmqos_monitor_init(dev);
+   mtk_venc_pmqos_monitor_init(dev);
 #ifdef VENC_PRINT_DTS_INFO
 	mtk_v4l2_debug(0, "[VENC] tput_cnt %d, cfg_cnt %d, larb_cnt %d\n",
 		dev->venc_tput_cnt, dev->venc_cfg_cnt, dev->venc_larb_cnt);
@@ -528,11 +529,11 @@ void mtk_venc_pmqos_monitor_reset(struct mtk_vcodec_dev *dev)
 {
 	struct vcodec_dev_qos *dev_qos = &dev->venc_dev_qos;
 
-	if (venc_pmqos_monitor > 0) {
-		mtk_v4l2_debug(0, "[VQOS] pmqos_monitor is enable");
-	} else {
+	if (venc_pmqos_monitor <= 0) {
 		mtk_v4l2_debug(0, "[VQOS] no pmqos_monitor");
 		return;
+	} else {
+		mtk_v4l2_debug(0, "[VQOS] pmqos_monitor is enable");
 	}
 
 	mtk_v4l2_debug(4, "[VQOS] reset pmqos monitor");
@@ -566,7 +567,7 @@ void mtk_venc_pmqos_monitor(struct mtk_vcodec_dev *dev, u32 state)
 		smi_monitor_stop(NULL, 0, data_comm0, 3); // common 0, will update SMI_MONITOR ID
 		smi_monitor_stop(NULL, 17, data_comm1, 0); // common 1, will update SMI_MONITOR ID
 
-		dev_qos->data_total[SMI_COMMON_ID_0][SMI_READ] += data_comm0[0];
+		dev_qos->data_total[SMI_COMMON_ID_0][SMI_READ] += data_comm0[0]; // MB
 		dev_qos->data_total[SMI_COMMON_ID_0][SMI_WRITE] += data_comm0[1];
 
 		dev_qos->data_total[SMI_COMMON_ID_17][SMI_READ] += data_comm1[0];

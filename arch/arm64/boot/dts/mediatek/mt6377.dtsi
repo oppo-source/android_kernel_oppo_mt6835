@@ -132,8 +132,8 @@
 
 		mt6377keys: mt6377keys {
 			compatible = "mediatek,mt6377-keys";
-			mediatek,long-press-mode = <1>;
-			power-off-time-sec = <0>;
+			mediatek,long-press-mode = <2>;
+			power-off-time-sec = <1>;
 
 			power {
 				linux,keycodes = <116>;

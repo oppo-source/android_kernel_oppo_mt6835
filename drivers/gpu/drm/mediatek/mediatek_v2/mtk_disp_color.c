@@ -62,6 +62,9 @@ static int g_color_reg_valid;
 static unsigned int g_width;
 
 bool g_legacy_color_cust;
+#ifdef OPLUS_FEATURE_DISPLAY
+extern bool g_color_probe_ready;
+#endif
 
 #define C1_OFFSET (0)
 #define color_get_offset(module) (0)
@@ -3544,6 +3547,7 @@ static void ddp_color_restore(struct mtk_ddp_comp *comp)
 static void mtk_color_prepare(struct mtk_ddp_comp *comp)
 {
 	struct mtk_disp_color *color = comp_to_color(comp);
+	bool is_color_restore = (g_color_backup.COLOR_CFG_MAIN != 0);
 
 	mtk_ddp_comp_clk_prepare(comp);
 	atomic_set(&g_color_is_clock_on[index_of_color(comp->id)], 1);
@@ -3554,7 +3558,8 @@ static void mtk_color_prepare(struct mtk_ddp_comp *comp)
 			DISP_COLOR_SHADOW_CTRL, COLOR_BYPASS_SHADOW);
 
 	// restore DISP_COLOR_CFG_MAIN register
-	ddp_color_restore(comp);
+	if (is_color_restore)
+		ddp_color_restore(comp);
 }
 
 static void mtk_color_unprepare(struct mtk_ddp_comp *comp)
@@ -3710,6 +3715,9 @@ static int mtk_disp_color_probe(struct platform_device *pdev)
 	}
 
 	g_legacy_color_cust = false;
+#ifdef OPLUS_FEATURE_DISPLAY
+	g_color_probe_ready = true;
+#endif
 	DDPINFO("%s-\n", __func__);
 
 	return ret;

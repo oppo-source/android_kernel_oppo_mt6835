@@ -176,6 +176,8 @@ struct scp_region_info_st {
 	uint32_t regdump_start;
 	uint32_t regdump_size;
 	uint32_t ap_params_start;
+	uint32_t scp_dram_region;
+	uint32_t sensor_data_addr;
 };
 
 struct scp_reg_dump_st {

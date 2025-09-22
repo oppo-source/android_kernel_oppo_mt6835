@@ -25,4 +25,28 @@
 
 #define AW3644_DTNAME_I2C "mediatek,strobe_main"
 #define AW3644_DTNAME     "mediatek,flashlights_aw3644"
+
+#define ALADDIN_DTNAME    "mediatek,flashlights_avatarl5"
+#define ALADDIN_DTNAME_I2C "mediatek,strobe_main"
+
+#define RADO_DTNAME    "mediatek,flashlights_rado"
+#define RADO_DTNAME_I2C "mediatek,strobe_main"
+
+#define DONGFENG_DTNAME      "mediatek,flashlights_dongfeng"
+#define DONGFENG_DTNAME_I2C  "mediatek,strobe_main"
+
+#define CHOPARD_DTNAME      "mediatek,flashlights_chopard"
+#define CHOPARD_DTNAME_I2C  "mediatek,strobe_main"
+
+#define MUMBAI_DTNAME      "mediatek,flashlights_mumbai"
+#define MUMBAI_DTNAME_I2C  "mediatek,strobe_main"
+
+#define ALPHALF_DTNAME    "mediatek,flashlights_alphal5"
+#define ALPHALF_DTNAME_I2C "mediatek,strobe_main"
+
+#define BAIKALL5_DTNAME    "mediatek,flashlights_baikall5"
+#define BAIKALl5_DTNAME_I2C "mediatek,strobe_main"
+
+#define ALPHAB5_DTNAME    "mediatek,flashlights_alphab5"
+#define ALPHAB5_DTNAME_I2C "mediatek,strobe_main"
 #endif /* _FLASHLIGHT_DT_H */

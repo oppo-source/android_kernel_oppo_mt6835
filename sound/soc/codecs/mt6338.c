@@ -32,6 +32,10 @@
 #include <linux/mfd/mt6685-audclk.h>
 #endif
 
+#ifndef OPLUS_ARCH_EXTENDS
+#define OPLUS_ARCH_EXTENDS
+#endif
+
 #define MTKAIFV4_SUPPORT
 #define MAX_DEBUG_WRITE_INPUT 256
 #define CODEC_SYS_DEBUG_SIZE (1024 * 48) // 32K
@@ -3865,10 +3869,16 @@ static int mt_mic_bias_0_event(struct snd_soc_dapm_widget *w,
 		}
 
 		/* MISBIAS0 = 1P9V */
+#ifdef OPLUS_ARCH_EXTENDS
+		regmap_update_bits(priv->regmap, MT6338_AUDENC_PMU_CON59,
+			RG_AUDMICBIAS0VREF_MASK_SFT,
+			MIC_BIAS_2P7 << RG_AUDMICBIAS0VREF_SFT);
+#else
 		regmap_update_bits(priv->regmap, MT6338_AUDENC_PMU_CON59,
 				   RG_AUDMICBIAS0VREF_MASK_SFT,
 				   priv->micbias_val[MUX_MIC_TYPE_0] <<
 				   RG_AUDMICBIAS0VREF_SFT);
+#endif
 		if (priv->vow_setup) {
 			regmap_update_bits(priv->regmap, MT6338_AUDENC_PMU_CON59,
 				RG_AUDMICBIAS0LOWPEN_MASK_SFT,
@@ -3923,6 +3933,11 @@ static int mt_mic_bias_1_event(struct snd_soc_dapm_widget *w,
 		regmap_update_bits(priv->regmap, MT6338_AUDENC_PMU_CON62,
 			RG_AUDMICBIAS1DCSW1PEN_MASK_SFT,
 			0x0 << RG_AUDMICBIAS1DCSW1PEN_SFT);
+#ifdef OPLUS_ARCH_EXTENDS
+		regmap_update_bits(priv->regmap, MT6338_AUDENC_PMU_CON61,
+			RG_AUDMICBIAS1VREF_MASK_SFT,
+			MIC_BIAS_2P7 << RG_AUDMICBIAS1VREF_SFT);
+#endif
 		if (priv->vow_setup) {
 			regmap_update_bits(priv->regmap, MT6338_AUDENC_PMU_CON61,
 				RG_AUDMICBIAS1LOWPEN_MASK_SFT,
@@ -3983,10 +3998,16 @@ static int mt_mic_bias_2_event(struct snd_soc_dapm_widget *w,
 		}
 
 		/* MISBIAS2 = 1P9V */
+#ifdef OPLUS_ARCH_EXTENDS
+		regmap_update_bits(priv->regmap, MT6338_AUDENC_PMU_CON63,
+			RG_AUDMICBIAS2VREF_MASK_SFT,
+			MIC_BIAS_2P7 << RG_AUDMICBIAS2VREF_SFT);
+#else
 		regmap_update_bits(priv->regmap, MT6338_AUDENC_PMU_CON63,
 				   RG_AUDMICBIAS2VREF_MASK_SFT,
 				   priv->micbias_val[MUX_MIC_TYPE_2] <<
 				   RG_AUDMICBIAS2VREF_SFT);
+#endif
 		if (priv->vow_setup) {
 			regmap_update_bits(priv->regmap, MT6338_AUDENC_PMU_CON63,
 				RG_AUDMICBIAS2LOWPEN_MASK_SFT,
@@ -4051,10 +4072,16 @@ static int mt_mic_bias_3_event(struct snd_soc_dapm_widget *w,
 		}
 
 		/* MISBIAS3 = 1P9V */
+#ifdef OPLUS_ARCH_EXTENDS
+		regmap_update_bits(priv->regmap, MT6338_AUDENC_PMU_CON65,
+			RG_AUDMICBIAS3VREF_MASK_SFT,
+			MIC_BIAS_2P7 << RG_AUDMICBIAS3VREF_SFT);
+#else
 		regmap_update_bits(priv->regmap, MT6338_AUDENC_PMU_CON65,
 				   RG_AUDMICBIAS3VREF_MASK_SFT,
 				   priv->micbias_val[MUX_MIC_TYPE_3] <<
 				   RG_AUDMICBIAS3VREF_SFT);
+#endif
 		if (priv->vow_setup) {
 			regmap_update_bits(priv->regmap, MT6338_AUDENC_PMU_CON65,
 				RG_AUDMICBIAS3LOWPEN_MASK_SFT,
@@ -10705,8 +10732,14 @@ static int mt6338_codec_init_reg(struct mt6338_priv *priv)
 #ifdef NLE_IMP
 	hp_gain_ctl_select(priv, priv->hp_gain_ctl);
 #endif
+
+#ifdef OPLUS_ARCH_EXTENDS
+	priv->hp_hifi_mode = 1;
+#else /* OPLUS_ARCH_EXTENDS */
 	/* hp hifi mode, default normal mode */
 	priv->hp_hifi_mode = 0;
+#endif /* OPLUS_ARCH_EXTENDS */
+
 	/* mic hifi mode, default hifi mode */
 	priv->mic_hifi_mode = 0;
 	/* mic type setting */

@@ -12,6 +12,10 @@
 
 #define MTK_CAM_INITIAL_REQ_SYNC 0
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif /* OPLUS_FEATURE_CAMERA_COMMON */
+
 struct mtk_cam_device;
 struct mtk_raw_device;
 
@@ -145,6 +149,10 @@ struct mtk_camsys_sensor_ctrl {
 	struct mtk_cam_request *link_change_req;
 	/* ext isp case sof source from PD */
 	u32 extisp_sof_source;
+	#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	/* ext isp case detect repeated key */
+	u32 extisp_sv_key;
+	#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 };
 
 enum {
@@ -203,6 +211,7 @@ void mtk_cam_req_seninf_change(struct mtk_cam_request *req);
 void mtk_cam_frame_done_work(struct work_struct *work);
 void mtk_cam_m2m_done_work(struct work_struct *work);
 void mtk_cam_meta1_done_work(struct work_struct *work);
+void mtk_cam_extmeta_done_work(struct work_struct *work);
 void mtk_cam_m2m_enter_cq_state(struct mtk_camsys_ctrl_state *ctrl_state);
 bool is_first_request_sync(struct mtk_cam_ctx *ctx);
 void

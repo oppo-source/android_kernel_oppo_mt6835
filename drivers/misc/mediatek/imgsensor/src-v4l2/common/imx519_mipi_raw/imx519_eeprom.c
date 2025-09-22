@@ -69,7 +69,7 @@ static DEFINE_MUTEX(gimx519_eeprom_mutex);
 static bool selective_read_eeprom(struct subdrv_ctx *ctx,
 		kal_uint16 addr, BYTE *data)
 {
-	if (addr > IMX519_MAX_OFFSET)
+	if (addr >= IMX519_MAX_OFFSET)
 		return false;
 
 	if (adaptor_i2c_rd_u8(ctx->i2c_client, IMX519_EEPROM_READ_ID >> 1,

@@ -797,7 +797,9 @@ struct SYSREG_LDO_CTRL0_REG {
 
 struct SYSREG_LDO_CTRL1_REG {
 	unsigned RG_PHYLDO2_EN  : 1;
-	unsigned REG_01 : 28;
+	unsigned REG_01 : 16;
+	unsigned RG_PHYLDO2_VOSEL : 4;
+	unsigned REG_21 : 8;
 	unsigned RG_PHYLDO1_LP_EN : 1;
 	unsigned REG_30 : 2;
 };

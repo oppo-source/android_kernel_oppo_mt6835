@@ -7,6 +7,7 @@
 
 #include <linux/err.h>
 #include <linux/module.h>
+#include <linux/platform_device.h>
 #include <linux/completion.h>
 #include <linux/kfifo.h>
 #include <linux/spinlock.h>
@@ -27,6 +28,14 @@
 #include "debug.h"
 #include "custom_cmd.h"
 #include "sensor_freq.h"
+#if IS_ENABLED (CONFIG_OPLUS_FEATURE_MTK_LOW_SENSOR_FREQ)
+#include <linux/of.h>
+#endif
+
+#if IS_ENABLED (CONFIG_OPLUS_FEATURE_MTK_LOW_SENSOR_FREQ)
+static bool low_freq_support = false ;
+static bool get_support_acc_low_freq(void);
+#endif
 
 struct transceiver_config {
 	uint8_t length;
@@ -150,7 +159,28 @@ static bool transceiver_wakeup_check(uint8_t action, uint8_t sensor_type)
 			sensor_type == SENSOR_TYPE_MOTION_DETECT ||
 			sensor_type == SENSOR_TYPE_IN_POCKET ||
 			sensor_type == SENSOR_TYPE_ANSWER_CALL ||
-			sensor_type == SENSOR_TYPE_FLAT))
+			sensor_type == SENSOR_TYPE_FLAT ||
+//#ifdef OPLUS_SENSOR_FEATURE add for oplus virtual sensor
+			sensor_type == SENSOR_TYPE_SENSOR_MONITOR ||
+			sensor_type == SENSOR_TYPE_LUX_AOD ||
+			sensor_type == SENSOR_TYPE_PICKUP_DETECT ||
+			sensor_type == SENSOR_TYPE_FP_DISPLAY ||
+			sensor_type == SENSOR_TYPE_HOLSTER_HALL ||
+			sensor_type == SENSOR_TYPE_PHONE_PROX ||
+			sensor_type == SENSOR_TYPE_GESTURE_PROX ||
+			sensor_type == SENSOR_TYPE_FOLD_STATE ||
+			sensor_type == SENSOR_TYPE_REAR_PROXIMITY ||
+			sensor_type == SENSOR_TYPE_AMBIENTE_PROX ||
+			sensor_type == SENSOR_TYPE_AP_TIMER ||
+			sensor_type == SENSOR_TYPE_POCKET ||
+			sensor_type == SENSOR_TYPE_ULTRASOUND_PROX ||
+			sensor_type == SENSOR_TYPE_FREE_FALL ||
+			sensor_type == SENSOR_TYPE_OPLUS_SLEEP ||
+			sensor_type == SENSOR_TYPE_FLIGHT_DETECT ||
+			sensor_type == SENSOR_TYPE_PALM_DETECT ||
+			sensor_type == SENSOR_TYPE_CHOP_DETECT ||
+			sensor_type == SENSOR_TYPE_OPLUS_FLAT))
+//#endif
 		return true;
 
 	return false;
@@ -203,6 +233,14 @@ static void transceiver_update_config(struct transceiver_device *dev,
 	case SENSOR_TYPE_GYROSCOPE:
 		transceiver_copy_config(dst, src, 12, 12, 24);
 		break;
+/* #ifdef OPLUS_FEATURE_SENSOR */
+	case SENSOR_TYPE_SUB_ACCELEROMETER:
+		transceiver_copy_config(dst, src, 12, 12, 0);
+		break;
+	case SENSOR_TYPE_SUB_GYROSCOPE:
+		transceiver_copy_config(dst, src, 12, 12, 24);
+		break;
+/* #endif */
 	default:
 		/*
 		 * NOTE: default branch only handle CALI_ACTION.
@@ -292,6 +330,7 @@ static int transceiver_translate(struct transceiver_device *dev,
 		case SENSOR_TYPE_ACCELEROMETER:
 		case SENSOR_TYPE_MAGNETIC_FIELD:
 		case SENSOR_TYPE_GYROSCOPE:
+		case SENSOR_TYPE_PROXIMITY:
 			dst->word[0] = src->value[0];
 			dst->word[1] = src->value[1];
 			dst->word[2] = src->value[2];
@@ -328,7 +367,6 @@ static int transceiver_translate(struct transceiver_device *dev,
 			break;
 		case SENSOR_TYPE_LIGHT:
 		case SENSOR_TYPE_PRESSURE:
-		case SENSOR_TYPE_PROXIMITY:
 		case SENSOR_TYPE_STEP_COUNTER:
 			dst->word[0] = src->value[0];
 			break;
@@ -751,6 +789,21 @@ static int transceiver_create_manager(struct transceiver_device *dev)
 	return hf_manager_create(hf_dev);
 }
 
+int get_support_sensor_list(struct sensor_info *list)
+{
+	int ret = 0;
+
+	if (list) {
+		struct transceiver_device *dev = &transceiver_dev;
+		memcpy(list, dev->support_list, sizeof(dev->support_list));
+	} else {
+		ret = -1;
+		pr_err("list is NULL\n");
+	}
+	return ret;
+}
+EXPORT_SYMBOL_GPL(get_support_sensor_list);
+
 static void transceiver_destroy_manager(struct transceiver_device *dev)
 {
 	hf_manager_destroy(dev->hf_dev.manager);
@@ -847,12 +900,48 @@ static int transceiver_shm_super_cfg(struct share_mem_config *cfg,
 	return share_mem_init(&dev->shm_super_reader, cfg);
 }
 
+static void mtk_sensorhub_shutdown(struct platform_device *pdev)
+{
+	int id = 0;
+	int ret = 0;
+	struct transceiver_state *state = transceiver_dev.state;
+
+	pr_err("mtk_sensorhub_shutdown\n");
+	mutex_lock(&transceiver_dev.enable_lock);
+	for (id = 0; id < SENSOR_TYPE_SENSOR_MAX; id++) {
+		if (state[id].enable) {
+			ret = transceiver_comm_with(id,
+						SENS_COMM_CTRL_DISABLE_CMD, NULL, 0);
+			state[id].batch.delay = S64_MAX;
+			state[id].batch.latency = S64_MAX;
+			state[id].enable = false;
+			if (ret < 0)
+				pr_err("fail to set sensor:%d in shutdwn\n", id);
+		}
+	}
+	mutex_unlock(&transceiver_dev.enable_lock);
+}
+
+static struct platform_device mtk_sensorhub_pdev = {
+	.name = "mtk_sensorhub",
+	.id = -1,
+};
+
+static struct platform_driver mtk_sensorhub_pdrv = {
+	.driver = {
+	   .name = "mtk_sensorhub",
+	},
+	.shutdown = mtk_sensorhub_shutdown,
+};
+
 static int __init transceiver_init(void)
 {
 	int ret = 0;
 	struct transceiver_device *dev = &transceiver_dev;
 	struct sched_param param = { .sched_priority = MAX_RT_PRIO / 2 };
-
+#if IS_ENABLED (CONFIG_OPLUS_FEATURE_MTK_LOW_SENSOR_FREQ)
+	get_support_acc_low_freq();
+#endif
 	mutex_init(&dev->enable_lock);
 	mutex_init(&dev->flush_lock);
 	mutex_init(&dev->config_lock);
@@ -970,8 +1059,22 @@ static int __init transceiver_init(void)
 		goto out_ready;
 	}
 
+	ret = platform_device_register(&mtk_sensorhub_pdev);
+	if (ret) {
+		pr_err("platform dev reg fail,ret:%d\n", ret);
+		goto out_ready;
+	}
+
+	ret = platform_driver_register(&mtk_sensorhub_pdrv);
+	if (ret) {
+		pr_err("platform drv reg fail,ret:%d\n", ret);
+		goto err_unregister_device;
+	}
+
 	return 0;
 
+err_unregister_device:
+	platform_device_unregister(&mtk_sensorhub_pdev);
 out_ready:
 	host_ready_exit();
 	sensor_ready_notifier_chain_unregister(&transceiver_ready_notifier);
@@ -1025,6 +1128,32 @@ static void __exit transceiver_exit(void)
 	wakeup_source_unregister(dev->wakeup_src);
 	transceiver_destroy_manager(dev);
 }
+
+#if IS_ENABLED (CONFIG_OPLUS_FEATURE_MTK_LOW_SENSOR_FREQ)
+bool is_support_acc_low_freq(void)
+{
+     return low_freq_support ? true : false;
+}
+#endif
+
+#if IS_ENABLED (CONFIG_OPLUS_FEATURE_MTK_LOW_SENSOR_FREQ)
+static bool get_support_acc_low_freq(void)
+{
+  	struct device_node *node;
+  	bool ret = false;
+
+  	node = of_find_compatible_node(NULL, NULL, "oplus,low_acc_speed");
+  	if (node == NULL) {
+  		pr_err("Can't find oplus,low_acc_speed node\n");
+  		goto out;
+  	}
+  	ret = of_property_read_bool(node,"low_acc_speed");
+  	pr_err("low_acc_speed is %d\n", ret);
+  	low_freq_support = ret;
+  out:
+  	return ret;
+}
+#endif
 
 module_init(transceiver_init);
 module_exit(transceiver_exit);

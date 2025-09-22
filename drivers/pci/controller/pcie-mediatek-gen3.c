@@ -128,6 +128,13 @@ u32 mtk_pcie_dump_link_info(int port);
 #define PCIE_MSI_SET_ADDR_HI_BASE	0xc80
 #define PCIE_MSI_SET_ADDR_HI_OFFSET	0x04
 
+#define PCIE_RESOURCE_CTRL		0xd2c
+#define PCIE_SYS_CLK_RDY_TIME_MASK	GENMASK(7, 0)
+#define PCIE_SYS_CLK_RDY_TIME(x)	((x) & PCIE_SYS_CLK_RDY_TIME_MASK)
+#define PCIE_SYS_CLK_RDY_MAX		254
+
+#define PHY_ERR_DEBUG_LANE0		0xD40
+
 #define PCIE_MSI_GRP2_SET_OFFSET	0xDC0
 #define PCIE_MSI_GRPX_PER_SET_OFFSET	4
 #define PCIE_MSI_GRP3_SET_OFFSET	0xDE0
@@ -272,6 +279,7 @@ struct mtk_pcie_port {
 	struct mutex vote_lock;
 	bool ep_hw_mode_en;
 	bool rc_hw_mode_en;
+	bool hw_flag;
 	DECLARE_BITMAP(msi_irq_in_use, PCIE_MSI_IRQS_NUM);
 };
 
@@ -459,10 +467,27 @@ static int mtk_pcie_startup_port(struct mtk_pcie_port *port)
 		val |= PCIE_P2_EXIT_BY_CLKREQ | PCIE_P2_IDLE_TIME(8);
 		writel_relaxed(val, port->base + PCIE_ASPM_CTRL);
 
+		/* Check the sleep protect ready */
+		err = readl_poll_timeout(port->vlpcfg_base +
+					 PCIE_VLP_AXI_PROTECT_STA, val,
+					 !(val & PCIE_PHY0_SLP_READY_MASK),
+					 20, 50 * USEC_PER_MSEC);
+		if (err) {
+			dev_info(port->dev, "PCIe sleep protect not ready, %#x\n",
+				 readl_relaxed(port->vlpcfg_base +
+				 PCIE_VLP_AXI_PROTECT_STA));
+			return err;
+		}
+
 		mtk_pcie_mt6985_fixup();
 
 		/* Software enable BBCK2 */
 		clk_buf_voter_ctrl_by_id(7, SW_FPM);
+
+		/* Enable Bypass BBCK2 */
+		val = readl_relaxed(port->pextpcfg + PEXTP_RSV_0);
+		val |= PCIE_BBCK2_BYPASS;
+		writel_relaxed(val, port->pextpcfg + PEXTP_RSV_0);
 	}
 
 	/* Mask all INTx interrupts */
@@ -1308,7 +1333,6 @@ int mtk_pcie_remove_port(int port)
 }
 EXPORT_SYMBOL(mtk_pcie_remove_port);
 
-#if IS_ENABLED(CONFIG_ANDROID_FIX_PCIE_SLAVE_ERROR)
 static void pcie_android_rvh_do_serror(void *data, struct pt_regs *regs,
 				       unsigned int esr, int *ret)
 {
@@ -1350,6 +1374,11 @@ static void pcie_android_rvh_do_serror(void *data, struct pt_regs *regs,
 	pr_info("debug recovery:%#x\n",
 		readl_relaxed(pcie_port->base + PCIE_DEBUG_MONITOR));
 
+	writel_relaxed(0x48494a4b, pcie_port->base + PCIE_DEBUG_SEL_0);
+	writel_relaxed(0xcccc0100, pcie_port->base + PCIE_DEBUG_SEL_1);
+	pr_info("debug part=c, bus=0x48494a4b, monitor=%#x\n",
+		readl_relaxed(pcie_port->base + PCIE_DEBUG_MONITOR));
+
 	pr_info("ltssm reg: %#x, PCIe interrupt status=%#x, AXI0 ERROR address=%#x, AXI0 ERROR status=%#x\n",
 		readl_relaxed(pcie_port->base + PCIE_LTSSM_STATUS_REG),
 		readl_relaxed(pcie_port->base + PCIE_INT_STATUS_REG),
@@ -1359,8 +1388,9 @@ static void pcie_android_rvh_do_serror(void *data, struct pt_regs *regs,
 	val = readl_relaxed(pcie_port->base + PCIE_INT_STATUS_REG);
 	if (val & PCIE_AXI_READ_ERR)
 		*ret = 1;
+
+	dump_stack();
 }
-#endif
 
 /**
  * mtk_pcie_dump_link_info() - Dump PCIe RC information
@@ -1377,6 +1407,7 @@ u32 mtk_pcie_dump_link_info(int port)
 	struct platform_device *pdev;
 	struct mtk_pcie_port *pcie_port;
 	u32 val, ret_val = 0;
+	void __iomem *pcie_phy_sif;
 
 	pcie_node = mtk_pcie_find_node_by_port(port);
 	if (!pcie_node) {
@@ -1404,6 +1435,19 @@ u32 mtk_pcie_dump_link_info(int port)
 		return 0;
 	}
 
+	/* Debug monitor pcie design internal signal */
+	writel_relaxed(0x48494a4b, pcie_port->base + PCIE_DEBUG_SEL_0);
+	writel_relaxed(0xcccc0100, pcie_port->base + PCIE_DEBUG_SEL_1);
+	pr_info("debug part=c, bus=0x48494a4b, monitor=%#x\n",
+		readl_relaxed(pcie_port->base + PCIE_DEBUG_MONITOR));
+
+	/* Debug PHY TPLL */
+	pcie_phy_sif = ioremap(PCIE_PHY_SIF, 0x100);
+	writel_relaxed(0x0, pcie_phy_sif);
+	writel_relaxed(0x3c, pcie_phy_sif + 0x4);
+	pr_info("PHY TPLL=%#x\n", readl_relaxed(pcie_phy_sif + 0xD0));
+	iounmap(pcie_phy_sif);
+
 	pr_info("ltssm reg:%#x, link sta:%#x, power sta:%#x, IP basic sta:%#x, int sta:%#x, axi err add:%#x, axi err info:%#x\n",
 		readl_relaxed(pcie_port->base + PCIE_LTSSM_STATUS_REG),
 		readl_relaxed(pcie_port->base + PCIE_LINK_STATUS_REG),
@@ -1412,12 +1456,13 @@ u32 mtk_pcie_dump_link_info(int port)
 		readl_relaxed(pcie_port->base + PCIE_INT_STATUS_REG),
 		readl_relaxed(pcie_port->base + PCIE_AXI0_ERR_ADDR_L),
 		readl_relaxed(pcie_port->base + PCIE_AXI0_ERR_INFO));
-	pr_info("clock gate:%#x, PCIe HW MODE BIT:%#x, Modem HW MODE BIT:%#x, slp ready:%#x\n",
+	pr_info("clock gate:%#x, PCIe HW MODE BIT:%#x, Modem HW MODE BIT:%#x, slp ready:%#x, phy err=%#x\n",
 		readl_relaxed(pcie_port->pextpcfg + PCIE_PEXTP_CG_0),
 		readl_relaxed(pcie_port->pextpcfg + PEXTP_PWRCTL_0),
 		readl_relaxed(pcie_port->pextpcfg + PEXTP_RSV_0),
 		readl_relaxed(pcie_port->vlpcfg_base +
-			      PCIE_VLP_AXI_PROTECT_STA));
+			      PCIE_VLP_AXI_PROTECT_STA),
+		readl_relaxed(pcie_port->base + PHY_ERR_DEBUG_LANE0));
 
 	val = readl_relaxed(pcie_port->base + PCIE_LTSSM_STATUS_REG);
 	ret_val |= PCIE_LTSSM_STATE(val);
@@ -1731,6 +1776,24 @@ int mtk_pcie_hw_control_vote(int port, bool hw_mode_en, u8 who)
 }
 EXPORT_SYMBOL(mtk_pcie_hw_control_vote);
 
+static void mtk_pcie_adjust_sys_clk(struct mtk_pcie_port *port, u32 time)
+{
+	u32 val = 0;
+
+	if (time > PCIE_SYS_CLK_RDY_MAX) {
+		dev_info(port->dev, "required time %d out of range, set it as maximum: %d\n",
+			 time, PCIE_SYS_CLK_RDY_MAX);
+		time = PCIE_SYS_CLK_RDY_MAX;
+	}
+
+	val = readl_relaxed(port->base + PCIE_RESOURCE_CTRL);
+	val &= ~PCIE_SYS_CLK_RDY_TIME_MASK;
+	val |= PCIE_SYS_CLK_RDY_TIME(time);
+	writel_relaxed(val, port->base + PCIE_RESOURCE_CTRL);
+	dev_info(port->dev, "pcie sys_clk_rdy_time=%#x\n",
+		 readl_relaxed(port->base + PCIE_RESOURCE_CTRL));
+}
+
 static int __maybe_unused mtk_pcie_suspend_noirq(struct device *dev)
 {
 	struct mtk_pcie_port *port = dev_get_drvdata(dev);
@@ -1743,6 +1806,8 @@ static int __maybe_unused mtk_pcie_suspend_noirq(struct device *dev)
 			 readl_relaxed(port->base + PCIE_ISTATUS_PM));
 
 		if (port->port_num == 0) {
+			mtk_pcie_adjust_sys_clk(port, 250);
+
 			err = mtk_pcie_hw_control_vote(0, true, 0);
 			if (err)
 				return err;
@@ -1756,18 +1821,25 @@ static int __maybe_unused mtk_pcie_suspend_noirq(struct device *dev)
 		clk_buf_set_voter_by_name("XO_BBCK2", "0x2C1");
 
 		/* Need wait take effect */
-		udelay(400);
+		udelay(500);
 
 		/* Enable Bypass BBCK2 */
 		val = readl_relaxed(port->pextpcfg + PEXTP_RSV_0);
 		val |= PCIE_BBCK2_BYPASS;
 		writel_relaxed(val, port->pextpcfg + PEXTP_RSV_0);
 
-		/* BBCK2 is controlled by itself hardware mode */
-		clk_buf_voter_ctrl_by_id(7, HW);
+		port->hw_flag = false;
+		val = readl_relaxed(port->pextpcfg + PEXTP_PWRCTL_0);
+		val &= PCIE_HW_MTCMOS_EN_P0;
+		if (val) {
+			port->hw_flag = true;
+			clk_buf_voter_ctrl_by_id(7, HW);
+			dev_info(port->dev, "Hardware control 26M\n");
+		}
 
 		/* srclken rc request state */
-		dev_info(port->dev, "PCIe0 Modem HW MODE BIT=%#x, srclken rc state=%#x\n",
+		dev_info(port->dev, "RC HW mode bit=%#x,PCIe0 Modem HW MODE BIT=%#x, srclken rc state=%#x\n",
+			 readl_relaxed(port->pextpcfg + PEXTP_PWRCTL_0),
 			 readl_relaxed(port->pextpcfg + PEXTP_RSV_0),
 			 readl_relaxed(port->vlpcfg_base + SRCLKEN_RC_REQ_STA));
 	} else {
@@ -1799,11 +1871,13 @@ static int __maybe_unused mtk_pcie_resume_noirq(struct device *dev)
 	u32 val;
 
 	if (port->suspend_mode == LINK_STATE_L12) {
-		/* Software enable BBCK2 */
-		clk_buf_voter_ctrl_by_id(7, SW_FPM);
+		if (port->hw_flag) {
+			clk_buf_voter_ctrl_by_id(7, SW_FPM);
+			dev_info(port->dev, "Software control 26M AO\n");
+		}
 
 		/* Need wait take effect */
-		udelay(400);
+		udelay(500);
 
 		/* Unbinding of BBCK1 and BBCK2 */
 		clk_buf_set_voter_by_name("XO_BBCK2", "0x2C0");
@@ -1813,8 +1887,13 @@ static int __maybe_unused mtk_pcie_resume_noirq(struct device *dev)
 			if (err)
 				return err;
 
-			dev_info(port->dev, "Modem HW MODE BIT=%#x\n",
-				 readl_relaxed(port->pextpcfg + PEXTP_RSV_0));
+			mtk_pcie_adjust_sys_clk(port, 3);
+
+			dev_info(port->dev, "RC HW mode bit=%#x, Modem HW MODE BIT=%#x, SPM ready:%#x, BBCK2:%#x\n",
+				 readl_relaxed(port->pextpcfg + PEXTP_PWRCTL_0),
+				 readl_relaxed(port->pextpcfg + PEXTP_RSV_0),
+				 readl_relaxed(port->vlpcfg_base + SRCLKEN_SPM_REQ_STA),
+				 readl_relaxed(port->vlpcfg_base + SRCLKEN_RC_REQ_STA));
 		} else if (port->port_num == 1) {
 			val = readl_relaxed(port->pextpcfg + PEXTP_PWRCTL_1);
 			val &= ~PCIE_HW_MTCMOS_EN_P1;
@@ -1861,14 +1940,12 @@ static struct platform_driver mtk_pcie_driver = {
 
 static int mtk_pcie_init_func(void *pvdev)
 {
-#if IS_ENABLED(CONFIG_ANDROID_FIX_PCIE_SLAVE_ERROR)
 	int err = 0;
 
 	err = register_trace_android_rvh_do_serror(
 			pcie_android_rvh_do_serror, NULL);
 	if (err)
 		pr_info("register pcie android_rvh_do_serror failed!\n");
-#endif
 
 	return platform_driver_register(&mtk_pcie_driver);
 }

@@ -21,6 +21,10 @@
 #include "common.h"
 #include "eas_plus.h"
 #include "sched_sys_common.h"
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
+#include <../kernel/oplus_cpu/sched/sched_assist/sa_common.h>
+#include <../kernel/oplus_cpu/sched/sched_assist/sched_assist.h>
+#endif
 #include "sugov/cpufreq.h"
 
 #define CREATE_TRACE_POINTS
@@ -125,6 +129,13 @@ static void sched_queue_task_hook(void *data, struct rq *rq, struct task_struct 
 				__func__, ts[1] - ts[0], ts[0], ts[1]);
 	}
 #endif
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
+	if (type == enqueue)
+		android_rvh_enqueue_task_handler(data, rq, p, flags);
+	else
+		android_rvh_dequeue_task_handler(data, rq, p, flags);
+#endif
 }
 
 #if IS_ENABLED(CONFIG_DETECT_HUNG_TASK)
@@ -174,10 +185,15 @@ static void mtk_sched_trace_init(void)
 	ret = register_trace_android_rvh_enqueue_task(sched_queue_task_hook, &enqueue);
 	if (ret)
 		pr_info("register android_rvh_enqueue_task failed!\n");
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
+	enable_sched_assist(OPLUS_UX_HOOK_ENQUEUE);
+#endif
 	ret = register_trace_android_rvh_dequeue_task(sched_queue_task_hook, &dequeue);
 	if (ret)
 		pr_info("register android_rvh_dequeue_task failed!\n");
-
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
+	enable_sched_assist(OPLUS_UX_HOOK_DEQUEUE);
+#endif
 	ret = register_trace_pelt_se_tp(sched_task_util_hook, NULL);
 	if (ret)
 		pr_info("register sched_task_util_hook failed!\n");

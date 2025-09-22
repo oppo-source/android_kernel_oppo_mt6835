@@ -5,3 +5,12 @@ config MTK_SENSORHUB
 	  If this option is set,
 	  it will support
 	  mediatek sensorhub architecture.
+
+config OPLUS_FEATURE_MTK_LOW_SENSOR_FREQ
+	bool "Mediatek sensorhub with acc sensor freq set low"
+		default n
+		help
+		  This is feature for acc sensor.
+		  Say Y here if you want to set acc sensor freq is low.
+		  Select this only if your board has this feature.
+		  Say N here if you want to set acc sensor freq is high.

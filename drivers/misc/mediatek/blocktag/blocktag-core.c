@@ -428,6 +428,7 @@ static void mtk_btag_seq_time(char **buff, unsigned long *size,
 
 #define biolog_fmt "wl:%d%%,%lld,%lld,%d.vm:%lld,%lld,%lld,%lld,%lld,%lld." \
 	"cpu:%llu,%llu,%llu,%llu,%llu,%llu,%llu.pid:%d,"
+#define biolog_fmt2 "wl:%d%%,%lld%%,%lld,%lld,%lld,%lld"
 #define biolog_fmt_wt "wt:%d,%d,%lld."
 #define biolog_fmt_rt "rt:%d,%d,%lld."
 #define pidlog_fmt "{%05d:%05d:%08d:%05d:%08d}"
@@ -519,6 +520,116 @@ static void mtk_btag_seq_debug_show_ringtrace(char **buff, unsigned long *size,
 			break;
 		i = (i >= rt->max-1) ? 0 : i+1;
 	};
+	spin_unlock_irqrestore(&rt->lock, flags);
+}
+
+static void mtk_btag_seq_debug_show_ringtrace2(char **buff, unsigned long *size,
+	struct seq_file *seq, struct mtk_blocktag *btag)
+{
+	struct mtk_btag_ringtrace *rt = BTAG_RT(btag);
+	unsigned long flags;
+	int end;
+	int i;
+	int count = 0;
+	__u64 period_ms = 0;
+	__u64 usage_ms = 0;
+	__u64 w_speed_full = 0;
+	__u64 w_speed_curr = 0;
+	__u64 write_percent = 0;
+
+	__u64 percent_all = 0;
+	__u64 period_ms_all = 0;
+	__u64 usage_ms_all = 0;
+	__u64 throughput_w_all = 0;
+	__u64 throughput_r_all = 0;
+	__u64 w_speed_full_all = 0;
+	__u64 w_speed_curr_all = 0;
+	__u64 write_percent_all = 0;
+
+	if (!rt)
+		return;
+
+	if (rt->index >= rt->max || rt->index < 0)
+		rt->index = 0;
+
+	spin_lock_irqsave(&rt->lock, flags);
+	end = (rt->index > 0) ? rt->index-1 : rt->max-1;
+	for (i = end;;) {
+		struct mtk_btag_trace *tr = &rt->trace[i];
+
+		count += 1;
+		if (count > 10)
+			break;
+
+		if (!(tr->flags & BTAG_TR_READY)){
+			i = (i == 0) ? (rt->max-1) : (i-1);
+			continue;
+		}
+
+		if (tr->time <= 0){
+			i = (i == 0) ? (rt->max-1) : (i-1);
+			continue;
+		}
+
+		if (tr->workload.period != 0){
+			period_ms = tr->workload.period;
+			do_div(period_ms, 1000000);  /* convert ns to ms */
+			w_speed_curr = tr->throughput.w.size;
+			if (period_ms != 0)
+				do_div(w_speed_curr, period_ms);
+		}
+
+		if (tr->throughput.r.size != 0 && tr->throughput.w.size != 0){
+			write_percent = tr->throughput.w.size*100;
+			do_div(write_percent, (tr->throughput.w.size + tr->throughput.r.size));
+		}
+
+		if (tr->workload.usage != 0){
+			usage_ms = tr->workload.usage;
+			do_div(usage_ms, 1000000);  /* convert ns to ms */
+			w_speed_full = tr->throughput.w.size;
+			if (usage_ms != 0)
+				do_div(w_speed_full, usage_ms);
+		}
+
+		period_ms_all += period_ms;
+		usage_ms_all += usage_ms;
+		throughput_w_all += tr->throughput.w.size;
+		throughput_r_all += tr->throughput.r.size;
+
+		i = (i == 0) ? (rt->max-1) : (i-1);
+	}
+
+	if (period_ms_all != 0){
+		percent_all = usage_ms_all*100;
+		do_div(percent_all, period_ms_all);
+	}
+
+	if (throughput_w_all + throughput_r_all != 0){
+		write_percent_all = throughput_w_all*100;
+		do_div(write_percent_all, (throughput_w_all + throughput_r_all));
+	}
+
+    if (period_ms_all != 0){
+		w_speed_curr_all = throughput_w_all;
+		do_div(w_speed_curr_all, period_ms_all);
+	}
+
+	if (usage_ms_all != 0){
+		w_speed_full_all = throughput_w_all;
+		do_div(w_speed_full_all, usage_ms_all);
+	}
+
+	SPREAD_PRINTF(buff, size, seq, biolog_fmt2,
+		(__u64)percent_all,
+		write_percent_all,
+		usage_ms_all,
+		period_ms_all,
+		w_speed_curr_all,
+		w_speed_full_all);
+
+	SPREAD_PRINTF(buff, size, seq, ".\n");
+
 	spin_unlock_irqrestore(&rt->lock, flags);
 }
 
@@ -615,6 +726,16 @@ static int mtk_btag_seq_sub_show(struct seq_file *seq, void *v)
 	return 0;
 }
 
+static int mtk_btag_seq_sub_show2(struct seq_file *seq, void *v)
+{
+	struct mtk_blocktag *btag = seq->private;
+
+	if (btag) {
+		mtk_btag_seq_debug_show_ringtrace2(NULL, NULL, seq, btag);
+	}
+	return 0;
+}
+
 static const struct seq_operations mtk_btag_seq_sub_ops = {
 	.start  = mtk_btag_seq_debug_start,
 	.next   = mtk_btag_seq_debug_next,
@@ -622,11 +743,40 @@ static const struct seq_operations mtk_btag_seq_sub_ops = {
 	.show   = mtk_btag_seq_sub_show,
 };
 
+static const struct seq_operations mtk_btag_seq_sub_ops2 = {
+	.start  = mtk_btag_seq_debug_start,
+	.next   = mtk_btag_seq_debug_next,
+	.stop   = mtk_btag_seq_debug_stop,
+	.show   = mtk_btag_seq_sub_show2,
+};
+
 static int mtk_btag_sub_open(struct inode *inode, struct file *file)
 {
 	int rc;
 
 	rc = seq_open(file, &mtk_btag_seq_sub_ops);
+
+	if (!rc) {
+		struct seq_file *m = file->private_data;
+		struct dentry *entry = container_of(inode->i_dentry.first,
+			struct dentry, d_u.d_alias);
+
+		if (entry && entry->d_parent) {
+			pr_notice("[BLOCK_TAG] %s: %s/%s\n", __func__,
+				entry->d_parent->d_name.name,
+				entry->d_name.name);
+			m->private = mtk_btag_find_by_name(
+						entry->d_parent->d_name.name);
+		}
+	}
+	return rc;
+}
+
+static int mtk_btag_sub_open2(struct inode *inode, struct file *file)
+{
+	int rc;
+
+	rc = seq_open(file, &mtk_btag_seq_sub_ops2);
 
 	if (!rc) {
 		struct seq_file *m = file->private_data;
@@ -658,12 +808,26 @@ static ssize_t mtk_btag_sub_write(struct file *file, const char __user *ubuf,
 	return count;
 }
 
+static ssize_t mtk_btag_sub_write2(struct file *file, const char __user *ubuf,
+	size_t count, loff_t *ppos)
+{
+	return 0;
+}
+
 static const struct proc_ops mtk_btag_sub_fops = {
 	.proc_open		= mtk_btag_sub_open,
 	.proc_read		= seq_read,
 	.proc_lseek		= seq_lseek,
 	.proc_release		= seq_release,
 	.proc_write		= mtk_btag_sub_write,
+};
+
+static const struct proc_ops mtk_btag_sub_fops2 = {
+	.proc_open		= mtk_btag_sub_open2,
+	.proc_read		= seq_read,
+	.proc_lseek		= seq_lseek,
+	.proc_release		= seq_release,
+	.proc_write		= mtk_btag_sub_write2,
 };
 
 static void mtk_btag_seq_main_info(char **buff, unsigned long *size,
@@ -832,6 +996,9 @@ struct mtk_blocktag *mtk_btag_alloc(const char *name,
 
 	btag->dentry.dlog = proc_create("blockio", S_IFREG | 0444,
 		btag->dentry.droot, &mtk_btag_sub_fops);
+
+	proc_create("blockio2", S_IFREG | 0444,
+		btag->dentry.droot, &mtk_btag_sub_fops2);
 
 	if (IS_ERR(btag->dentry.dlog))
 		goto out;

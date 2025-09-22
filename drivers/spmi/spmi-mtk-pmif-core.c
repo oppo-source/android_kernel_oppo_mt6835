@@ -15,6 +15,7 @@
 #include <linux/spmi.h>
 #include <linux/irq.h>
 #include "spmi-mtk.h"
+#include "mt-plat/mtk_ccci_common.h"
 #if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
 #include <mt-plat/aee.h>
 #endif
@@ -343,6 +344,8 @@ enum {
 	IRQ_PMIF_SWINF_ACC_ERR_3 = 6,
 	IRQ_PMIF_SWINF_ACC_ERR_4 = 7,
 	IRQ_PMIF_SWINF_ACC_ERR_5 = 8,
+	/* MT6835 */
+	IRQ_PMIF_HWINF_CMD_VIO_0 = 21,
 };
 
 unsigned long long get_current_time_ms(void)
@@ -682,6 +685,25 @@ static void pmif_swinf_acc_err_5_irq_handler(int irq, void *data)
 	pr_notice("[PMIF]:SWINF_ACC_ERR_5\n");
 }
 
+int (*exec_ccci_kern_func_fake)(unsigned int id, char *buf, unsigned int len) = NULL;
+EXPORT_SYMBOL(exec_ccci_kern_func_fake);
+
+static void pmif_hwinf_cmd_vio_0_irq_handler(int irq, void *data)
+{
+	pmif_writel(data, 0x200000, PMIF_IRQ_CLR_1);
+
+	if (exec_ccci_kern_func_fake != NULL) {
+		pr_notice("[PMIF]:Trigger MD assert DONE\n");
+		exec_ccci_kern_func_fake(ID_FORCE_MD_ASSERT, NULL, 0);
+	}
+
+	spmi_dump_pmif_busy_reg();
+	spmi_dump_pmif_record_reg();
+	spmi_dump_wdt_reg();
+	spmi_dump_pmif_all_reg();
+	pr_notice("[PMIF]:HWINF_CMD_VIO_0 IRQ HANDLER DONE\n");
+}
+
 static irqreturn_t pmif_event_0_irq_handler(int irq, void *data)
 {
 	struct pmif *arb = data;
@@ -741,6 +763,9 @@ static irqreturn_t pmif_event_1_irq_handler(int irq, void *data)
 	for (idx = 0; idx < 32; idx++) {
 		if ((irq_f & (0x1 << idx)) != 0) {
 			switch (idx) {
+			case IRQ_PMIF_HWINF_CMD_VIO_0:
+				pmif_hwinf_cmd_vio_0_irq_handler(irq, data);
+			break;
 			default:
 				pr_notice("%s IRQ[%d] triggered\n",
 					__func__, idx);

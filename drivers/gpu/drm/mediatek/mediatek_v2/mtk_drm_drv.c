@@ -59,6 +59,7 @@
 #include "mtk_disp_chist.h"
 #include "mtk_lease.h"
 #include "mtk_disp_oddmr/mtk_disp_oddmr.h"
+#include "mtk_drm_trace.h"
 #include "platform/mtk_drm_platform.h"
 #include "mtk_drm_trace.h"
 
@@ -78,6 +79,20 @@
 #include <linux/syscalls.h>
 #define CLKBUF_COMMON_H
 #include <mtk_clkbuf_ctl.h>
+
+
+#ifdef OPLUS_FEATURE_DISPLAY
+#include "oplus_display_private_api.h"
+#include "oplus/oplus_display_panel.h"
+#include "oplus_adfr.h"
+#include <mt-plat/mtk_boot_common.h>
+extern unsigned long silence_mode;
+extern unsigned int get_project(void);
+#endif /* OPLUS_FEATURE_DISPLAY  */
+
+#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
+#include "oplus_display_onscreenfingerprint.h"
+#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 
 #if IS_ENABLED(CONFIG_MTK_DEVINFO)
 #include <linux/nvmem-consumer.h>
@@ -1071,8 +1086,16 @@ static bool mtk_drm_is_enable_from_lk(struct drm_crtc *crtc)
 		alias = mtk_ddp_comp_get_alias(comp->id);
 
 		if (mtk_disp_num_from_atag() & BIT(alias) ||
-				(mtk_disp_num_from_atag() == 0 && drm_crtc_index(crtc) == 0))
-			return true;
+				(mtk_disp_num_from_atag() == 0 && drm_crtc_index(crtc) == 0)) {
+			/* #ifdef OPLUS_FEATURE_DISPLAY */
+			if ((drm_crtc_index(crtc) == 3) && (get_boot_mode() == FACTORY_BOOT)) {
+				pr_err("%s get_boot_mode() is %d\n", __func__, get_boot_mode());
+				return false;
+			} else {
+				return true;
+			}
+			/* #endif */ /* OPLUS_FEATURE_DISPLAY */
+		}
 	}
 	return false;
 }
@@ -1523,9 +1546,9 @@ static void mtk_set_first_config(struct drm_device *dev,
 			DDPMSG("%s, set first config true\n", __func__);
 		}
 	}
-
 	if (is_bdg_supported())
 		bdg_spi_first_init();
+
 }
 
 static void mtk_atomic_complete(struct mtk_drm_private *private,
@@ -1561,6 +1584,18 @@ static void mtk_atomic_complete(struct mtk_drm_private *private,
 	mtk_set_first_config(drm, state);
 
 	mtk_drm_enable_trig(drm, state);
+
+#ifdef OPLUS_FEATURE_DISPLAY_ADFR
+	if (oplus_adfr_is_support()) {
+		unsigned int crtc_mask = mtk_atomic_crtc_mask(drm, state);
+		if ((crtc_mask & BIT(0)) != 0) {
+			struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(private->crtc[0]);
+			if (mtk_crtc && !mtk_crtc->ddp_mode) {
+				oplus_adfr_dsi_display_auto_mode_update(drm);
+			}
+		}
+	}
+#endif
 
 	mtk_atomic_disp_rsz_roi(drm, state);
 
@@ -1867,6 +1902,23 @@ static int mtk_atomic_commit(struct drm_device *drm,
 	}
 
 	DDP_MUTEX_LOCK(&private->commit.lock, __func__, pf);
+
+	/* block atomic commit till kernel resume */
+	ret = wait_event_interruptible(private->kernel_pm.wq,
+			atomic_read(&private->kernel_pm.status) != KERNEL_PM_SUSPEND);
+	if (unlikely(ret != 0))
+		DDPMSG("%s kernel_pm wait queue wake up accidently\n", __func__);
+
+	/* for shutdown case, crtc active state is not allowed */
+	if (unlikely(atomic_read(&private->kernel_pm.status) == KERNEL_SHUTDOWN)) {
+		for_each_new_crtc_in_state(state, crtc, new_crtc_state, j) {
+			if (new_crtc_state->active == true) {
+				DDPMSG("skip atomic commit after drm shutdown\n");
+				goto cm_unlock;
+			}
+		}
+	}
+
 	flush_work(&private->commit.work);
 	DRM_MMP_EVENT_START(mutex_lock, 0, 0);
 
@@ -1926,6 +1978,7 @@ mutex_unlock:
 		DRM_MMP_MARK(mutex_lock, (unsigned long)&mtk_crtc->lock, i + (1 << 8));
 	}
 
+cm_unlock:
 	DRM_MMP_EVENT_END(mutex_lock, 0, 0);
 	DDP_MUTEX_UNLOCK(&private->commit.lock, __func__, pf);
 	DDP_PROFILE("[PROFILE] %s-\n", __func__);
@@ -4956,6 +5009,9 @@ int mtk_drm_get_display_caps_ioctl(struct drm_device *dev, void *data,
 		caps_info->min_luminance = params->min_luminance;
 		caps_info->average_luminance = params->average_luminance;
 		caps_info->max_luminance = params->max_luminance;
+		if (params->oplus_display_color_mode_suppor == MTK_DRM_COLOR_MODE_DISPLAY_P3) {
+			caps_info->lcm_color_mode = params->oplus_display_color_mode_suppor;
+		}
 	} else
 		DDPPR_ERR("%s: failed to get lcm luminance\n", __func__);
 
@@ -5869,10 +5925,6 @@ void mtk_drm_wait_mml_submit_done(struct mtk_mml_cb_para *cb_para)
 {
 	int ret = 0;
 
-	DDPINFO("%s+ 0x%x 0x%x, 0x%x\n", __func__,
-		cb_para,
-		&(cb_para->mml_job_submit_wq),
-		&(cb_para->mml_job_submit_done));
 	ret = wait_event_interruptible(
 		cb_para->mml_job_submit_wq,
 		atomic_read(&cb_para->mml_job_submit_done));
@@ -6006,6 +6058,27 @@ static void mtk_drm_init_dummy_table(struct mtk_drm_private *priv)
 			table[i].addr = comp->regs;
 		}
 	}
+}
+
+static int mtk_drm_pm_notifier(struct notifier_block *notifier, unsigned long pm_event, void *unused)
+{
+	struct mtk_drm_kernel_pm *kernel_pm = container_of(notifier, typeof(*kernel_pm), nb);
+
+	switch (pm_event) {
+	case PM_SUSPEND_PREPARE:
+		DDPMSG("Disabling CRTC wakelock\n");
+		atomic_set(&kernel_pm->status, KERNEL_PM_SUSPEND);
+		wake_up_interruptible(&kernel_pm->wq);
+		return NOTIFY_OK;
+	case PM_POST_SUSPEND:
+		atomic_set(&kernel_pm->status, KERNEL_PM_RESUME);
+		wake_up_interruptible(&kernel_pm->wq);
+		DDPINFO("%s status(%d)\n", __func__, atomic_read(&kernel_pm->status));
+		return NOTIFY_OK;
+	default:
+		DDPINFO("%s, pm_event:%d\n", __func__, pm_event);
+	}
+	return NOTIFY_DONE;
 }
 
 static int mtk_drm_kms_init(struct drm_device *drm)
@@ -6180,6 +6253,17 @@ static int mtk_drm_kms_init(struct drm_device *drm)
 #endif
 	disp_dbg_init(drm);
 	PanelMaster_Init(drm);
+
+	#ifdef OPLUS_FEATURE_DISPLAY_ADFR
+	if (oplus_adfr_is_support()) {
+		oplus_adfr_init(drm, private);
+	}
+	#endif
+
+#ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT
+	oplus_ofp_init(private);
+#endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
+
 	if (mtk_drm_helper_get_opt(private->helper_opt,
 			MTK_DRM_OPT_MMDVFS_SUPPORT))
 		mtk_drm_mmdvfs_init(drm->dev);
@@ -6204,7 +6288,7 @@ static int mtk_drm_kms_init(struct drm_device *drm)
 	 */
 	mtk_smi_init_power_off();
 	if (is_bdg_supported())
-		bdg_first_init();
+		bdg_first_init(drm);
 	return 0;
 
 err_unset_dma_parms:
@@ -7329,6 +7413,9 @@ static int mtk_drm_probe(struct platform_device *pdev)
 	struct device_node *disp_plat_dbg_node = pdev->dev.of_node;
 	const __be32 *ranges = NULL;
 	bool mml_found = false;
+	#ifdef OPLUS_FEATURE_DISPLAY
+	int prj_id = 0;
+	#endif
 
 	disp_dbg_probe();
 	PanelMaster_probe();
@@ -7504,6 +7591,14 @@ SKIP_OVLSYS_CONFIG:
 		of_node_put(infra_node);
 	}
 
+	atomic_set(&private->kernel_pm.status, KERNEL_PM_RESUME);
+	init_waitqueue_head(&private->kernel_pm.wq);
+
+	private->kernel_pm.nb.notifier_call = mtk_drm_pm_notifier;
+	ret = register_pm_notifier(&private->kernel_pm.nb);
+	if (ret)
+		DDPMSG("register_pm_notifier failed %d", ret);
+
 	pm_runtime_enable(dev);
 	if (private->side_mmsys_dev)
 		pm_runtime_enable(private->side_mmsys_dev);
@@ -7512,11 +7607,16 @@ SKIP_OVLSYS_CONFIG:
 	if (private->side_ovlsys_dev)
 		pm_runtime_enable(private->side_ovlsys_dev);
 
+	prj_id = get_project();
 	for (i = 0 ; i < MAX_CRTC ; ++i) {
 		unsigned int value;
 
 		ret = of_property_read_u32_index(dev->of_node, "pre-define-bw", i, &value);
+		#ifdef OPLUS_FEATURE_DISPLAY
+		if (ret < 0 || ((i == 3) && (prj_id == 22023 || prj_id == 22223) && (get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT)))
+		#else
 		if (ret < 0)
+		#endif
 			value = 0;
 
 		private->pre_defined_bw[i] = value;
@@ -7702,6 +7802,14 @@ SKIP_OVLSYS_CONFIG:
 
 	disp_dts_gpio_init(dev, private);
 
+#ifdef OPLUS_FEATURE_DISPLAY
+	pr_err("get_boot_mode() is %d\n", get_boot_mode());
+	if ((get_boot_mode() == SILENCE_BOOT)
+		||(get_boot_mode() == OPPO_SAU_BOOT)) {
+		pr_err("%s OPPO_SILENCE_BOOT set silence_mode to 1\n", __func__);
+		silence_mode = 1;
+	}
+#endif
 	memcpy(&mydev, pdev, sizeof(mydev));
 
 	return 0;
@@ -7724,14 +7832,55 @@ err_node:
 	return ret;
 }
 
+#ifdef OPLUS_FEATURE_DISPLAY
+extern int mtkfb_set_backlight_level(unsigned int level);
+#endif
+
 static void mtk_drm_shutdown(struct platform_device *pdev)
 {
 	struct mtk_drm_private *private = platform_get_drvdata(pdev);
 	struct drm_device *drm = private->drm;
+	#ifdef OPLUS_FEATURE_DISPLAY
+	struct drm_crtc *crtc;
+	struct mtk_drm_crtc *mtk_crtc;
+	struct mtk_ddp_comp *output_comp;
+	#endif
 
 	if (drm) {
-		DDPMSG("%s\n", __func__);
+		/* skip all next atomic commit */
+		atomic_set(&private->kernel_pm.status, KERNEL_SHUTDOWN);
+		DDPMSG("%s status(%d)\n", __func__, atomic_read(&private->kernel_pm.status));
+		#ifdef OPLUS_FEATURE_DISPLAY
+		if (mtkfb_set_backlight_level(0))
+			DDPPR_ERR("%s, set panel backlight 0 failed!\n", __func__);
+		#endif
 		drm_atomic_helper_shutdown(drm);
+		#ifdef OPLUS_FEATURE_DISPLAY
+		/* only for crtc0 */
+		crtc = list_first_entry(&(drm)->mode_config.crtc_list,
+					typeof(*crtc), head);
+		if (IS_ERR_OR_NULL(crtc)) {
+			DDPPR_ERR("%s failed to find crtc\n", __func__);
+			return ;
+		}
+		DDPMSG("%s crtc0 exit\n", __func__);
+
+		mtk_crtc = to_mtk_crtc(crtc);
+		if (true == mtk_crtc->enabled) {
+			DDPMSG("%s, set main panel backlight 0\n", __func__);
+			mtkfb_set_backlight_level(0);
+
+			output_comp = mtk_ddp_comp_request_output(mtk_crtc);
+			if (unlikely(!output_comp)) {
+				DDPPR_ERR("%s: invalid output comp\n", __func__);
+				return ;
+			}
+
+			DDPMSG("%s CONNECTOR_PANEL_DISABLE\n", __func__);
+				mtk_ddp_comp_io_cmd(output_comp, NULL,
+					CONNECTOR_PANEL_SHUTDOWN, NULL);
+		}
+		#endif
 	}
 }
 
@@ -7932,6 +8081,12 @@ static int __init mtk_drm_init(void)
 			goto err;
 		}
 	}
+
+	#ifdef OPLUS_FEATURE_DISPLAY
+	oplus_display_private_api_init();
+	oplus_display_panel_init();
+	#endif /* OPLUS_FEATURE_DISPLAY  */
+
 	DDPINFO("%s-\n", __func__);
 
 	return 0;

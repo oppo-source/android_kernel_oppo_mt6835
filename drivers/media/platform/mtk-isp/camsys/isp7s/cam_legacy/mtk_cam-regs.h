@@ -6,6 +6,10 @@
 #ifndef _CAM_REGS_H
 #define _CAM_REGS_H
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif /* OPLUS_FEATURE_CAMERA_COMMON */
+
 /* Raw Part */
 
 /* normal siganl */

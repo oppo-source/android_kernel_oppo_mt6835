@@ -1227,6 +1227,12 @@ void mtk_dsi_set_mmclk_by_datarate(struct mtk_dsi *dsi,
 		(&dsi->master_dsi->ddp_comp) : (&dsi->ddp_comp);
 
 	mode = mtk_crtc_get_display_mode_by_comp(__func__, &mtk_crtc->base, comp, false);
+//#ifdef OPLUS_FEATURE_DISPLAY
+	if (mtk_crtc->set_mmclk_by_mode) {
+		mode = mtk_drm_crtc_avail_disp_mode(&mtk_crtc->base, mtk_crtc->fake_mode_idx);
+		mtk_crtc->set_mmclk_by_mode = false;
+	}
+//#endif
 	if (mode == NULL) {
 		DDPPR_ERR("%s display_mode is NULL\n", __func__);
 		return;
@@ -1690,6 +1696,12 @@ static int mtk_mipi_tx_pll_prepare_mt6835(struct clk_hw *hw)
 
 	/* TODO: should write bit8 to set SW_ANA_CK_EN here */
 	mtk_mipi_tx_set_bits(mipi_tx, MIPITX_SW_CTRL_CON4, 1);
+
+	if (mipi_volt) {
+		DDPMSG("%s+ mipi_volt change: %d\n", __func__, mipi_volt);
+		mtk_mipi_tx_update_bits(mipi_tx, MIPITX_VOLTAGE_SEL,
+			FLD_RG_DSI_HSTX_LDO_REF_SEL, mipi_volt << 6);
+	}
 
 	DDPDBG("%s-\n", __func__);
 #endif

@@ -171,6 +171,10 @@ struct subdrv_mode_struct {
 	u32 dig_gain_step;
 	u32 exposure_order_in_lbmf;
 	u32 mode_type_in_lbmf;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	u8  exposure_margin;
+	struct SENSOR_SETTING_INFO_STRUCT sensor_setting_info;
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 };
 
 #define REG_ADDR_MAXCNT 3
@@ -253,12 +257,24 @@ struct subdrv_static_ctx {
 
 	u16 *init_setting_table;
 	u32 init_setting_len;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	u16 *aonhemd_setting_table;
+	u32 aonhemd_setting_len;
+	u16 *aonhemd_clear_setting_table;
+	u32 aonhemd_clear_setting_len;
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 	struct subdrv_mode_struct *mode;
 	u32 sensor_mode_num;
 	struct subdrv_feature_control *list;
 	u32 list_len;
+	#ifndef OPLUS_FEATURE_CAMERA_COMMON
 	u8 chk_s_off_sta;
 	u8 chk_s_off_end;
+	#else /*OPLUS_FEATURE_CAMERA_COMMON*/
+	u8 chk_s_off_before_s_on;
+	u8 chk_s_off_before_control;
+	u8 chk_s_off_after_s_off;
+	#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 
 	u32 checksum_value;
 };
@@ -401,6 +417,12 @@ struct subdrv_entry {
 	const struct subdrv_pw_seq_entry *pw_seq;
 	const struct subdrv_ops *ops;
 	int pw_seq_cnt;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	const struct subdrv_pw_seq_entry *aon_pw_seq;
+	int aon_pw_seq_cnt;
+	const struct subdrv_pw_seq_entry *pw_off_seq;
+	int pw_off_seq_cnt;
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 };
 
 #define subdrv_call(ctx, o, args...) \

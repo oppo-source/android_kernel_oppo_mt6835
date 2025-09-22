@@ -112,6 +112,13 @@ struct hdmi_bridge {
 };
 #define to_hdmi_bridge(x) container_of(x, struct hdmi_bridge, base)
 
+struct hdmi_bridge {
+	struct drm_bridge base;
+	struct hdmi *hdmi;
+	struct work_struct hpd_work;
+};
+#define to_hdmi_bridge(x) container_of(x, struct hdmi_bridge, base)
+
 void msm_hdmi_set_mode(struct hdmi *hdmi, bool power_on);
 
 static inline void hdmi_write(struct hdmi *hdmi, u32 reg, u32 data)

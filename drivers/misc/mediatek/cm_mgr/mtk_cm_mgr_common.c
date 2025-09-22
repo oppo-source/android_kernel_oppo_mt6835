@@ -180,6 +180,14 @@ int cm_mgr_get_perf_enable(void)
 }
 EXPORT_SYMBOL_GPL(cm_mgr_get_perf_enable);
 
+void cm_mgr_enable_cpu_to_dram_map(int enable)
+{
+	cm_mgr_cpu_map_dram_enable = !!enable;
+	pr_info("[CM_MGR] cm_mgr_enable_cpu_to_dram_map = %d.\n",
+	        (int)cm_mgr_cpu_map_dram_enable);
+}
+EXPORT_SYMBOL_GPL(cm_mgr_enable_cpu_to_dram_map);
+
 int cm_mgr_get_perf_force_enable(void)
 {
 	return cm_mgr_perf_force_enable;

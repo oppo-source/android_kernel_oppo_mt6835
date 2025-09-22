@@ -117,6 +117,7 @@ static int vdec_vcp_ipi_send(struct vdec_inst *inst, void *msg, int len,
 	struct mutex *msg_mutex;
 	unsigned int *msg_signaled;
 	wait_queue_head_t *msg_wq;
+	bool *vcu_in_ipi;
 	bool is_res = false;
 	int ipi_wait_type = IPI_SEND_WAIT;
 
@@ -182,10 +183,12 @@ static int vdec_vcp_ipi_send(struct vdec_inst *inst, void *msg, int len,
 		obj.id = IPI_VDEC_RESOURCE;
 		msg_signaled = &inst->vcu.signaled_res;
 		msg_wq = &inst->vcu.wq_res;
+		vcu_in_ipi = &inst->vcu.in_res_ipi;
 	} else {
 		obj.id = inst->vcu.id;
 		msg_signaled = &inst->vcu.signaled;
 		msg_wq = &inst->vcu.wq;
+		vcu_in_ipi = &inst->vcu.in_ipi;
 	}
 
 	obj.len = len;
@@ -212,6 +215,7 @@ static int vdec_vcp_ipi_send(struct vdec_inst *inst, void *msg, int len,
 	}
 
 	if (!is_ack) {
+		*vcu_in_ipi = true;
 wait_ack:
 		/* wait for VCP's ACK */
 		if (*(__u32 *)msg == AP_IPIMSG_DEC_START && inst->ctx->state == MTK_STATE_INIT) {
@@ -232,6 +236,7 @@ wait_ack:
 			}
 		} else
 			ret = wait_event_timeout(*msg_wq, *msg_signaled, timeout);
+		*vcu_in_ipi = false;
 		*msg_signaled = false;
 
 		if (ret == 0) {
@@ -245,6 +250,10 @@ wait_ack:
 		} else if (ret < 0) {
 			mtk_vcodec_err(inst, "wait vcp ipi %X ack fail ret %d! (%d)",
 				*(u32 *)msg, ret, inst->vcu.failure);
+		} else if (inst->vcu.abort) {
+			mtk_vcodec_err(inst, "wait vcp ipi %X ack abort ret %d! (%d)",
+				*(u32 *)msg, ret, inst->vcu.failure);
+			goto ipi_err_wait_and_unlock;
 		}
 	}
 	mutex_unlock(msg_mutex);
@@ -941,18 +950,31 @@ static int vcp_vdec_notify_callback(struct notifier_block *this,
 		} else {
 			// vcp not ready case STOP from vcp_sys_reset_ws
 			mutex_lock(&dev->ctx_mutex);
+			// release all ctx ipi
+			list_for_each_safe(p, q, &dev->ctx_list) {
+				ctx = list_entry(p, struct mtk_vcodec_ctx, list);
+				if (ctx != NULL && ctx->drv_handle != 0) {
+					inst = (struct vdec_inst *)(ctx->drv_handle);
+					inst->vcu.failure = VDEC_IPI_MSG_STATUS_FAIL;
+					inst->vcu.abort = 1;
+					if (inst->vcu.in_ipi) {
+						inst->vcu.signaled = true;
+						wake_up(&inst->vcu.wq);
+					}
+					if (inst->vcu.in_res_ipi) {
+						inst->vcu.signaled_res = true;
+						wake_up(&inst->vcu.wq_res);
+					}
+				}
+			}
+
 			// check release all ctx lock
 			list_for_each_safe(p, q, &dev->ctx_list) {
 				ctx = list_entry(p, struct mtk_vcodec_ctx, list);
-				if (ctx != NULL && ctx->state != MTK_STATE_ABORT) {
-					inst = (struct vdec_inst *)(ctx->drv_handle);
-					if (inst != NULL) {
-						inst->vcu.failure = VDEC_IPI_MSG_STATUS_FAIL;
-						inst->vcu.abort = 1;
-					}
+				if (ctx != NULL && ctx->state != MTK_STATE_ABORT)
 					mtk_vdec_error_handle(ctx, "STOP");
-				}
 			}
+
 			mutex_unlock(&dev->ctx_mutex);
 			dev->codec_stop_done = true;
 		}
@@ -1465,15 +1487,25 @@ int vdec_vcp_set_frame_buffer(struct vdec_inst *inst, void *fb)
 	return err;
 }
 
+static bool vdec_check_buf_va(uintptr_t buf_va, uintptr_t *buf_list)
+{
+	int idx;
 
+	for (idx = 1; idx <= VB2_MAX_FRAME; idx++)
+		if (buf_va == buf_list[idx])
+			return true;
+
+	return false;
+}
 
 static void vdec_get_bs(struct vdec_inst *inst,
-						struct ring_bs_list *list,
-						struct mtk_vcodec_mem **out_bs)
+	struct ring_bs_list *list,
+	struct mtk_vcodec_mem **out_bs)
 {
 	unsigned long vdec_bs_va;
 	struct mtk_vcodec_mem *bs;
 
+get_bs:
 	if (list->count == 0) {
 		mtk_vcodec_debug(inst, "[BS] there is no bs");
 		*out_bs = NULL;
@@ -1482,12 +1514,23 @@ static void vdec_get_bs(struct vdec_inst *inst,
 
 	vdec_bs_va = (unsigned long)list->vdec_bs_va_list[list->read_idx];
 	bs = (struct mtk_vcodec_mem *)vdec_bs_va;
+	if (bs == NULL || !vdec_check_buf_va((uintptr_t)vdec_bs_va, inst->ctx->bs_list)) {
+		mtk_vcodec_err(inst, "free bs list read_idx %d vdec_bs_va 0x%lx invalid !",
+			list->read_idx, vdec_bs_va);
+		list->read_idx = (list->read_idx == DEC_MAX_BS_NUM - 1U) ? 0U : list->read_idx + 1U;
+		list->count--;
+		if (list->count > 0)
+			goto get_bs;
+		else {
+			*out_bs = NULL;
+			return;
+		}
+	}
 
 	*out_bs = bs;
 	mtk_vcodec_debug(inst, "[BS] get free bs %lx", vdec_bs_va);
 
-	list->read_idx = (list->read_idx == DEC_MAX_BS_NUM - 1) ?
-					 0 : list->read_idx + 1;
+	list->read_idx = (list->read_idx == DEC_MAX_BS_NUM - 1) ? 0 : list->read_idx + 1;
 	list->count--;
 }
 
@@ -1498,6 +1541,7 @@ static void vdec_get_fb(struct vdec_inst *inst,
 	unsigned long vdec_fb_va;
 	struct vdec_fb *fb;
 
+get_fb:
 	if (list->count >= DEC_MAX_FB_NUM) {
 		mtk_vcodec_err(inst, "list count %d invalid ! (write_idx %d, read_idx %d)",
 			list->count, list->write_idx, list->read_idx);
@@ -1509,16 +1553,25 @@ static void vdec_get_fb(struct vdec_inst *inst,
 			list->count = list->write_idx + DEC_MAX_FB_NUM - list->read_idx;
 	}
 	if (list->count == 0) {
-		mtk_vcodec_debug(inst, "[FB] there is no %s fb",
-						 disp_list ? "disp" : "free");
+		mtk_vcodec_debug(inst, "[FB] there is no %s fb", disp_list ? "disp" : "free");
 		*out_fb = NULL;
 		return;
 	}
 
 	vdec_fb_va = (unsigned long)list->fb_list[list->read_idx].vdec_fb_va;
 	fb = (struct vdec_fb *)vdec_fb_va;
-	if (fb == NULL)
-		return;
+	if (fb == NULL || !vdec_check_buf_va((uintptr_t)vdec_fb_va, inst->ctx->fb_list)) {
+		mtk_vcodec_err(inst, "%s fb list read_idx %d vdec_fb_va 0x%lx invalid !",
+			disp_list ? "disp" : "free", list->read_idx, vdec_fb_va);
+		list->read_idx = (list->read_idx == DEC_MAX_FB_NUM - 1U) ? 0U : list->read_idx + 1U;
+		list->count--;
+		if (list->count > 0)
+			goto get_fb;
+		else {
+			*out_fb = NULL;
+			return;
+		}
+	}
 	fb->timestamp = list->fb_list[list->read_idx].timestamp;
 
 	if (disp_list) {
@@ -1538,8 +1591,7 @@ static void vdec_get_fb(struct vdec_inst *inst,
 		list->fb_list[list->read_idx].vdec_fb_va,
 		fb->general_buf_fd, fb->dma_general_buf);
 
-	list->read_idx = (list->read_idx == DEC_MAX_FB_NUM - 1U) ?
-					 0U : list->read_idx + 1U;
+	list->read_idx = (list->read_idx == DEC_MAX_FB_NUM - 1U) ? 0U : list->read_idx + 1U;
 	list->count--;
 }
 

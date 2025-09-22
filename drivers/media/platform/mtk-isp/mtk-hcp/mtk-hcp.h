@@ -18,6 +18,10 @@
 #include "mtk-hcp-aee.h"
 #include "mtk-img-ipi.h"
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif /* OPLUS_FEATURE_CAMERA_COMMON */
+
 //#include "scp_ipi.h"
 
 /**

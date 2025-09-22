@@ -24,6 +24,8 @@
 #include <linux/delay.h> /* msleep */
 #include <linux/version.h>
 #include <linux/sched.h>
+#include <linux/sched/types.h>
+#include <uapi/linux/sched/types.h>
 #include <linux/wait.h>
 #if KERNEL_VERSION(4, 11, 0) <= LINUX_VERSION_CODE
 #include <linux/sched/clock.h>	/* local_clock */
@@ -54,6 +56,10 @@
 #if !defined(NQ_TEE_WORKER_THREADS)
 #define NQ_TEE_WORKER_THREADS	4
 #endif
+
+//#ifdef OPLUS_FEATURE_SECURITY_COMMON
+extern int phx_is_system_boot_completed(void);
+//#endif /* OPLUS_FEATURE_SECURITY_COMMON */
 
 static struct {
 	struct mutex buffer_mutex;	/* Lock on SWd communication buffer */
@@ -129,6 +135,18 @@ enum counter_id {
 	TEE_WORKER_COUNTER_BUSY,
 	TEE_WORKER_COUNTER_RESUME
 };
+
+#define OPLUS_SCHED_UTIL_MIN_TEE 1
+static const struct sched_attr op_attr = {
+	.sched_policy = SCHED_NORMAL,
+	.sched_flags = SCHED_FLAG_UTIL_CLAMP_MIN,
+	.sched_util_min = OPLUS_SCHED_UTIL_MIN_TEE,
+};
+static inline int op_sched_setattr(struct task_struct * p, const struct sched_attr *attr,
+				unsigned int flags) {
+	(void)flags;
+	return sched_setattr(p, attr);
+}
 
 static long get_tee_affinity(void)
 {
@@ -614,6 +632,10 @@ static void nq_dump_status(void)
 	size_t i;
 	cpumask_t old_affinity;
 
+//#ifdef OPLUS_FEATURE_SECURITY_COMMON
+	int boot_completed_tee = 0;
+//#endif /* OPLUS_FEATURE_SECURITY_COMMON */
+
 	if (l_ctx.dump.off)
 		ret = -EBUSY;
 
@@ -659,6 +681,16 @@ static void nq_dump_status(void)
 	tee_restore_affinity(old_affinity);
 
 	mc_dev_info("  %-22s= 0x%s", "mcExcep.uuid", uuid_str);
+	//#ifdef OPLUS_FEATURE_SECURITY_COMMON
+	if(0 == strcmp(uuid_str, "07170000000000000000000000000000")) {
+		boot_completed_tee = phx_is_system_boot_completed();
+		if(boot_completed_tee == 1) {
+			mc_dev_info("tee boot complete\n");
+		} else {
+			BUG();
+		}
+	}
+	//#endif /* OPLUS_FEATURE_SECURITY_COMMON */
 	if (ret >= 0)
 		ret = kasnprintf(&l_ctx.dump, "%-22s= 0x%s\n", "mcExcep.uuid",
 				 uuid_str);
@@ -1266,6 +1298,8 @@ int nq_start(void)
 #if defined(MC_BIG_CORE)
 		kthread_bind(l_ctx.tee_worker[cnt], MC_BIG_CORE);
 #endif
+
+		op_sched_setattr(l_ctx.tee_worker[cnt], &op_attr, 0);
 
 		if (IS_ERR(l_ctx.tee_worker[cnt])) {
 			ret = PTR_ERR(l_ctx.tee_worker[cnt]);

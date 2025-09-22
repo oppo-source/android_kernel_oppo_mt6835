@@ -68,7 +68,10 @@ static struct DISP_AAL_HIST g_aal_hist = {
 	.backlight = -1,
 	.essStrengthIndex = ESS_LEVEL_BY_CUSTOM_LIB,
 	.ess_enable = ESS_EN_BY_CUSTOM_LIB,
-	.dre_enable = DRE_EN_BY_CUSTOM_LIB
+	.dre_enable = DRE_EN_BY_CUSTOM_LIB,
+#ifdef OPLUS_FEATURE_DISPLAY_APOLLO
+	.apollo_backlight = -1
+#endif
 };
 
 static struct DISP_AAL_HIST g_aal_hist_db;
@@ -94,6 +97,14 @@ static atomic_t g_aal_interrupt_enabled = ATOMIC_INIT(0);
 static atomic_t g_force_delay_check_trig = ATOMIC_INIT(0);
 static struct workqueue_struct *aal_flip_wq;
 static struct workqueue_struct *aal_refresh_wq;
+
+#ifdef OPLUS_FEATURE_DISPLAY
+extern unsigned int oplus_display_brightness;
+#endif /* OPLUS_FEATURE_DISPLAY  */
+
+#ifdef OPLUS_FEATURE_DISPLAY
+extern bool g_aal_probe_ready;
+#endif
 
 static int g_aal_backlight_set;
 static int g_ori_aal_backlight_notified;
@@ -198,6 +209,7 @@ static unsigned int g_aal_dre30_en;
 static int g_aal_clarity_support;
 static int g_tdshp_clarity_support;
 int g_disp_clarity_support;
+static int g_dre_firston_support = 0;
 static struct DISP_CLARITY_REG *g_disp_clarity_regs;
 static DEFINE_MUTEX(g_clarity_lock);
 
@@ -464,6 +476,9 @@ void disp_aal_notify_backlight_changed(int trans_backlight, int max_backlight)
 		service_flags = AAL_SERVICE_FORCE_UPDATE;
 
 	if (trans_backlight == 0) {
+#ifdef OPLUS_FEATURE_DISPLAY
+		oplus_display_brightness = 0;
+#endif /* OPLUS_FEATURE_DISPLAY  */
 		g_aal_backlight_set = trans_backlight;
 		mtk_leds_brightness_set("lcd-backlight", 0, 0, (0X1<<SET_BACKLIGHT_LEVEL));
 		/* set backlight = 0 may be not from AAL, */
@@ -1111,6 +1126,9 @@ static int disp_aal_copy_hist_to_user(struct DISP_AAL_HIST *hist)
 	g_aal_hist.essStrengthIndex = g_aal_ess_level;
 	g_aal_hist.ess_enable = g_aal_ess_en;
 	g_aal_hist.dre_enable = g_aal_dre_en;
+#ifdef OPLUS_FEATURE_DISPLAY_APOLLO
+	g_aal_hist.apollo_backlight = oplus_display_brightness;
+#endif
 
 	if (isDualPQ) {
 		g_aal_hist.pipeLineNum = 2;
@@ -1227,6 +1245,7 @@ static void disp_aal_dre3_config(struct mtk_ddp_comp *comp,
 {
 	struct mtk_disp_aal *aal_data = comp_to_aal(comp);
 	phys_addr_t dre3_pa = mtk_aal_dre3_pa(comp);
+	//int width = init_regs->isdual ? init_regs->width / 2 : init_regs->width;
 	int dre_alg_mode = 1;
 
 	DDPMSG("%s, width:%d, height:%d\n", __func__, init_regs->width, init_regs->height);
@@ -1234,6 +1253,9 @@ static void disp_aal_dre3_config(struct mtk_ddp_comp *comp,
 		g_aal_need_config = false;
 
 	AALFLOW_LOG("start, bitShift: %d  compId%d\n", aal_data->data->bitShift, comp->id);
+
+
+	//pr_notice(" width = %d init_regs->isdual = %d\n", width, init_regs->isdual);
 
 	cmdq_pkt_write(handle, comp->cmdq_base,
 		dre3_pa + DISP_AAL_DRE_BLOCK_INFO_01,
@@ -1487,6 +1509,7 @@ int mtk_drm_ioctl_aal_init_reg(struct drm_device *dev, void *data,
 	struct drm_crtc *crtc = private->crtc[0];
 
 	g_aal_data->crtc = crtc;
+	DDPMSG("%s in\n", __func__);
 
 	return mtk_crtc_user_cmd(crtc, comp, INIT_REG, data);
 }
@@ -1793,7 +1816,6 @@ int mtk_drm_ioctl_aal_set_param(struct drm_device *dev, void *data,
 	/* Not need to protect g_aal_param, */
 	/* since only AALService can set AAL parameters. */
 	memcpy(&g_aal_param, param, sizeof(*param));
-
 	prev_backlight = g_aal_backlight_set;
 	g_aal_backlight_set = g_aal_param.FinalBacklight;
 
@@ -1816,7 +1838,9 @@ int mtk_drm_ioctl_aal_set_param(struct drm_device *dev, void *data,
 			AALAPI_LOG("bl = %d, silky_bright_flag = %d, ELVSSPN = %u, flag = %u",
 				g_aal_backlight_set, g_aal_param.silky_bright_flag,
 				g_aal_ess20_spect_param.ELVSSPN, g_aal_ess20_spect_param.flag);
-
+#ifdef OPLUS_FEATURE_DISPLAY
+			oplus_display_brightness = g_aal_backlight_set;
+#endif /* OPLUS_FEATURE_DISPLAY  */
 			mtk_leds_brightness_set("lcd-backlight", g_aal_backlight_set,
 					g_aal_ess20_spect_param.ELVSSPN,
 					g_aal_ess20_spect_param.flag);
@@ -3972,6 +3996,9 @@ static int mtk_disp_aal_probe(struct platform_device *pdev)
 	struct resource dre3_res;
 	struct sched_param param = {.sched_priority = 85 };
 	struct cpumask mask;
+	#ifdef OPLUS_FEATURE_DISPLAY
+	unsigned int prj_id = get_project();
+	#endif
 
 	DDPINFO("%s+\n", __func__);
 
@@ -4007,13 +4034,27 @@ static int mtk_disp_aal_probe(struct platform_device *pdev)
 			DDPMSG("disp_tdshp: mtk_tdshp_clarity_support = %d\n",
 				g_tdshp_clarity_support);
 		}
-
+		#ifdef OPLUS_FEATURE_DISPLAY
+		if (prj_id == 23083) {
+			g_tdshp_clarity_support = 0;
+			DDPMSG("disp_tdshp reset: mtk_tdshp_clarity_support = %d\n",
+                                g_tdshp_clarity_support);
+		}
+		#endif
 		if (of_property_read_u32(dev->of_node, "mtk_aal_support",
 			&g_aal_fo->mtk_aal_support)) {
 			AALERR("comp_id: %d, mtk_aal_support = %d\n",
 				comp_id, g_aal_fo->mtk_aal_support);
 			g_aal_fo->mtk_aal_support = 0;
 		}
+
+		if (of_property_read_u32(dev->of_node, "oplus_open_dre",
+			&g_dre_firston_support)) {
+			AALERR("comp_id: %d, oplus_open_dre = %d\n",
+				comp_id, g_dre_firston_support);
+			g_dre_firston_support = 0;
+		}
+
 
 		if (of_property_read_u32(dev->of_node, "mtk_dre30_support",
 			&g_aal_fo->mtk_dre30_support)) {
@@ -4033,7 +4074,13 @@ static int mtk_disp_aal_probe(struct platform_device *pdev)
 					&g_aal_clarity_support))
 					DDPMSG("mtk_aal_clarity_support = %d\n",
 						g_aal_clarity_support);
-
+				#ifdef OPLUS_FEATURE_DISPLAY
+				if (prj_id == 23083) {
+					g_aal_clarity_support = 0;
+					DDPMSG("disp_aal_tdshp reset: mtk_tdshp_clarity_support = %d\n",
+						g_aal_clarity_support);
+				}
+				#endif
 				if ((g_aal_clarity_support == 1)
 						&& (g_tdshp_clarity_support == 1)) {
 					g_disp_clarity_support = 1;
@@ -4145,6 +4192,13 @@ static int mtk_disp_aal_probe(struct platform_device *pdev)
 		wake_up_process(aal_sof_irq_event_task);
 	}
 
+	if (g_dre_firston_support) {
+		printk("%s,disp_aal_set_dre_en\n", __func__);
+		disp_aal_set_dre_en(1);
+	}
+#ifdef OPLUS_FEATURE_DISPLAY
+	g_aal_probe_ready = true;
+#endif
 	AALFLOW_LOG("-\n");
 	return ret;
 }

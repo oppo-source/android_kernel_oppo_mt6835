@@ -8,7 +8,13 @@
 
 #include <linux/i2c.h>
 #include <linux/mutex.h>
-
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#define SENSOR_PARALLEISM
+#endif
+//end chuan
 #ifndef NO_I2C_MTK
 #include "i2c-mtk.h"
 #else
@@ -100,6 +106,9 @@ struct mt_i2c {
 #else
 #define IMGSENSOR_I2C_SPEED              400
 #endif
+
+extern struct IMGSENSOR_I2C_CFG *pgi2c_cfg_legacy[IMGSENSOR_SENSOR_IDX_MAX_NUM];
+extern struct IMGSENSOR_I2C gi2c;
 
 struct IMGSENSOR_I2C_STATUS {
 	u8 reserved:7;

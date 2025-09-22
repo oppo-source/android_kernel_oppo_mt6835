@@ -745,10 +745,24 @@ static GED_BOOL ged_kpi_update_TargetTimeAndTargetFps(
 		/* update fw idle timer value */
 		switch (g_fw_idle_mode) {
 		case FW_IDLE_MODE_DEFAULT:
-			if (psHead == main_head)
-				idle_timer_ms =
-					(target_fps <= FW_IDLE_FPS_THRESHOLD) ?
-					FW_IDLE_TIMER_0_MS : FW_IDLE_TIMER_5_MS;
+			if (psHead == main_head) {
+				if (target_fps > 0 && target_fps <= FW_IDLE_FPS_THRESHOLD)
+					idle_timer_ms = FW_IDLE_TIMER_0_MS;
+				else if (target_fps > FW_IDLE_FPS_THRESHOLD
+						&& target_fps <= GED_KPI_FPS_LIMIT)
+					idle_timer_ms = FW_IDLE_TIMER_5_MS;
+				else if (g_target_fps_default > 0
+						&& g_target_fps_default <= FW_IDLE_FPS_THRESHOLD)
+					idle_timer_ms = FW_IDLE_TIMER_0_MS;
+				else
+					idle_timer_ms = FW_IDLE_TIMER_5_MS;
+			} else {
+				if (g_target_fps_default > 0
+						&& g_target_fps_default <= FW_IDLE_FPS_THRESHOLD)
+					idle_timer_ms = FW_IDLE_TIMER_0_MS;
+				else
+					idle_timer_ms = FW_IDLE_TIMER_5_MS;
+			}
 			break;
 		case FW_IDLE_MODE_FIX_5:
 			idle_timer_ms = FW_IDLE_TIMER_5_MS;
@@ -1876,8 +1890,10 @@ void ged_dfrc_fps_limit_cb(unsigned int target_fps)
 	/* update fw idle timer value */
 	switch (g_fw_idle_mode) {
 	case FW_IDLE_MODE_DEFAULT:
-		g_fw_idle_timer = (target_fps <= FW_IDLE_FPS_THRESHOLD) ?
-			FW_IDLE_TIMER_0_MS : FW_IDLE_TIMER_5_MS;
+		if (target_fps > 0 && target_fps <= FW_IDLE_FPS_THRESHOLD)
+			g_fw_idle_timer = FW_IDLE_TIMER_0_MS;
+		else
+			g_fw_idle_timer = FW_IDLE_TIMER_5_MS;
 		break;
 	case FW_IDLE_MODE_FIX_5:
 		g_fw_idle_timer = FW_IDLE_TIMER_5_MS;

@@ -61,7 +61,10 @@ struct sensor_info {
 	uint8_t sensor_type;
 	uint8_t padding[3];
 	uint32_t gain;
-	char name[16];
+// #ifdef OPLUS_FEATURE_SENSOR
+	// char name[16];
+	char name[32];
+// #endif
 	char vendor[16];
 } __packed __aligned(4);
 

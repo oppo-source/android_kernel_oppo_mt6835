@@ -24,6 +24,15 @@
 #include "mt6377-accdet.h"
 #endif
 
+#if IS_ENABLED(CONFIG_SND_SOC_OPLUS_PA_MANAGER)
+#include "audio/mtk/oplus_speaker_manager/oplus_speaker_manager_platform.h"
+#include "audio/mtk/oplus_speaker_manager/oplus_speaker_manager_codec.h"
+#endif /* CONFIG_SND_SOC_OPLUS_PA_MANAGER */
+
+#ifndef OPLUS_ARCH_EXTENDS
+#define OPLUS_ARCH_EXTENDS
+#endif
+
 #define MAX_DEBUG_WRITE_INPUT 256
 #define CODEC_SYS_DEBUG_SIZE (1024 * 32)
 
@@ -2216,10 +2225,17 @@ static int mt_mic_bias_0_event(struct snd_soc_dapm_widget *w,
 			break;
 		}
 
+#ifdef OPLUS_ARCH_EXTENDS
+		/* MISBIAS0 = 2P7V */
+		regmap_update_bits(priv->regmap, MT6377_AUDENC_ANA_CON17,
+				   RG_AUDMICBIAS0VREF_MASK_SFT,
+				   MIC_BIAS_2P7 << RG_AUDMICBIAS0VREF_SFT);
+#else
 		/* MISBIAS0 = 1P9V */
 		regmap_update_bits(priv->regmap, MT6377_AUDENC_ANA_CON17,
 				   RG_AUDMICBIAS0VREF_MASK_SFT,
 				   MIC_BIAS_1P9 << RG_AUDMICBIAS0VREF_SFT);
+#endif
 		/* vow low power select */
 		regmap_update_bits(priv->regmap, MT6377_AUDENC_ANA_CON17,
 				   RG_AUDMICBIAS0LOWPEN_MASK_SFT,
@@ -5580,7 +5596,11 @@ static int mt6377_rcv_acc_set(struct snd_kcontrol *kcontrol,
 
 	/* Enable MICBIAS0, MISBIAS0 = 1P9V */
 	regmap_write(priv->regmap, MT6377_AUDENC_ANA_CON17, 0x1);
+#ifdef OPLUS_ARCH_EXTENDS
+	regmap_write(priv->regmap, MT6377_AUDENC_ANA_CON17, 0x71);
+#else
 	regmap_write(priv->regmap, MT6377_AUDENC_ANA_CON17, 0x21);
+#endif
 
 	/* Audio L preamplifier input sel : AIN0 */
 	regmap_write(priv->regmap, MT6377_AUDENC_ANA_CON0, 0x40);
@@ -5727,6 +5747,15 @@ static int mt6377_codec_probe(struct snd_soc_component *cmpnt)
 	snd_soc_add_component_controls(cmpnt,
 				       mt6377_snd_misc_controls,
 				       ARRAY_SIZE(mt6377_snd_misc_controls));
+
+#if IS_ENABLED(CONFIG_SND_SOC_OPLUS_PA_MANAGER)
+	ret = oplus_add_pa_manager_snd_controls(cmpnt);
+	if (ret < 0) {
+		pr_err("%s(), add oplus pa manager snd controls failed:\n",
+			__func__);
+		return -EINVAL;
+	}
+#endif /*CONFIG_SND_SOC_OPLUS_PA_MANAGER*/
 
 	priv->hp_current_calibrate_val = get_hp_current_calibrate_val(priv);
 

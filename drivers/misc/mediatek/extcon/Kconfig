@@ -5,3 +5,10 @@ config EXTCON_MTK_USB
 	help
 	  Say Y here to enable extcon support for USB cable detection
 	  on the Mediatek PMIC.
+
+config OPLUS_CHECK_SUB_NODE
+	tristate "oplus CHECK SUB NODE Support"
+	select EXTCON
+	select USB_ROLE_SWITCH
+	help
+	  Say Y here to enable check sub node from devicetree .

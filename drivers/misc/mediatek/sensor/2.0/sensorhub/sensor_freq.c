@@ -26,7 +26,7 @@ static struct sensor_freq_tb sensor_freq_table[] = {
 	},
 	{
 		.sensor_type = SENSOR_TYPE_ACCELEROMETER,
-		.freq_level = LOW,
+		.freq_level = HIGH,
 		.core_id = 0,
 	},
 	{
@@ -74,6 +74,12 @@ static struct sensor_freq_tb sensor_freq_table[] = {
 static int freq_tb_bitmap_set(uint8_t sensor_type)
 {
 	int i;
+#if IS_ENABLED (CONFIG_OPLUS_FEATURE_MTK_LOW_SENSOR_FREQ)
+	if ((is_support_acc_low_freq()) && (sensor_type == SENSOR_TYPE_ACCELEROMETER)) {
+		set_bit(sensor_type, low_freq_tb);
+		return 0;
+	}
+#endif
 
 	for (i = 0; i < ARRAY_SIZE(sensor_freq_table); i++) {
 		if (sensor_type == sensor_freq_table[i].sensor_type) {
@@ -102,7 +108,12 @@ static int freq_tb_bitmap_set(uint8_t sensor_type)
 static int freq_tb_bitmap_clear(uint8_t sensor_type)
 {
 	int i;
-
+#if IS_ENABLED (CONFIG_OPLUS_FEATURE_MTK_LOW_SENSOR_FREQ)
+  	if ((is_support_acc_low_freq()) && (sensor_type == SENSOR_TYPE_ACCELEROMETER)) {
+		clear_bit(sensor_type, low_freq_tb);
+		return 0;
+	}
+#endif
 	for (i = 0; i < ARRAY_SIZE(sensor_freq_table); i++) {
 		if (sensor_type == sensor_freq_table[i].sensor_type) {
 			switch (sensor_freq_table[i].freq_level) {
