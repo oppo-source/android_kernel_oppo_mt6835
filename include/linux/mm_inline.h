@@ -96,7 +96,7 @@ static __always_inline enum lru_list page_lru(struct page *page)
 
 #ifdef CONFIG_LRU_GEN
 
-#ifdef CONFIG_LRU_GEN_ENABLED
+#if defined(CONFIG_LRU_GEN_ENABLED) && !defined(CONFIG_CONT_PTE_HUGEPAGE)
 static inline bool lru_gen_enabled(void)
 {
 	DECLARE_STATIC_KEY_TRUE(lru_gen_caps[NR_LRU_GEN_CAPS]);
@@ -220,6 +220,11 @@ static inline bool lru_gen_add_page(struct lruvec *lruvec, struct page *page, bo
 	int type = page_is_file_lru(page);
 	int zone = page_zonenum(page);
 	struct lru_gen_struct *lrugen = &lruvec->lrugen;
+	bool skip = false;
+
+	trace_android_vh_lru_gen_add_page_skip(lruvec, page, &skip);
+	if (skip)
+		return true;
 
 	VM_WARN_ON_ONCE_PAGE(gen != -1, page);
 
@@ -262,6 +267,11 @@ static inline bool lru_gen_del_page(struct lruvec *lruvec, struct page *page, bo
 {
 	unsigned long flags;
 	int gen = page_lru_gen(page);
+	bool skip = false;
+
+	trace_android_vh_lru_gen_del_page_skip(lruvec, page, &skip);
+	if (skip)
+		return true;
 
 	if (gen < 0)
 		return false;

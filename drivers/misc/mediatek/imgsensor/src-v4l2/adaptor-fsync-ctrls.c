@@ -76,10 +76,18 @@ static void fsync_mgr_s_frame_length(struct adaptor_ctx *ctx)
 #if defined(TWO_STAGE_FS)
 static void fsync_mgr_s_multi_shutter_frame_length(
 	struct adaptor_ctx *ctx,
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	u64 *ae_exp_arr, u32 ae_exp_cnt)
+#else
 	u32 *ae_exp_arr, u32 ae_exp_cnt)
+#endif
 {
 	union feature_para para;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	u64 fsync_exp[IMGSENSOR_STAGGER_EXPOSURE_CNT] = {0};
+#else
 	u32 fsync_exp[IMGSENSOR_STAGGER_EXPOSURE_CNT] = {0};
+#endif
 	u32 len = 0;
 	int i;
 
@@ -105,7 +113,11 @@ static void fsync_mgr_s_multi_shutter_frame_length(
  * fsync mgr static functions
  ******************************************************************************/
 static void fsync_mgr_chk_long_exposure(struct adaptor_ctx *ctx,
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	const u64 *ae_exp_arr, const u32 ae_exp_cnt)
+#else
 	const u32 *ae_exp_arr, const u32 ae_exp_cnt)
+#endif
 {
 	unsigned int i = 0;
 	int has_long_exp = 0;
@@ -115,9 +127,13 @@ static void fsync_mgr_chk_long_exposure(struct adaptor_ctx *ctx,
 		g_sensor_fine_integ_line(ctx, ctx->subctx.current_scenario_id);
 
 	for (i = 0; i < ae_exp_cnt; ++i) {
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		u32 exp_lc = (u32)
+			FINE_INTEG_CONVERT(ae_exp_arr[i], fine_integ_line);
+#else
 		u32 exp_lc =
 			FINE_INTEG_CONVERT(ae_exp_arr[i], fine_integ_line);
-
+#endif
 		/* check if any exp will enter long exposure mode */
 		if ((exp_lc + ctx->subctx.margin) >=
 				ctx->subctx.max_frame_length) {
@@ -143,12 +159,19 @@ static void fsync_mgr_chk_long_exposure(struct adaptor_ctx *ctx,
 
 static void fsync_mgr_set_hdr_exp_data(struct adaptor_ctx *ctx,
 	struct fs_hdr_exp_st *p_hdr_exp,
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	u64 *ae_exp_arr, u32 ae_exp_cnt,
+#else
 	u32 *ae_exp_arr, u32 ae_exp_cnt,
+#endif
 	u32 fine_integ_line, const u32 mode_id)
 {
 	struct mtk_stagger_info info = {0};
 	unsigned int i = 0;
 	int ret = 0;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	u64 ae_exp;
+#endif
 
 	/* error handle */
 	if (unlikely(ae_exp_cnt == 0
@@ -188,12 +211,21 @@ static void fsync_mgr_set_hdr_exp_data(struct adaptor_ctx *ctx,
 			int idx = hdr_exp_idx_map[ae_exp_cnt][i];
 
 			if (idx >= 0) {
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+				ae_exp = ae_exp_arr[i];
+				if (fine_integ_line) {
+					p_hdr_exp->exp_lc[idx] =
+						FINE_INTEG_CONVERT(ae_exp, fine_integ_line);
+				} else
+					p_hdr_exp->exp_lc[idx] = ae_exp;
+#else
 				p_hdr_exp->exp_lc[idx] = ae_exp_arr[i];
 				if (fine_integ_line) {
 					p_hdr_exp->exp_lc[idx] =
 						FINE_INTEG_CONVERT(p_hdr_exp->exp_lc[idx],
 							fine_integ_line);
 				}
+#endif
 
 #ifndef REDUCE_FSYNC_CTRLS_LOG
 				adaptor_logi(ctx,
@@ -213,9 +245,16 @@ static void fsync_mgr_set_hdr_exp_data(struct adaptor_ctx *ctx,
 
 static void fsync_mgr_set_exp_data(struct adaptor_ctx *ctx,
 	struct fs_perframe_st *p_pf_ctrl,
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	u64 *ae_exp_arr, u32 ae_exp_cnt, const u32 mode_id)
+#else
 	u32 *ae_exp_arr, u32 ae_exp_cnt, const u32 mode_id)
+#endif
 {
 	u32 fine_integ_line = 0;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	u64 ae_exp;
+#endif
 
 	/* error handle */
 	if (unlikely(ae_exp_arr == NULL || ae_exp_cnt == 0)) {
@@ -237,11 +276,20 @@ static void fsync_mgr_set_exp_data(struct adaptor_ctx *ctx,
 
 
 	fine_integ_line = g_sensor_fine_integ_line(ctx, mode_id);
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	ae_exp = (ae_exp_cnt == 1) ? *(ae_exp_arr + 0) : 0;
+	if (fine_integ_line) {
+		p_pf_ctrl->shutter_lc =
+			FINE_INTEG_CONVERT(ae_exp, fine_integ_line);
+	} else
+		p_pf_ctrl->shutter_lc = (u32) ae_exp;
+#else
 	p_pf_ctrl->shutter_lc = (ae_exp_cnt == 1) ? *(ae_exp_arr + 0) : 0;
 	if (fine_integ_line) {
 		p_pf_ctrl->shutter_lc =
 			FINE_INTEG_CONVERT(p_pf_ctrl->shutter_lc, fine_integ_line);
 	}
+#endif
 
 	fsync_mgr_set_hdr_exp_data(ctx,
 		&p_pf_ctrl->hdr_exp,
@@ -428,7 +476,11 @@ void notify_fsync_mgr_streaming(struct adaptor_ctx *ctx, unsigned int flag)
  * per-frame ctrls
  ******************************************************************************/
 int chk_s_exp_with_fl_by_fsync_mgr(struct adaptor_ctx *ctx,
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	u64 *ae_exp_arr, u32 ae_exp_cnt)
+#else
 	u32 *ae_exp_arr, u32 ae_exp_cnt)
+#endif
 {
 	int ret = 0;
 	int en_fsync = 0;
@@ -622,7 +674,11 @@ void notify_fsync_mgr_set_extend_framelength(
 }
 
 void notify_fsync_mgr_seamless_switch(struct adaptor_ctx *ctx,
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	u64 *ae_exp_arr, u32 ae_exp_max_cnt,
+#else
 	u32 *ae_exp_arr, u32 ae_exp_max_cnt,
+#endif
 	u32 orig_readout_time_us, u32 target_scenario_id)
 {
 	struct fs_seamless_st seamless_info = {0};
@@ -810,7 +866,11 @@ void notify_fsync_mgr_subsample_tag(struct adaptor_ctx *ctx, u64 sub_tag)
 }
 
 void notify_fsync_mgr_set_shutter(struct adaptor_ctx *ctx,
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	u64 *ae_exp_arr, u32 ae_exp_cnt,
+#else
 	u32 *ae_exp_arr, u32 ae_exp_cnt,
+#endif
 	int do_set_exp_with_fl)
 {
 	struct fs_perframe_st pf_ctrl = {0};

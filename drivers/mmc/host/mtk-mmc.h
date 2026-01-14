@@ -363,6 +363,9 @@
 #define DEFAULT_DEBOUNCE	(8)	/* 8 cycles CD debounce */
 
 #define PAD_DELAY_MAX	32 /* PAD delay cells */
+#define PAD_DELAY_1CELL_MAX	32 /* PAD delay cells */
+#define PAD_DELAY_2CELL_MAX	64 /* PAD delay cells * 2 */
+
 #if IS_ENABLED(CONFIG_FPGA_EARLY_PORTING)
 #define MSDC_OCR_AVAIL\
 	(MMC_VDD_28_29 | MMC_VDD_29_30 | MMC_VDD_30_31 \
@@ -524,11 +527,13 @@ struct msdc_host {
 	bool vqmmc_enabled;
 	u32 latch_ck;
 	u32 hs400_ds_delay;
+	u32 hs400_ds_dly3;
 	u32 hs200_cmd_int_delay; /* cmd internal delay for HS200/SDR104 */
 	u32 hs400_cmd_int_delay; /* cmd internal delay for HS400 */
 	bool hs400_cmd_resp_sel_rising;
 				 /* cmd response sample selection for HS400 */
 	bool hs400_mode;	/* current eMMC will run at hs400 mode */
+	bool hs400_tuning;	/* hs400 mode online tuning */
 	bool internal_cd;	/* Use internal card-detect logic */
 	bool cqhci;		/* support eMMC HW CMDQ */
 	struct msdc_save_para save_para; /* used when gate HCLK */
@@ -537,6 +542,7 @@ struct msdc_host {
 	struct cqhci_host *cq_host;
 	struct reg_oc_msdc sd_oc;
 	int	id;		/* host id */
+	int autok_vcore; /* vcore value when executing autok */
 	u8 card_inserted;  /* the status of card inserted */
 	bool block_bad_card;
 	bool need_tune;
@@ -546,6 +552,8 @@ struct msdc_host {
 	u32 ocr_volt;
 	struct regulator *dvfsrc_vcore_power;
 	struct pm_qos_request pm_qos_req;
+	u32 filter_enable;       /*explorer not support cmd52*/
+	u32 explorer_support;    /* explorer support or not */
 	bool qos_enable;
 	struct icc_path *bw_path;
 	unsigned int peak_bw;

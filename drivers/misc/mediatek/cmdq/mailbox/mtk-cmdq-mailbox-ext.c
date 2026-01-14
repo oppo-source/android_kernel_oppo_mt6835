@@ -27,6 +27,10 @@
 
 #include <iommu_debug.h>
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif /* OPLUS_FEATURE_CAMERA_COMMON */
+
 #if IS_ENABLED(CONFIG_MTK_CMDQ_MBOX_EXT)
 #include "cmdq-util.h"
 struct cmdq_util_controller_fp *cmdq_util_controller;
@@ -2547,7 +2551,7 @@ static __init int cmdq_drv_init(void)
 	return 0;
 }
 
-void cmdq_mbox_enable(void *chan)
+s32 cmdq_mbox_enable(void *chan)
 {
 	struct cmdq *cmdq = container_of(((struct mbox_chan *)chan)->mbox,
 		typeof(*cmdq), mbox);
@@ -2564,7 +2568,7 @@ void cmdq_mbox_enable(void *chan)
 			cmdq->hwid, usage, cmdq->suspended);
 		WARN_ON(1);
 		mutex_unlock(&cmdq->mbox_mutex);
-		return;
+		return -EFAULT;
 	}
 
 	for (i = 0; i < ARRAY_SIZE(cmdq->thread); i++)
@@ -2578,7 +2582,7 @@ void cmdq_mbox_enable(void *chan)
 			cmdq->hwid, usage, i, chan);
 		WARN_ON(1);
 		mutex_unlock(&cmdq->mbox_mutex);
-		return;
+		return -EFAULT;
 	}
 	cmdq_log("%s: hwid:%hu usage:%d idx:%d usage:%d", __func__,
 		cmdq->hwid, usage, i, atomic_read(&cmdq->thread[i].usage));
@@ -2649,6 +2653,7 @@ void cmdq_mbox_enable(void *chan)
 		thread->mbox_en = sched_clock();
 	}
 	mutex_unlock(&cmdq->mbox_mutex);
+	return 0;
 }
 EXPORT_SYMBOL(cmdq_mbox_enable);
 

@@ -6,6 +6,10 @@
 #ifndef __IMGSENSOR_PWR_CTRL_H__
 #define __IMGSENSOR_PWR_CTRL_H__
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif
+
 #include <linux/mutex.h>
 
 #include "imgsensor_sensor.h"
@@ -83,6 +87,12 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
 		struct IMGSENSOR_HW *phw,
 		struct IMGSENSOR_SENSOR *psensor,
 		enum IMGSENSOR_HW_POWER_STATUS pwr_status);
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+enum IMGSENSOR_RETURN qvga_hw_power(struct IMGSENSOR_HW *phw,
+    enum   IMGSENSOR_SENSOR_IDX     sensor_idx,
+    enum   IMGSENSOR_HW_POWER_STATUS pwr_status,
+    char   *qvga_sensor_name);
+#endif
 enum IMGSENSOR_RETURN imgsensor_hw_dump(struct IMGSENSOR_HW *phw);
 
 extern struct IMGSENSOR_HW_CFG imgsensor_custom_config[];
@@ -90,6 +100,9 @@ extern struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[];
 extern struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence_for_mipi_switch[];
 extern struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence_for_mt6833[];
 extern struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[];
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+extern struct IMGSENSOR_HW_POWER_SEQ qvga_power_sequence[];
+#endif
 extern enum IMGSENSOR_RETURN (*hw_open[IMGSENSOR_HW_ID_MAX_NUM])
 					(struct IMGSENSOR_HW_DEVICE **);
 

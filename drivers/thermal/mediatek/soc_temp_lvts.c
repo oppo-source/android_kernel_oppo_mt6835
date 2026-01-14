@@ -24,6 +24,8 @@
 #include "soc_temp_lvts.h"
 #include "thermal_interface.h"
 #include "../thermal_core.h"
+#include <soc/oplus/system/oplus_project.h>
+
 #if IS_ENABLED(CONFIG_MTK_TINYSYS_SCP_SUPPORT)
 #include "scp.h"
 #endif  /* #if IS_ENABLED(CONFIG_MTK_TINYSYS_SCP_SUPPORT) */
@@ -217,7 +219,6 @@ static int lvts_read_tc_temperature(struct lvts_data *lvts_data, unsigned int tz
 			lvts_data->sen_data[s_index].temp = current_temp;
 			if (!in_isr)
 				mutex_unlock(&lvts_data->sen_data_lock);
-
 			return current_temp;
 		}
 	}
@@ -998,11 +999,18 @@ static void set_tc_hw_reboot_threshold(struct lvts_data *lvts_data,
 
 static void set_all_tc_hw_reboot(struct lvts_data *lvts_data)
 {
+	struct device *dev = lvts_data->dev;
 	struct tc_settings *tc = lvts_data->tc;
 	int i, trip_point;
 
 	for (i = 0; i < lvts_data->num_tc; i++) {
-		trip_point = tc[i].hw_reboot_trip_point;
+		/* if high temp aging version, force trip temp = 200'C */
+		if (get_eng_version() != HIGH_TEMP_AGING) {
+			trip_point = tc[i].hw_reboot_trip_point;
+		} else {
+			trip_point = 200000;
+			dev_info(dev, "high temp aging version, force trip temp.\n");
+		}
 
 		if (tc[i].num_sensor == 0)
 			continue;
@@ -1630,7 +1638,8 @@ static void tc_irq_handler(struct lvts_data *lvts_data, int tc_id, char thermint
 	if (ret & THERMAL_PROTECTION_STAGE_3)
 		dev_info(dev, "[Thermal IRQ]: Thermal protection stage 3 interrupt triggered, Thermal HW reboot\n");
 
-	BUG();
+	if (get_eng_version() != HIGH_TEMP_AGING)
+		BUG();
 }
 
 static irqreturn_t irq_handler(int irq, void *dev_id)

@@ -1733,6 +1733,9 @@ struct DISP_AAL_HIST {
 	unsigned int tdshp1_clarity[DISP_TDSHP_CLARITY_READBACK_NUM];
 	int pipeLineNum;
 	_Bool need_config;
+#ifdef OPLUS_FEATURE_DISPLAY_APOLLO
+	unsigned int apollo_backlight;
+#endif
 };
 
 struct DISP_AAL_ESS20_SPECT_PARAM {

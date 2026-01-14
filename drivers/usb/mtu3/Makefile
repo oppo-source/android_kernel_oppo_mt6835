@@ -2,7 +2,14 @@
 
 ccflags-y := -I$(srctree)/drivers/usb/gadget/
 ccflags-y += -I$(srctree)/drivers/usb/gadget/function
-
+#ifdef OPLUS_FEATURE_CHG_BASIC
+subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/typec/inc
+ifndef CONFIG_OPLUS_PD_EXT_SUPPORT
+subdir-ccflags-y += -I$(srctree)/drivers/misc/mediatek/typec/tcpc/inc
+else
+subdir-ccflags-y += -I$(srctree)/drivers/power/oplus/pd_ext/inc
+endif
+#endif
 ccflags-$(CONFIG_USB_MTU3_DEBUG)	+= -DDEBUG
 
 # define_trace.h needs to know how to find our header

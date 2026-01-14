@@ -46,6 +46,7 @@ obj-$(CONFIG_MTK_SWPM_MODULE) += swpm/
 obj-$(CONFIG_MTK_PMSR) += pmsr/
 obj-$(CONFIG_MTK_IMGSENSOR) += imgsensor/src/
 obj-$(CONFIG_MTK_V4L2_IMGSENSOR) += imgsensor/src-v4l2/
+obj-$(CONFIG_SC_SC080CS_III) += imgsensor/qvga_cam/sc080cs/
 obj-$(CONFIG_MTK_IOMMU_MISC) += iommu/
 obj-$(CONFIG_MTK_COMBO) += connectivity/
 obj-$(CONFIG_MTK_CONN_SCP) += conn_scp/
@@ -97,4 +98,14 @@ obj-$(CONFIG_INTERCONNECT_MTK_MMQOS_COMMON) += mmqos/
 obj-$(CONFIG_MTK_GATE_IC) += gate_ic/
 obj-$(CONFIG_USB) += usb/
 obj-$(CONFIG_MTK_WIDEVINE_DRM) += widevine_drm/
+#ifdef OPLUS_FEATURE_OEM_OCDT
+obj-$(CONFIG_MTK_BOOT_COMMON) += boot_common/
+#endif
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+obj-$(CONFIG_MTK_V4L2_IMGSENSOR) += imgsensor/oplus/
+#endif /* OPLUS_FEATURE_CAMERA_COMMON */
 obj-$(CONFIG_MTK_MT6382_BDG) += spi_slave_drv/
+obj-m += wl2866d/
+obj-m += aw37004/
+obj-$(CONFIG_MTK_ULTRASND_PROXIMITY) += elliptic/
+

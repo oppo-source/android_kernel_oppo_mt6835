@@ -31,3 +31,4 @@ subaf-y  += common/dw9718af/DW9718AF.o
 subaf-y  += common/lc898214af/LC898214AF.o
 subaf-y  += common/wv511aaf/WV511AAF.o
 subaf-y  += common/ak7371af/AK7371AF.o
+subaf-y  += common/jd5516we4/JD5516WE4.o

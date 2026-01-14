@@ -175,15 +175,27 @@ static int check_dep_run_and_update(struct gbe_boost_unit *iter)
 
 static void gbe_do_timer2(struct work_struct *work)
 {
-	struct gbe_boost_unit *iter;
+	struct gbe_boost_unit *iter, *tmp_iter;
+	struct hlist_node *h;
 	unsigned long long cur_ts_ms = ktime_to_ms(ktime_get());
 
 	iter = container_of(work, struct gbe_boost_unit, work2);
 
 	mutex_lock(&gbe_lock);
 
-	if (iter->state == FREE) {
-		hlist_del(&iter->hlist);
+	if (iter == NULL)
+		goto out;
+
+	hlist_for_each_entry_safe(tmp_iter, h, &gbe_boost_units, hlist) {
+		if (tmp_iter->pid == iter->pid && tmp_iter->bufID == iter->bufID)
+			break;
+	}
+
+	if (tmp_iter == NULL)
+		goto out;
+
+	if (!hlist_unhashed(&iter->hlist) && iter->state == FREE) {
+		hlist_del_init(&iter->hlist);
 		kfree(iter);
 	} else if (iter->boost_cnt <= MAX_BOOST_CNT && check_dep_run_and_update(iter)) {
 		if (cur_ts_ms - iter->q_ts_ms > TIMER1_MS) {
@@ -218,7 +230,7 @@ static void gbe_do_timer2(struct work_struct *work)
 			ms_to_ktime(TIMER2_MS), HRTIMER_MODE_REL);
 	}
 
-
+out:
 	mutex_unlock(&gbe_lock);
 }
 

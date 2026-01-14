@@ -7513,10 +7513,6 @@ static irqreturn_t ISP_Irq_DVS(signed int Irq, void *DeviceId)
 		DvsStatus, DvpStatus);
 
 
-	LOG_INF("DVS IRQ, DvsStatus: 0x%08x, DvpStatus: 0x%08x\n",
-	DvsStatus, DvpStatus);
-
-
 	/* DPE done status may rise later, so can't use done status now  */
 	/* if (DPE_INT_ST == (DPE_INT_ST & DvsStatus)) { */
 

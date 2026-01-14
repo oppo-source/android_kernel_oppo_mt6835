@@ -238,12 +238,6 @@ static inline void dst_use_noref(struct dst_entry *dst, unsigned long time)
 	}
 }
 
-static inline void dst_hold_and_use(struct dst_entry *dst, unsigned long time)
-{
-	dst_hold(dst);
-	dst_use_noref(dst, time);
-}
-
 static inline struct dst_entry *dst_clone(struct dst_entry *dst)
 {
 	if (dst)
@@ -438,6 +432,15 @@ static inline void dst_set_expires(struct dst_entry *dst, int timeout)
 
 	if (dst->expires == 0 || time_before(expires, dst->expires))
 		dst->expires = expires;
+}
+
+static inline unsigned int dst_dev_overhead(struct dst_entry *dst,
+					    struct sk_buff *skb)
+{
+	if (likely(dst))
+		return LL_RESERVED_SPACE(dst->dev);
+
+	return skb->mac_len;
 }
 
 INDIRECT_CALLABLE_DECLARE(int ip6_output(struct net *, struct sock *,

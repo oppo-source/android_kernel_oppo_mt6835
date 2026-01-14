@@ -41,6 +41,11 @@
 #include "../mml/mtk-mml.h"
 #include <soc/mediatek/smi.h>
 
+#ifdef OPLUS_FEATURE_DISPLAY
+#define FOD_COLOR_SUPPORT 0x100
+extern int oplus_ofp_get_fp_type(void *buf);
+#endif /* OPLUS_FEATURE_DISPLAY */
+
 int mtk_dprec_mmp_dump_ovl_layer(struct mtk_plane_state *plane_state);
 
 #define REG_FLD(width, shift)                                                  \
@@ -333,6 +338,7 @@ int mtk_dprec_mmp_dump_ovl_layer(struct mtk_plane_state *plane_state);
 #define OVL_CON_BYTE_SWAP BIT(24)
 #define OVL_CON_RGB_SWAP BIT(25)
 #define OVL_CON_MTX_JPEG_TO_RGB (4UL << 16)
+#define OVL_CON_MTX_BT709_FULL_TO_RGB (5UL << 16)
 #define OVL_CON_MTX_BT601_TO_RGB (6UL << 16)
 #define OVL_CON_MTX_BT709_TO_RGB (7UL << 16)
 #define OVL_CON_CLRFMT_RGB (1UL << 12)
@@ -1781,13 +1787,18 @@ static int mtk_ovl_color_manage(struct mtk_ddp_comp *comp, unsigned int idx,
 	struct mtk_plane_pending_state *pending = &state->pending;
 	struct drm_crtc *crtc = state->crtc;
 	struct mtk_drm_private *priv;
+#ifdef OPLUS_FEATURE_DISPLAY
+	struct mtk_crtc_state *mtk_crtc_state;
+	bool fod_status = false;
+	unsigned int fp_type = 0;
+#endif /* OPLUS_FEATURE_DISPLAY */
 	bool gamma_en = false, igamma_en = false, csc_en = false;
 	u32 gamma_sel = 0, igamma_sel = 0;
 	s32 *csc = NULL;
 	u32 wcg_mask = 0, wcg_value = 0, sel_mask = 0, sel_value = 0, reg = 0;
 	enum mtk_drm_color_mode lcm_cm;
 	enum mtk_drm_dataspace lcm_ds = 0, plane_ds = 0;
-	struct mtk_panel_params *params;
+	struct mtk_panel_params *params = NULL;
 	int i;
 	int ovl_csc_en_cur = 0;
 	unsigned int ocfbn = 0;
@@ -1802,6 +1813,13 @@ static int mtk_ovl_color_manage(struct mtk_ddp_comp *comp, unsigned int idx,
 
 	if (!crtc)
 		goto done;
+
+#ifdef OPLUS_FEATURE_DISPLAY
+	mtk_crtc_state = to_mtk_crtc_state(crtc->state);
+	if (!mtk_crtc_state)
+		goto done;
+	fod_status = mtk_crtc_state->prop_val[CRTC_PROP_HBM_ENABLE];
+#endif /* OPLUS_FEATURE_DISPLAY */
 
 	/* init */
 	if (comp && comp->mtk_crtc) /* get ocfbn */
@@ -1823,20 +1841,44 @@ static int mtk_ovl_color_manage(struct mtk_ddp_comp *comp, unsigned int idx,
 	if ((mtk_drm_helper_get_opt(priv->helper_opt, MTK_DRM_OPT_OVL_WCG) && /* WCG condition */
 		pending->enable) ||	/* WCG condition */
 	    ovl_csc_en_cur) {	/* ovl csc condition */
-		params = mtk_drm_get_lcm_ext_params(crtc);
+		//sync dx-1 patch to fixed wcg bug
+		//params = mtk_drm_get_lcm_ext_params(crtc);
 		if (params)
 			lcm_cm = params->lcm_color_mode;
 		else
 			lcm_cm = MTK_DRM_COLOR_MODE_NATIVE;
-
 		lcm_ds = mtk_ovl_map_lcm_color_mode(lcm_cm);
 		plane_ds =
 			(enum mtk_drm_dataspace)pending->prop_val[PLANE_PROP_DATASPACE];
+		if (plane_ds == MTK_DRM_DATASPACE_DISPLAY_P3) {
+			lcm_ds = MTK_DRM_DATASPACE_DISPLAY_P3;
+		}
+
+		#ifdef OPLUS_FEATURE_DISPLAY_PANELCHAPLIN
+		lcm_cm = (enum mtk_drm_color_mode)to_mtk_crtc(crtc)->blendspace;
+		lcm_ds = mtk_ovl_map_lcm_color_mode(lcm_cm);
+		if (pending->prop_val[PLANE_PROP_IS_BT2020]) {
+			//since bt2020 is not support in ovl,will replace as bt709
+			plane_ds = lcm_ds;
+		}
+		#endif
+
 		DDPDBG("%s+ idx:%d ds:0x%08x->0x%08x\n", __func__, idx, plane_ds,
 		       lcm_ds);
 
 		mtk_ovl_do_transfer(idx, plane_ds, lcm_ds, &gamma_en, &igamma_en,
 				    &gamma_sel, &igamma_sel);
+#ifdef OPLUS_FEATURE_DISPLAY
+		if (fod_status) {
+			oplus_ofp_get_fp_type(&fp_type);
+			if (fp_type & FOD_COLOR_SUPPORT) {
+				gamma_en = false;
+				gamma_sel = 0;
+				igamma_en = false;
+				igamma_sel = 0;
+			}
+		}
+#endif /* OPLUS_FEATURE_DISPLAY */
 
 		/* get WCG CSC */
 		if (mtk_drm_helper_get_opt(priv->helper_opt, MTK_DRM_OPT_OVL_WCG) &&
@@ -1924,6 +1966,8 @@ static int mtk_ovl_yuv_matrix_convert(enum mtk_drm_dataspace plane_ds)
 	case MTK_DRM_DATASPACE_STANDARD_BT601_625_UNADJUSTED:
 	case MTK_DRM_DATASPACE_STANDARD_BT601_525:
 	case MTK_DRM_DATASPACE_STANDARD_BT601_525_UNADJUSTED:
+	//P3 Must align AOSP to USE BT601 FULL range
+	case MTK_DRM_DATASPACE_STANDARD_DCI_P3:
 		switch (plane_ds & MTK_DRM_DATASPACE_RANGE_MASK) {
 		case MTK_DRM_DATASPACE_RANGE_UNSPECIFIED:
 		case MTK_DRM_DATASPACE_RANGE_LIMITED:
@@ -1936,10 +1980,17 @@ static int mtk_ovl_yuv_matrix_convert(enum mtk_drm_dataspace plane_ds)
 		break;
 
 	case MTK_DRM_DATASPACE_STANDARD_BT709:
-	case MTK_DRM_DATASPACE_STANDARD_DCI_P3:
 	case MTK_DRM_DATASPACE_STANDARD_BT2020:
 	case MTK_DRM_DATASPACE_STANDARD_BT2020_CONSTANT_LUMINANCE:
-		ret = OVL_CON_MTX_BT709_TO_RGB;
+		switch (plane_ds & MTK_DRM_DATASPACE_RANGE_MASK) {
+		case MTK_DRM_DATASPACE_RANGE_UNSPECIFIED:
+		case MTK_DRM_DATASPACE_RANGE_LIMITED:
+			ret = OVL_CON_MTX_BT709_TO_RGB;
+			break;
+		default:
+			ret = OVL_CON_MTX_BT709_FULL_TO_RGB;
+			break;
+		}
 		break;
 
 	case 0:

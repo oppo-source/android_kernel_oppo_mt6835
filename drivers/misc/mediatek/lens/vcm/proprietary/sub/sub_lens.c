@@ -87,6 +87,8 @@ static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
 	 DW9714AF_Release, DW9714AF_GetFileName, NULL},
 	{1, AFDRV_DW9718AF, DW9718AF_SetI2Cclient, DW9718AF_Ioctl,
 	 DW9718AF_Release, DW9718AF_GetFileName, NULL},
+	{1, AFDRV_JD5516WE4, JD5516WE4_SetI2Cclient, JD5516WE4_Ioctl,
+	 JD5516WE4_Release, JD5516WE4_GetFileName, NULL},
 };
 
 static struct stAF_DrvList *g_pstAF_CurDrv;

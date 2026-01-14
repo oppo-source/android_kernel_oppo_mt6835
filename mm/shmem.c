@@ -85,6 +85,10 @@ static struct vfsmount *shm_mnt;
 
 #include "internal.h"
 
+#ifdef CONFIG_MEMFD_ASHMEM_SHIM
+#include "memfd-ashmem-shim.h"
+#endif
+
 #define BLOCKS_PER_PAGE  (PAGE_SIZE/512)
 #define VM_ACCT(size)    (PAGE_ALIGN(size) >> PAGE_SHIFT)
 
@@ -1747,6 +1751,7 @@ static int shmem_swapin_page(struct inode *inode, pgoff_t index,
 
 	/* We have to do this with page locked to prevent races */
 	lock_page(page);
+	trace_android_vh_shmem_swapin_page(page);
 	if (!PageSwapCache(page) || page_private(page) != swap.val ||
 	    !shmem_confirm_swap(mapping, index, swap)) {
 		error = -EEXIST;
@@ -2266,9 +2271,6 @@ static int shmem_mmap(struct file *file, struct vm_area_struct *vma)
 	ret = seal_check_future_write(info->seals, vma);
 	if (ret)
 		return ret;
-
-	/* arm64 - allow memory tagging on RAM-based files */
-	vma->vm_flags |= VM_MTE_ALLOWED;
 
 	file_accessed(file);
 	vma->vm_ops = &shmem_vm_ops;
@@ -3395,6 +3397,8 @@ static int shmem_parse_one(struct fs_context *fc, struct fs_parameter *param)
 	unsigned long long size;
 	char *rest;
 	int opt;
+	kuid_t kuid;
+	kgid_t kgid;
 
 	opt = fs_parse(fc, shmem_fs_parameters, param, &result);
 	if (opt < 0)
@@ -3430,14 +3434,32 @@ static int shmem_parse_one(struct fs_context *fc, struct fs_parameter *param)
 		ctx->mode = result.uint_32 & 07777;
 		break;
 	case Opt_uid:
-		ctx->uid = make_kuid(current_user_ns(), result.uint_32);
-		if (!uid_valid(ctx->uid))
+		kuid = make_kuid(current_user_ns(), result.uint_32);
+		if (!uid_valid(kuid))
 			goto bad_value;
+
+		/*
+		 * The requested uid must be representable in the
+		 * filesystem's idmapping.
+		 */
+		if (!kuid_has_mapping(fc->user_ns, kuid))
+			goto bad_value;
+
+		ctx->uid = kuid;
 		break;
 	case Opt_gid:
-		ctx->gid = make_kgid(current_user_ns(), result.uint_32);
-		if (!gid_valid(ctx->gid))
+		kgid = make_kgid(current_user_ns(), result.uint_32);
+		if (!gid_valid(kgid))
 			goto bad_value;
+
+		/*
+		 * The requested gid must be representable in the
+		 * filesystem's idmapping.
+		 */
+		if (!kgid_has_mapping(fc->user_ns, kgid))
+			goto bad_value;
+
+		ctx->gid = kgid;
 		break;
 	case Opt_huge:
 		ctx->huge = result.uint_32;
@@ -3840,6 +3862,12 @@ static const struct file_operations shmem_file_operations = {
 	.splice_write	= iter_file_splice_write,
 	.fallocate	= shmem_fallocate,
 #endif
+#ifdef CONFIG_MEMFD_ASHMEM_SHIM
+	.unlocked_ioctl	= memfd_ashmem_shim_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl	= memfd_ashmem_shim_compat_ioctl,
+#endif
+#endif
 };
 
 static const struct inode_operations shmem_inode_operations = {
@@ -4044,7 +4072,7 @@ static struct file_system_type shmem_fs_type = {
 	.name		= "tmpfs",
 	.init_fs_context = ramfs_init_fs_context,
 	.parameters	= ramfs_fs_parameters,
-	.kill_sb	= kill_litter_super,
+	.kill_sb	= ramfs_kill_sb,
 	.fs_flags	= FS_USERNS_MOUNT,
 };
 

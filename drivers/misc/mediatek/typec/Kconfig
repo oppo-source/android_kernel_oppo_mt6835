@@ -2,6 +2,7 @@
 # MediaTek USB TYPEC Driver
 #
 
+
 config MTK_USB_TYPEC
 	tristate "Mediatek USB TYPE-C Driver"
 	help
@@ -11,7 +12,10 @@ config MTK_USB_TYPEC
 	  by callback func.
 	  If unsure, say N.
 
+if !OPLUS_PD_EXT_SUPPORT
 source "drivers/misc/mediatek/typec/tcpc/Kconfig"
+endif
 
 source "drivers/misc/mediatek/typec/mux/Kconfig"
+
 

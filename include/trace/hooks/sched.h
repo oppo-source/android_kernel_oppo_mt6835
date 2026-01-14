@@ -60,6 +60,10 @@ DECLARE_RESTRICTED_HOOK(android_rvh_finish_prio_fork,
 	TP_PROTO(struct task_struct *p),
 	TP_ARGS(p), 1);
 
+DECLARE_RESTRICTED_HOOK(android_rvh_rtmutex_force_update,
+	TP_PROTO(struct task_struct *p, struct task_struct *pi_task, int *update),
+	TP_ARGS(p, pi_task, update), 1);
+
 DECLARE_RESTRICTED_HOOK(android_rvh_rtmutex_prepare_setprio,
 	TP_PROTO(struct task_struct *p, struct task_struct *pi_task),
 	TP_ARGS(p, pi_task), 1);
@@ -258,6 +262,14 @@ DECLARE_HOOK(android_vh_map_util_freq_new,
 		bool *need_freq_update),
 	TP_ARGS(util, freq, cap, next_freq, policy, need_freq_update));
 
+DECLARE_HOOK(android_vh_sched_move_task,
+	TP_PROTO(struct task_struct *tsk),
+	TP_ARGS(tsk));
+
+DECLARE_HOOK(android_vh_reweight_entity,
+	TP_PROTO(struct sched_entity *se),
+	TP_ARGS(se));
+
 DECLARE_HOOK(android_vh_em_cpu_energy,
 	TP_PROTO(struct em_perf_domain *pd,
 		unsigned long max_util, unsigned long sum_util,
@@ -427,6 +439,10 @@ DECLARE_HOOK(android_vh_sched_setaffinity_early,
 DECLARE_RESTRICTED_HOOK(android_rvh_update_rt_rq_load_avg,
 	TP_PROTO(u64 now, struct rq *rq, struct task_struct *tsk, int running),
 	TP_ARGS(now, rq, tsk, running), 1);
+
+DECLARE_RESTRICTED_HOOK(android_rvh_set_task_comm,
+	TP_PROTO(struct task_struct *tsk, bool exec),
+	TP_ARGS(tsk, exec), 1);
 
 DECLARE_HOOK(android_vh_mmput,
 	TP_PROTO(struct mm_struct *mm),

@@ -8,9 +8,12 @@
 #include "pelt.h"
 
 #include <trace/hooks/sched.h>
+#if IS_ENABLED(CONFIG_OPLUS_SCHED_TUNE)
+#include <../kernel/oplus_cpu/sched/sched_tune/tune.h>
+#endif
 
 int sched_rr_timeslice = RR_TIMESLICE;
-int sysctl_sched_rr_timeslice = (MSEC_PER_SEC / HZ) * RR_TIMESLICE;
+int sysctl_sched_rr_timeslice = (MSEC_PER_SEC * RR_TIMESLICE) / HZ;
 /* More than 4 hours if BW_SHIFT equals 20. */
 static const u64 max_rt_runtime = MAX_BW;
 
@@ -1425,6 +1428,10 @@ enqueue_task_rt(struct rq *rq, struct task_struct *p, int flags)
 	struct sched_rt_entity *rt_se = &p->rt;
 	bool sync = !!(flags & ENQUEUE_WAKEUP_SYNC);
 
+#if IS_ENABLED(CONFIG_OPLUS_SCHED_TUNE)
+	schedtune_enqueue_task(p, cpu_of(rq));
+#endif
+
 	if (flags & ENQUEUE_WAKEUP)
 		rt_se->timeout = 0;
 
@@ -1438,6 +1445,10 @@ enqueue_task_rt(struct rq *rq, struct task_struct *p, int flags)
 static void dequeue_task_rt(struct rq *rq, struct task_struct *p, int flags)
 {
 	struct sched_rt_entity *rt_se = &p->rt;
+
+#if IS_ENABLED(CONFIG_OPLUS_SCHED_TUNE)
+	schedtune_dequeue_task(p, cpu_of(rq));
+#endif
 
 	update_curr_rt(rq);
 	dequeue_rt_entity(rt_se, flags);
@@ -1966,11 +1977,15 @@ static struct rq *find_lock_lowest_rq(struct task_struct *task, struct rq *rq)
 			 * the mean time, task could have
 			 * migrated already or had its affinity changed.
 			 * Also make sure that it wasn't scheduled on its rq.
+			 * It is possible the task was scheduled, set
+			 * "migrate_disabled" and then got preempted, so we must
+			 * check the task migration disable flag here too.
 			 */
 			if (unlikely(task_rq(task) != rq ||
 				     !cpumask_test_cpu(lowest_rq->cpu, &task->cpus_mask) ||
 				     task_running(rq, task) ||
 				     !rt_task(task) ||
+				     is_migration_disabled(task) ||
 				     !task_on_rq_queued(task))) {
 
 				double_unlock_balance(rq, lowest_rq);
@@ -2182,6 +2197,7 @@ retry:
 #if IS_ENABLED(CONFIG_MTK_IRQ_MONITOR_DEBUG)
 			ts[10] = sched_clock();
 #endif
+			preempt_disable();
 			raw_spin_rq_unlock(rq);
 #if IS_ENABLED(CONFIG_MTK_IRQ_MONITOR_DEBUG)
 			ts[11] = sched_clock();
@@ -2191,6 +2207,7 @@ retry:
 #if IS_ENABLED(CONFIG_MTK_IRQ_MONITOR_DEBUG)
 			ts[12] = sched_clock();
 #endif
+			preempt_enable();
 			raw_spin_rq_lock(rq);
 		}
 #if IS_ENABLED(CONFIG_MTK_IRQ_MONITOR_DEBUG)
@@ -2626,9 +2643,11 @@ skip:
 		double_unlock_balance(this_rq, src_rq);
 
 		if (push_task) {
+			preempt_disable();
 			raw_spin_rq_unlock(this_rq);
 			stop_one_cpu_nowait(src_rq->cpu, push_cpu_stop,
 					    push_task, &src_rq->push_work);
+			preempt_enable();
 			raw_spin_rq_lock(this_rq);
 		}
 	}
@@ -3139,9 +3158,6 @@ static int sched_rt_global_constraints(void)
 
 static int sched_rt_global_validate(void)
 {
-	if (sysctl_sched_rt_period <= 0)
-		return -EINVAL;
-
 	if ((sysctl_sched_rt_runtime != RUNTIME_INF) &&
 		((sysctl_sched_rt_runtime > sysctl_sched_rt_period) ||
 		 ((u64)sysctl_sched_rt_runtime *
@@ -3172,7 +3188,7 @@ int sched_rt_handler(struct ctl_table *table, int write, void *buffer,
 	old_period = sysctl_sched_rt_period;
 	old_runtime = sysctl_sched_rt_runtime;
 
-	ret = proc_dointvec(table, write, buffer, lenp, ppos);
+	ret = proc_dointvec_minmax(table, write, buffer, lenp, ppos);
 
 	if (!ret && write) {
 		ret = sched_rt_global_validate();
@@ -3216,6 +3232,9 @@ int sched_rr_handler(struct ctl_table *table, int write, void *buffer,
 		sched_rr_timeslice =
 			sysctl_sched_rr_timeslice <= 0 ? RR_TIMESLICE :
 			msecs_to_jiffies(sysctl_sched_rr_timeslice);
+
+		if (sysctl_sched_rr_timeslice <= 0)
+			sysctl_sched_rr_timeslice = jiffies_to_msecs(RR_TIMESLICE);
 	}
 	mutex_unlock(&mutex);
 

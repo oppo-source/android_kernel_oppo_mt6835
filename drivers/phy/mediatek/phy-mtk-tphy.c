@@ -448,6 +448,13 @@ struct mtk_phy_instance {
 	int pll_bw;
 	int bgr_div;
 	bool bc12_en;
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	/* u2 eye diagram for host */
+	int eye_src_host;
+	int eye_vrt_host;
+	int eye_term_host;
+	int rev6_host;
+#endif
 	struct proc_dir_entry *phy_root;
 };
 
@@ -464,6 +471,11 @@ struct mtk_tphy {
 
 static void u2_phy_props_set(struct mtk_tphy *tphy,
 		struct mtk_phy_instance *instance);
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+static void u2_phy_host_props_set(struct mtk_tphy *tphy,
+		struct mtk_phy_instance *instance);
+#endif
 
 static ssize_t proc_sib_write(struct file *file,
 	const char __user *ubuf, size_t count, loff_t *ppos)
@@ -1632,6 +1644,9 @@ static void u2_phy_instance_set_mode(struct mtk_tphy *tphy,
 			tmp |= P2C_FORCE_IDDIG | P2C_RG_IDDIG;
 			break;
 		case PHY_MODE_USB_HOST:
+#ifdef OPLUS_FEATURE_CHG_BASIC
+			u2_phy_host_props_set(tphy, instance);
+#endif
 			tmp |= P2C_FORCE_IDDIG;
 			tmp &= ~P2C_RG_IDDIG;
 			break;
@@ -1720,16 +1735,25 @@ static void u3_phy_instance_power_off(struct mtk_tphy *tphy,
 	struct mtk_phy_instance *instance)
 {
 	struct u3phy_banks *bank = &instance->u3_banks;
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	enum phy_mode mode = instance->phy->attrs.mode;
+#endif
 	u32 index = instance->index;
 	u32 tmp;
 
-	tmp = readl(bank->chip + U3P_U3_CHIP_GPIO_CTLD);
-	tmp |= P3C_FORCE_IP_SW_RST | P3C_REG_IP_SW_RST;
-	writel(tmp, bank->chip + U3P_U3_CHIP_GPIO_CTLD);
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	if (mode !=  PHY_MODE_USB_HOST) {
+#endif
+		tmp = readl(bank->chip + U3P_U3_CHIP_GPIO_CTLD);
+		tmp |= P3C_FORCE_IP_SW_RST | P3C_REG_IP_SW_RST;
+		writel(tmp, bank->chip + U3P_U3_CHIP_GPIO_CTLD);
 
-	tmp = readl(bank->chip + U3P_U3_CHIP_GPIO_CTLE);
-	tmp |= P3C_RG_SWRST_U3_PHYD_FORCE_EN | P3C_RG_SWRST_U3_PHYD;
-	writel(tmp, bank->chip + U3P_U3_CHIP_GPIO_CTLE);
+		tmp = readl(bank->chip + U3P_U3_CHIP_GPIO_CTLE);
+		tmp |= P3C_RG_SWRST_U3_PHYD_FORCE_EN | P3C_RG_SWRST_U3_PHYD;
+		writel(tmp, bank->chip + U3P_U3_CHIP_GPIO_CTLE);
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	}
+#endif
 
 	dev_info(tphy->dev, "%s(%d)\n", __func__, index);
 }
@@ -1974,6 +1998,16 @@ static void phy_parse_property(struct mtk_tphy *tphy,
 				 &instance->rev4);
 	device_property_read_u32(dev, "mediatek,rev6",
 				 &instance->rev6);
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	device_property_read_u32(dev, "mediatek,eye-src-host",
+				 &instance->eye_src_host);
+	device_property_read_u32(dev, "mediatek,eye-vrt-host",
+				 &instance->eye_vrt_host);
+	device_property_read_u32(dev, "mediatek,eye-term-host",
+				 &instance->eye_term_host);
+	device_property_read_u32(dev, "mediatek,rev6-host",
+				&instance->rev6_host);
+#endif
 	device_property_read_u32(dev, "mediatek,pll-bw",
 				&instance->pll_bw);
 	device_property_read_u32(dev, "mediatek,bgr-div",
@@ -1982,8 +2016,16 @@ static void phy_parse_property(struct mtk_tphy *tphy,
 		instance->bc12_en, instance->eye_src,
 		instance->eye_vrt, instance->eye_term,
 		instance->intr, instance->discth);
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	dev_dbg(dev, "src_host:%d, vrt_host:%d, term_host:%d\n",
+		instance->eye_src_host, instance->eye_vrt_host,
+		instance->eye_term_host);
+#endif
 	dev_dbg(dev, "rx_sqth:%d\n", instance->rx_sqth);
-	dev_dbg(dev, "rev4:%d, rev6:%d\n", instance->rev4, instance->rev6);
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	dev_dbg(dev, "rev4:%d, rev6:%d, rev6_host:%d\n", instance->rev4, instance->rev6,
+		instance->rev6_host);
+#endif
 	dev_dbg(dev, "pll-bw:%d, bgr-div:%d\n", instance->pll_bw, instance->bgr_div);
 }
 
@@ -2079,6 +2121,45 @@ static void u2_phy_props_set(struct mtk_tphy *tphy,
 		writel(tmp, com + U3P_USBPHYACR0);
 	}
 }
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+static void u2_phy_host_props_set(struct mtk_tphy *tphy,
+			     struct mtk_phy_instance *instance)
+{
+	struct u2phy_banks *u2_banks = &instance->u2_banks;
+	void __iomem *com = u2_banks->com;
+	u32 tmp;
+
+	dump_stack();
+	if (instance->eye_src_host) {
+		tmp = readl(com + U3P_USBPHYACR5);
+		tmp &= ~PA5_RG_U2_HSTX_SRCTRL;
+		tmp |= PA5_RG_U2_HSTX_SRCTRL_VAL(instance->eye_src_host);
+		writel(tmp, com + U3P_USBPHYACR5);
+	}
+
+	if (instance->eye_vrt_host) {
+		tmp = readl(com + U3P_USBPHYACR1);
+		tmp &= ~PA1_RG_VRT_SEL;
+		tmp |= PA1_RG_VRT_SEL_VAL(instance->eye_vrt_host);
+		writel(tmp, com + U3P_USBPHYACR1);
+	}
+
+	if (instance->eye_term_host) {
+		tmp = readl(com + U3P_USBPHYACR1);
+		tmp &= ~PA1_RG_TERM_SEL;
+		tmp |= PA1_RG_TERM_SEL_VAL(instance->eye_term_host);
+		writel(tmp, com + U3P_USBPHYACR1);
+	}
+
+	if (instance->rev6_host) {
+		tmp = readl(com + U3P_USBPHYACR6);
+		tmp &= ~PA6_RG_U2_PHY_REV6;
+		tmp |= PA6_RG_U2_PHY_REV6_VAL(instance->rev6_host);
+		writel(tmp, com + U3P_USBPHYACR6);
+	}
+}
+#endif
 
 /* type switch for usb3/pcie/sgmii/sata */
 static int phy_type_syscon_get(struct mtk_phy_instance *instance,
@@ -2307,11 +2388,17 @@ static int mtk_phy_power_on(struct phy *phy)
 {
 	struct mtk_phy_instance *instance = phy_get_drvdata(phy);
 	struct mtk_tphy *tphy = dev_get_drvdata(phy->dev.parent);
+	enum phy_mode mode = instance->phy->attrs.mode;
 
 	if (instance->type == PHY_TYPE_USB2) {
 		u2_phy_instance_power_on(tphy, instance);
 		hs_slew_rate_calibrate(tphy, instance);
-		u2_phy_props_set(tphy, instance);
+#ifdef OPLUS_FEATURE_CHG_BASIC
+		if (mode == PHY_MODE_USB_HOST)
+			u2_phy_host_props_set(tphy, instance);
+		else
+			u2_phy_props_set(tphy, instance);
+#endif
 	} else if (instance->type == PHY_TYPE_USB3) {
 		u3_phy_instance_power_on(tphy, instance);
 	} else if (instance->type == PHY_TYPE_PCIE) {

@@ -1273,13 +1273,17 @@ EXIT:
 	return ret;
 }
 
-static int fbt_get_cam_dep_list(struct fpsgo_loading *dep_arr)
+static int fbt_get_cam_dep_list(struct fpsgo_loading *dep_arr, int arr_size)
 {
 	int index = 0;
 	struct cam_dep_thread *iter;
 	struct fpsgo_loading *cam_dep_list_local;
 	struct rb_root *rbr;
 	struct rb_node *rbn;
+	int copy_size;
+
+	if (!dep_arr || arr_size <= 0)
+		return -EINVAL;
 
 	cam_dep_list_local =
 		kcalloc(MAX_DEP_NUM, sizeof(struct fpsgo_loading), GFP_KERNEL);
@@ -1297,12 +1301,14 @@ static int fbt_get_cam_dep_list(struct fpsgo_loading *dep_arr)
 	}
 	mutex_unlock(&cam_dep_lock);
 
-	memset(dep_arr, 0, MAX_DEP_NUM * sizeof(struct fpsgo_loading));
-	memcpy(dep_arr, cam_dep_list_local, index * sizeof(struct fpsgo_loading));
+	// 只清零实际要使用的部分
+	copy_size = min(index, arr_size);
+	memset(dep_arr, 0, copy_size * sizeof(struct fpsgo_loading));
+	memcpy(dep_arr, cam_dep_list_local, copy_size * sizeof(struct fpsgo_loading));
 
 	kfree(cam_dep_list_local);
 
-	return index;
+	return copy_size;
 }
 
 static void fbt_clear_dep_list(struct fpsgo_loading *pdep)
@@ -1878,7 +1884,7 @@ static void fbt_set_min_cap_locked(struct render_info *thr, int min_cap,
 		goto EXIT;
 	}
 
-	cam_dep_arr_size = fbt_get_cam_dep_list(cam_dep_arr);
+	cam_dep_arr_size = fbt_get_cam_dep_list(cam_dep_arr, MAX_DEP_NUM);
 	if (cam_dep_arr_size <= 0) {
 		cam_dep_arr_size = 0;
 		memset(cam_dep_arr, 0, MAX_DEP_NUM * sizeof(struct fpsgo_loading));

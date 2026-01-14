@@ -767,6 +767,13 @@ static int layering_get_valid_hrt(struct drm_crtc *crtc,
 	tmp = 0;
 
 	output_comp = mtk_ddp_comp_request_output(mtk_crtc);
+#ifdef OPLUS_FEATURE_DISPLAY
+	if (mtk_crtc->res_switch == RES_SWITCH_NO_USE) {
+		DDPDBG("%s mode_idx:%d\n", __func__, mode_idx);
+		if (mtk_crtc->skip_unnecessary_switch)
+			mtk_crtc->mode_idx = mode_idx;
+	}
+#endif /* OPLUS_FEATURE_DISPLAY */
 	DDPDBG("%s: %u mode_idx:%d\n", __func__, disp_idx, mode_idx);
 	mtk_crtc->mode_idx = mode_idx;
 	tmp = mode_idx;

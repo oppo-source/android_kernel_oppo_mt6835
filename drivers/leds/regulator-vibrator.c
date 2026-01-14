@@ -180,7 +180,11 @@ static int vib_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto err;
 	}
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	m_vibr->vibr_queue = create_workqueue(VIB_DEVICE);
+#else
 	m_vibr->vibr_queue = create_singlethread_workqueue(VIB_DEVICE);
+#endif
 	if (!m_vibr->vibr_queue) {
 		ret = -ENOMEM;
 		pr_notice("unable to create workqueue!\n");

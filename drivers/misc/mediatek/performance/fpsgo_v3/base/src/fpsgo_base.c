@@ -39,6 +39,10 @@
 #include <trace/trace.h>
 #include "sched/sched.h"
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
+#include <../kernel/oplus_cpu/sched/sched_assist/sa_pipeline.h>
+#endif
+
 #define TIME_1S  1000000000ULL
 #define TRAVERSE_PERIOD  300000000000ULL
 
@@ -81,6 +85,10 @@ long fpsgo_sched_setaffinity(pid_t pid, const struct cpumask *in_mask)
 	struct task_struct *p;
 	int retval;
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
+	struct cpumask in_mask_tmp;
+	cpumask_copy(&in_mask_tmp, in_mask);
+#endif
 	rcu_read_lock();
 
 	p = find_task_by_vpid(pid);
@@ -93,13 +101,24 @@ long fpsgo_sched_setaffinity(pid_t pid, const struct cpumask *in_mask)
 	get_task_struct(p);
 	rcu_read_unlock();
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_PIPELINE)
+	mtk_rearrange_pipeline_preferred_cpus(p, in_mask);
+#endif
+
 	if (p->flags & PF_NO_SETAFFINITY) {
 		retval = -EINVAL;
 		goto out_put_task;
 	}
 	retval = -EPERM;
-
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
+	/*bug id 8083511
+		in_mask is changed by android_rvh_set_cpus_allowed_by_task_handler
+		so many tasks are limited on sliver cpu
+	*/
+	retval = set_cpus_allowed_ptr(p, &in_mask_tmp);
+#else
 	retval = set_cpus_allowed_ptr(p, in_mask);
+#endif
 out_put_task:
 	put_task_struct(p);
 	return retval;

@@ -62,6 +62,9 @@
 #define MTK_IMGSYS_LOG_LENGTH			256
 
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif
 
 enum imgsys_user_state {
 	DIP_STATE_INIT	= 0,

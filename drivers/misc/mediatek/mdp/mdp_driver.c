@@ -56,30 +56,6 @@ static dev_t gMdpDevNo;
 static struct cdev *gMdpCDev;
 static struct class *gMDPClass;
 
-static int cmdq_proc_status_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, cmdq_core_print_status_seq, inode->i_private);
-}
-
-static int cmdq_proc_record_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, cmdq_core_print_record_seq, inode->i_private);
-}
-
-static const struct proc_ops cmdqDebugStatusOp = {
-	.proc_open = cmdq_proc_status_open,
-	.proc_read = seq_read,
-	.proc_lseek = seq_lseek,
-	.proc_release = single_release,
-};
-
-static const struct proc_ops cmdqDebugRecordOp = {
-	.proc_open = cmdq_proc_record_open,
-	.proc_read = seq_read,
-	.proc_lseek = seq_lseek,
-	.proc_release = single_release,
-};
-
 static int cmdq_open(struct inode *pInode, struct file *pFile)
 {
 	struct cmdqFileNodeStruct *pNode;
@@ -1155,24 +1131,6 @@ static struct notifier_block cmdq_pm_notifier_block = {
 	.priority = 5,
 };
 
-
-static int cmdq_create_debug_entries(void)
-{
-	struct proc_dir_entry *debugDirEntry = NULL;
-
-	debugDirEntry = proc_mkdir(MDP_DRIVER_DEVICE_NAME "_debug", NULL);
-	if (debugDirEntry) {
-		struct proc_dir_entry *entry = NULL;
-
-		entry = proc_create("status", 0440, debugDirEntry,
-			&cmdqDebugStatusOp);
-		entry = proc_create("record", 0440, debugDirEntry,
-			&cmdqDebugRecordOp);
-	}
-
-	return 0;
-}
-
 static int cmdq_probe(struct platform_device *pDevice)
 {
 	int status;
@@ -1216,9 +1174,6 @@ static int cmdq_probe(struct platform_device *pDevice)
 		MDP_DRIVER_DEVICE_NAME);
 
 	/* mtk-cmdq-mailbox will register the irq */
-
-	/* proc debug access point */
-	cmdq_create_debug_entries();
 
 	mdp_limit_dev_create(pDevice);
 

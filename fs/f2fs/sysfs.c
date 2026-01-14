@@ -224,6 +224,13 @@ static ssize_t encoding_show(struct f2fs_attr *a,
 	return sprintf(buf, "(none)");
 }
 
+static ssize_t encoding_flags_show(struct f2fs_attr *a,
+		struct f2fs_sb_info *sbi, char *buf)
+{
+	return sysfs_emit(buf, "%x\n",
+		le16_to_cpu(F2FS_RAW_SUPER(sbi)->s_encoding_flags));
+}
+
 static ssize_t mounted_time_sec_show(struct f2fs_attr *a,
 		struct f2fs_sb_info *sbi, char *buf)
 {
@@ -339,6 +346,21 @@ static ssize_t f2fs_sbi_show(struct f2fs_attr *a,
 		return sysfs_emit(buf, "%u\n",
 			sbi->gc_reclaimed_segs[sbi->gc_segment_mode]);
 	}
+
+	if (!strcmp(a->attr.name, "current_atomic_write")) {
+		s64 current_write = atomic64_read(&sbi->current_atomic_write);
+
+		return sysfs_emit(buf, "%lld\n", current_write);
+	}
+
+	if (!strcmp(a->attr.name, "peak_atomic_write"))
+		return sysfs_emit(buf, "%lld\n", sbi->peak_atomic_write);
+
+	if (!strcmp(a->attr.name, "committed_atomic_block"))
+		return sysfs_emit(buf, "%llu\n", sbi->committed_atomic_block);
+
+	if (!strcmp(a->attr.name, "revoked_atomic_block"))
+		return sysfs_emit(buf, "%llu\n", sbi->revoked_atomic_block);
 
 	ui = (unsigned int *)(ptr + a->offset);
 
@@ -530,15 +552,9 @@ out:
 	if (!strcmp(a->attr.name, "iostat_period_ms")) {
 		if (t < MIN_IOSTAT_PERIOD_MS || t > MAX_IOSTAT_PERIOD_MS)
 			return -EINVAL;
-#if IS_ENABLED(CONFIG_MTK_F2FS_DEBUG)
 		spin_lock_irq(&sbi->iostat_lock);
 		sbi->iostat_period_ms = (unsigned int)t;
 		spin_unlock_irq(&sbi->iostat_lock);
-#else
-		spin_lock(&sbi->iostat_lock);
-		sbi->iostat_period_ms = (unsigned int)t;
-		spin_unlock(&sbi->iostat_lock);
-#endif /* CONFIG_MTK_F2FS_DEBUG */
 		return count;
 	}
 #endif
@@ -611,6 +627,27 @@ out:
 			sbi->max_fragment_hole = t;
 		else
 			return -EINVAL;
+		return count;
+	}
+
+	if (!strcmp(a->attr.name, "peak_atomic_write")) {
+		if (t != 0)
+			return -EINVAL;
+		sbi->peak_atomic_write = 0;
+		return count;
+	}
+
+	if (!strcmp(a->attr.name, "committed_atomic_block")) {
+		if (t != 0)
+			return -EINVAL;
+		sbi->committed_atomic_block = 0;
+		return count;
+	}
+
+	if (!strcmp(a->attr.name, "revoked_atomic_block")) {
+		if (t != 0)
+			return -EINVAL;
+		sbi->revoked_atomic_block = 0;
 		return count;
 	}
 
@@ -719,6 +756,11 @@ static struct f2fs_attr f2fs_attr_##_name = {			\
 	.offset = _offset					\
 }
 
+#define F2FS_RO_ATTR(struct_type, struct_name, name, elname)	\
+	F2FS_ATTR_OFFSET(struct_type, name, 0444,		\
+		f2fs_sbi_show, NULL,				\
+		offsetof(struct struct_name, elname))
+
 #define F2FS_RW_ATTR(struct_type, struct_name, name, elname)	\
 	F2FS_ATTR_OFFSET(struct_type, name, 0644,		\
 		f2fs_sbi_show, f2fs_sbi_store,			\
@@ -795,6 +837,7 @@ F2FS_GENERAL_RO_ATTR(features);
 F2FS_GENERAL_RO_ATTR(current_reserved_blocks);
 F2FS_GENERAL_RO_ATTR(unusable);
 F2FS_GENERAL_RO_ATTR(encoding);
+F2FS_GENERAL_RO_ATTR(encoding_flags);
 F2FS_GENERAL_RO_ATTR(mounted_time_sec);
 F2FS_GENERAL_RO_ATTR(main_blkaddr);
 F2FS_GENERAL_RO_ATTR(pending_discard);
@@ -817,6 +860,8 @@ F2FS_FEATURE_RO_ATTR(encrypted_casefold);
 #endif /* CONFIG_FS_ENCRYPTION */
 #ifdef CONFIG_BLK_DEV_ZONED
 F2FS_FEATURE_RO_ATTR(block_zoned);
+F2FS_RO_ATTR(F2FS_SBI, f2fs_sb_info, unusable_blocks_per_sec,
+					unusable_blocks_per_sec);
 #endif
 F2FS_FEATURE_RO_ATTR(atomic_write);
 F2FS_FEATURE_RO_ATTR(extra_attr);
@@ -841,6 +886,9 @@ F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, compr_saved_block, compr_saved_block);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, compr_new_inode, compr_new_inode);
 #endif
 F2FS_FEATURE_RO_ATTR(pin_file);
+#ifdef CONFIG_UNICODE
+F2FS_FEATURE_RO_ATTR(linear_lookup);
+#endif
 
 /* For ATGC */
 F2FS_RW_ATTR(ATGC_INFO, atgc_management, atgc_candidate_ratio, candidate_ratio);
@@ -853,6 +901,12 @@ F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, gc_segment_mode, gc_segment_mode);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, gc_reclaimed_segments, gc_reclaimed_segs);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, max_fragment_chunk, max_fragment_chunk);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, max_fragment_hole, max_fragment_hole);
+
+/* For atomic write */
+F2FS_RO_ATTR(F2FS_SBI, f2fs_sb_info, current_atomic_write, current_atomic_write);
+F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, peak_atomic_write, peak_atomic_write);
+F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, committed_atomic_block, committed_atomic_block);
+F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, revoked_atomic_block, revoked_atomic_block);
 
 #define ATTR_LIST(name) (&f2fs_attr_##name.attr)
 static struct attribute *f2fs_attrs[] = {
@@ -915,6 +969,7 @@ static struct attribute *f2fs_attrs[] = {
 	ATTR_LIST(reserved_blocks),
 	ATTR_LIST(current_reserved_blocks),
 	ATTR_LIST(encoding),
+	ATTR_LIST(encoding_flags),
 	ATTR_LIST(mounted_time_sec),
 #ifdef CONFIG_F2FS_STAT_FS
 	ATTR_LIST(cp_foreground_calls),
@@ -924,6 +979,9 @@ static struct attribute *f2fs_attrs[] = {
 	ATTR_LIST(moved_blocks_foreground),
 	ATTR_LIST(moved_blocks_background),
 	ATTR_LIST(avg_vblocks),
+#endif
+#ifdef CONFIG_BLK_DEV_ZONED
+	ATTR_LIST(unusable_blocks_per_sec),
 #endif
 #ifdef CONFIG_F2FS_FS_COMPRESSION
 	ATTR_LIST(compr_written_block),
@@ -940,6 +998,10 @@ static struct attribute *f2fs_attrs[] = {
 	ATTR_LIST(gc_reclaimed_segments),
 	ATTR_LIST(max_fragment_chunk),
 	ATTR_LIST(max_fragment_hole),
+	ATTR_LIST(current_atomic_write),
+	ATTR_LIST(peak_atomic_write),
+	ATTR_LIST(committed_atomic_block),
+	ATTR_LIST(revoked_atomic_block),
 	NULL,
 };
 ATTRIBUTE_GROUPS(f2fs);
@@ -975,6 +1037,9 @@ static struct attribute *f2fs_feat_attrs[] = {
 	ATTR_LIST(compression),
 #endif
 	ATTR_LIST(pin_file),
+#ifdef CONFIG_UNICODE
+	ATTR_LIST(linear_lookup),
+#endif
 	NULL,
 };
 ATTRIBUTE_GROUPS(f2fs_feat);

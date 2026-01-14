@@ -34,9 +34,9 @@ static int __mt76u_vendor_request(struct mt76_dev *dev, u8 req,
 
 		ret = usb_control_msg(udev, pipe, req, req_type, val,
 				      offset, buf, len, MT_VEND_REQ_TOUT_MS);
-		if (ret == -ENODEV)
+		if (ret == -ENODEV || ret == -EPROTO)
 			set_bit(MT76_REMOVED, &dev->phy.state);
-		if (ret >= 0 || ret == -ENODEV)
+		if (ret >= 0 || ret == -ENODEV || ret == -EPROTO)
 			return ret;
 		usleep_range(5000, 10000);
 	}
@@ -901,8 +901,8 @@ mt76u_tx_setup_buffers(struct mt76_dev *dev, struct sk_buff *skb,
 
 static int
 mt76u_tx_queue_skb(struct mt76_dev *dev, struct mt76_queue *q,
-		   struct sk_buff *skb, struct mt76_wcid *wcid,
-		   struct ieee80211_sta *sta)
+		   enum mt76_txq_id qid, struct sk_buff *skb,
+		   struct mt76_wcid *wcid, struct ieee80211_sta *sta)
 {
 	struct mt76_tx_info tx_info = {
 		.skb = skb,
@@ -914,7 +914,7 @@ mt76u_tx_queue_skb(struct mt76_dev *dev, struct mt76_queue *q,
 		return -ENOSPC;
 
 	skb->prev = skb->next = NULL;
-	err = dev->drv->tx_prepare_skb(dev, NULL, q->qid, wcid, sta, &tx_info);
+	err = dev->drv->tx_prepare_skb(dev, NULL, qid, wcid, sta, &tx_info);
 	if (err < 0)
 		return err;
 

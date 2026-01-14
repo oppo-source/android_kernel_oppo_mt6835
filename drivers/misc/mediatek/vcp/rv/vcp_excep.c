@@ -25,6 +25,12 @@
 #include "vcp_reservedmem_define.h"
 #include "vcp_status.h"
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+/* add for vcp crash feedback*/
+#include <soc/oplus/system/oplus_mm_kevent_fb.h>
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
+
+
 #define POLLING_RETRY 100
 
 struct vcp_dump_st {
@@ -585,10 +591,15 @@ void vcp_aed(enum VCP_RESET_TYPE type, enum vcp_core_id id)
 {
 	char *vcp_aed_title = NULL;
 
-	if (!vcp_ee_enable) {
-		pr_debug("[VCP]ee disable value=%d\n", vcp_ee_enable);
-		return;
-	}
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+    unsigned char fb_str[256] = "";
+#else
+    if (!vcp_ee_enable) {
+        pr_debug("[VCP]ee disable value=%d\n", vcp_ee_enable);
+        return;
+    }
+#endif //CONFIG_OPLUS_FEATURE_MM_FEEDBACK
+
 
 	mutex_lock(&vcp_excep_mutex);
 
@@ -624,6 +635,27 @@ void vcp_aed(enum VCP_RESET_TYPE type, enum vcp_core_id id)
 	pr_debug("vcp_aed_title=%s\n", vcp_aed_title);
 
 	vcp_prepare_aed_dump(vcp_aed_title, id);
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+    /* add for vcp feedback*/
+    if (vcpreg.core_nums == 2) {
+        scnprintf(fb_str,sizeof(fb_str),"%s: core0 pc:0x%08x,lr:0x%08x;core1 pc:0x%08x,lr:0x%08x:$$module@@vcp",
+            vcp_aed_title,c0_m->pc,c0_m->lr,c1_m->pc,c1_m->lr);
+    } else {
+        scnprintf(fb_str,sizeof(fb_str),"%s: core0 pc:0x%08x,lr:0x%08x:$$module@@vcp",
+            vcp_aed_title,c0_m->pc,c0_m->lr);
+    }
+
+    pr_err("vcp_aed mm_fb_video_kevent_named.\n");
+    mm_fb_video_kevent_named(OPLUS_VIDEO_EVENTID_VCP_CRASH, \
+            MM_FB_KEY_RATELIMIT_5MIN, "FieldData@@%s$$detailData@@video$$module@@vcp", fb_str);
+
+    if (!vcp_ee_enable) {
+        pr_debug("[VCP]vcp_ee_enable disable for test mm_fb_video_kevent, value=%d\n", vcp_ee_enable);
+        mutex_unlock(&vcp_excep_mutex);
+        return;
+    }
+#endif //CONFIG_OPLUS_FEATURE_MM_FEEDBACK
 
 #if IS_ENABLED(CONFIG_MTK_AEE_FEATURE)
 	/* vcp aed api, only detail information available*/

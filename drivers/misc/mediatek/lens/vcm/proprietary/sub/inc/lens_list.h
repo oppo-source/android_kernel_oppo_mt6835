@@ -85,4 +85,15 @@ extern long WV511AAF_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
 extern int WV511AAF_Release(struct inode *a_pstInode, struct file *a_pstFile);
 extern int WV511AAF_GetFileName(unsigned char *pFileName);
 
+#define JD5516WE4_SetI2Cclient JD5516WE4_SetI2Cclient_Sub
+#define JD5516WE4_Ioctl JD5516WE4_Ioctl_Sub
+#define JD5516WE4_Release JD5516WE4_Release_Sub
+#define JD5516WE4_GetFileName JD5516WE4_GetFileName_Sub
+extern int JD5516WE4_SetI2Cclient(struct i2c_client *pstAF_I2Cclient,
+				 spinlock_t *pAF_SpinLock, int *pAF_Opened);
+extern long JD5516WE4_Ioctl(struct file *a_pstFile, unsigned int a_u4Command,
+			   unsigned long a_u4Param);
+extern int JD5516WE4_Release(struct inode *a_pstInode, struct file *a_pstFile);
+extern int JD5516WE4_GetFileName(unsigned char *pFileName);
+
 #endif

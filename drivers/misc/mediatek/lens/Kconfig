@@ -285,3 +285,12 @@ config MTK_LENS_WV511AAF_SUPPORT
 	  This config is used to enable the corresponding
 	  lens driver for the camera sensor module
 	  Set as y if the driver is used in this project
+
+config MTK_LENS_JD5516WE4_SUPPORT
+	tristate "JD5516WE4 Lens Driver"
+        depends on MTK_LENS
+	help
+	  JD5516WE4 Lens Driver
+	  This config is used to enable the corresponding
+	  lens driver for the camera sensor module
+	  Set as y if the driver is used in this project

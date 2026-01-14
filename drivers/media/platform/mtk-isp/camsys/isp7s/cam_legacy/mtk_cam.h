@@ -51,7 +51,11 @@
 #define MAX_SV_PIPES_PER_STREAM (MAX_PIPES_PER_STREAM-1)
 #define MAX_MRAW_PIPES_PER_STREAM (MAX_PIPES_PER_STREAM-1)
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#define MTK_CAM_CTX_WATCHDOG_INTERVAL	150
+#else
 #define MTK_CAM_CTX_WATCHDOG_INTERVAL	100
+#endif /*OPLUS_FEATURE_CAMERA_COMMON*/
 
 /*stagger sensor stability option for camsys*/
 #define STAGGER_CQ_LAST_SOF 1
@@ -282,6 +286,7 @@ struct mtk_cam_request_stream_data {
 	struct mtk_cam_req_work seninf_s_fmt_work;
 	struct mtk_cam_req_work frame_work;
 	struct mtk_cam_req_work meta1_done_work;
+	struct mtk_cam_req_work extmeta_done_work;
 	struct mtk_cam_req_work frame_done_work;
 #if PURE_RAW_WITH_SV
 	struct mtk_cam_req_work pure_raw_done_work;

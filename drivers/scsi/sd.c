@@ -2821,6 +2821,11 @@ sd_read_cache_type(struct scsi_disk *sdkp, unsigned char *buffer)
 		if (sdkp->WCE && sdkp->write_prot)
 			sdkp->WCE = 0;
 
+		if (strstr(sdp->model, "XBUSC1D19A6TF2") &&
+			strcmp(sdkp->disk->disk_name, "sda") == 0) {
+			sdkp->WCE = 0;
+		}
+
 		if (sdkp->first_scan || old_wce != sdkp->WCE ||
 		    old_rcd != sdkp->RCD || old_dpofua != sdkp->DPOFUA)
 			sd_printk(KERN_NOTICE, sdkp,

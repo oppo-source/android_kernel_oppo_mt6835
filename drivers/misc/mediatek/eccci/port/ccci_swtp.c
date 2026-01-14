@@ -20,6 +20,11 @@
 #include "ccci_swtp.h"
 #include "ccci_fsm.h"
 
+//#ifdef OPLUS_FEATURE_SWTP
+#include <linux/proc_fs.h>
+static unsigned int swtp_status_value = SWTP_EINT_PIN_PLUG_OUT;
+//#endif  /*OPLUS_FEATURE_SWTP*/
+
 /* must keep ARRAY_SIZE(swtp_of_match) = ARRAY_SIZE(irq_name) */
 const struct of_device_id swtp_of_match[] = {
 	{ .compatible = SWTP_COMPATIBLE_DEVICE_ID, },
@@ -103,16 +108,26 @@ static int swtp_switch_state(int irq, struct swtp_t *swtp)
 	else
 		swtp->gpio_state[i] = SWTP_EINT_PIN_PLUG_IN;
 
-	swtp->tx_power_mode = SWTP_NO_TX_POWER;
+	//#ifdef OPLUS_FEATURE_SWTP
+	swtp->tx_power_mode = SWTP_DO_TX_POWER;
 	for (i = 0; i < MAX_PIN_NUM; i++) {
 		if (swtp->gpio_state[i] == SWTP_EINT_PIN_PLUG_IN) {
-			swtp->tx_power_mode = SWTP_DO_TX_POWER;
+			swtp->tx_power_mode = SWTP_NO_TX_POWER;
 			break;
 		}
 	}
+	//#endif  /*OPLUS_FEATURE_SWTP*/
 
 	inject_pin_status_event(swtp->curr_mode, rf_name);
 	spin_unlock_irqrestore(&swtp->spinlock, flags);
+
+	//#ifdef OPLUS_FEATURE_SWTP
+	CCCI_LEGACY_ERR_LOG(0, SYS, "[swtp_swtich_state] tx_power_mode after change: %d\n", swtp->tx_power_mode);
+	spin_lock(&swtp->spinlock);
+	swtp_status_value = swtp->tx_power_mode;
+	spin_unlock(&swtp->spinlock);
+	CCCI_LEGACY_ERR_LOG(0, SYS, "[swtp_swtich_state] after swtp_status_value=%d \n", swtp_status_value);
+	//#endif  /*OPLUS_FEATURE_SWTP*/
 
 	return swtp->tx_power_mode;
 }
@@ -178,6 +193,31 @@ int swtp_md_tx_power_req_hdlr(int data)
 	return 0;
 }
 
+//#ifdef OPLUS_FEATURE_SWTP
+static int swtp_gpio_show(struct seq_file *m, void *v)
+{
+	seq_printf(m, "%d\n", swtp_status_value);
+	return 0;
+}
+
+static int swtp_gpio_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, swtp_gpio_show, NULL);
+}
+
+static const struct proc_ops swtp_gpio_fops = {
+	.proc_open   = swtp_gpio_proc_open,
+	.proc_read   = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_release = single_release,
+};
+
+static void swtp_gpio_create_proc(void)
+{
+	proc_create("swtp_status_value", 0444, NULL, &swtp_gpio_fops);
+}
+//#endif  /*OPLUS_FEATURE_SWTP*/
+
 static void swtp_init_delayed_work(struct work_struct *work)
 {
 	int i, ret = 0;
@@ -197,7 +237,7 @@ static void swtp_init_delayed_work(struct work_struct *work)
 		ARRAY_SIZE(irq_name) > MAX_PIN_NUM + 1) {
 		ret = -3;
 		CCCI_LEGACY_ERR_LOG(-1, SYS,
-			"%s: invalid array count = %d(of_match), %d(irq_name)\n",
+			"%s: invalid array count = %lu(of_match), %lu(irq_name)\n",
 			__func__, ARRAY_SIZE(swtp_of_match),
 			ARRAY_SIZE(irq_name));
 		goto SWTP_INIT_END;
@@ -239,6 +279,18 @@ static void swtp_init_delayed_work(struct work_struct *work)
 			swtp_data.eint_type[i] = ints1[1];
 			swtp_data.irq[i] = irq_of_parse_and_map(node, 0);
 
+			//#ifdef OPLUS_FEATURE_SWTP
+			CCCI_LEGACY_ERR_LOG(0, SYS,
+				"swtp-eint original gpio=%d, of gpio=%d, setdebounce=%d, eint_type=%d, gpio_state=%d, txpower_mode=%d, swtp_status_value=%d\n",
+				ints1[0],
+				swtp_data.gpiopin[i],
+				swtp_data.setdebounce[i],
+				swtp_data.eint_type[i],
+				swtp_data.gpio_state[i],
+				swtp_data.tx_power_mode,
+				swtp_status_value);
+			//#endif  /*OPLUS_FEATURE_SWTP*/
+
 			ret = request_irq(swtp_data.irq[i],
 				swtp_irq_handler, IRQF_TRIGGER_NONE,
 				irq_name[i], &swtp_data);
@@ -272,7 +324,9 @@ int swtp_init(void)
 	/* tx work setting */
 	INIT_DELAYED_WORK(&swtp_data.delayed_work,
 		swtp_tx_delayed_work);
-	swtp_data.tx_power_mode = SWTP_NO_TX_POWER;
+	//#ifdef OPLUS_FEATURE_SWTP
+	swtp_data.tx_power_mode = SWTP_DO_TX_POWER;
+	//#endif  /*OPLUS_FEATURE_SWTP*/
 
 	spin_lock_init(&swtp_data.spinlock);
 
@@ -281,5 +335,8 @@ int swtp_init(void)
 
 	CCCI_BOOTUP_LOG(0, SYS, "%s end, init_delayed_work scheduled\n",
 		__func__);
+	//#ifdef OPLUS_FEATURE_SWTP
+	swtp_gpio_create_proc();
+	//#endif  /*OPLUS_FEATURE_SWTP*/
 	return 0;
 }

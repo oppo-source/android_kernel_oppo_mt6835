@@ -112,6 +112,7 @@ struct mtk_mipi_tx {
 	struct cmdq_base *cmdq_base;
 	u32 data_rate;
 	u32 data_rate_adpt;
+	u32 data_rate_khz_adpt;
 	const struct mtk_mipitx_data *driver_data;
 	struct clk_hw pll_hw;
 	struct clk *pll;
@@ -169,6 +170,7 @@ int mtk_mipi_tx_ssc_en_N6(struct phy *phy,
 	struct mtk_panel_ext *mtk_panel);
 
 void mtk_mipi_tx_pll_rate_set_adpt(struct phy *phy, unsigned long rate);
+void mtk_mipi_tx_pll_rate_khz_set_adpt(struct phy *phy,unsigned long rate_khz);
 void mtk_mipi_tx_pll_rate_switch_gce(struct phy *phy,
 	void *handle, unsigned long rate);
 

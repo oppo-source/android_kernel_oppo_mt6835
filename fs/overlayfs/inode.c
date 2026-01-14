@@ -280,10 +280,12 @@ int ovl_permission(struct user_namespace *mnt_userns,
 {
 	struct inode *upperinode = ovl_inode_upper(inode);
 	struct inode *realinode = upperinode ?: ovl_inode_lower(inode);
+	struct path realpath;
 	const struct cred *old_cred;
 	int err;
 
 	/* Careful in RCU walk mode */
+	realinode = ovl_i_path_real(inode, &realpath);
 	if (!realinode) {
 		WARN_ON(!(mask & MAY_NOT_BLOCK));
 		return -ECHILD;
@@ -342,6 +344,7 @@ int ovl_xattr_set(struct dentry *dentry, struct inode *inode, const char *name,
 		  const void *value, size_t size, int flags)
 {
 	int err;
+	struct ovl_fs *ofs = OVL_FS(dentry->d_sb);
 	struct dentry *upperdentry = ovl_i_dentry_upper(inode);
 	struct dentry *realdentry = upperdentry ?: ovl_dentry_lower(dentry);
 	const struct cred *old_cred;
@@ -367,12 +370,12 @@ int ovl_xattr_set(struct dentry *dentry, struct inode *inode, const char *name,
 	}
 
 	old_cred = ovl_override_creds(dentry->d_sb);
-	if (value)
-		err = vfs_setxattr(&init_user_ns, realdentry, name, value, size,
-				   flags);
-	else {
+	if (value) {
+		err = ovl_do_setxattr(ofs, realdentry, name, value, size,
+				      flags);
+	} else {
 		WARN_ON(flags != XATTR_REPLACE);
-		err = vfs_removexattr(&init_user_ns, realdentry, name);
+		err = ovl_do_removexattr(ofs, realdentry, name);
 	}
 	ovl_revert_creds(dentry->d_sb, old_cred);
 
@@ -453,7 +456,15 @@ struct posix_acl *ovl_get_acl(struct inode *inode, int type, bool rcu)
 	const struct cred *old_cred;
 	struct posix_acl *acl;
 
-	if (!IS_ENABLED(CONFIG_FS_POSIX_ACL) || !IS_POSIXACL(realinode))
+	if (!IS_ENABLED(CONFIG_FS_POSIX_ACL))
+		return NULL;
+
+	if (!realinode) {
+		WARN_ON(!rcu);
+		return ERR_PTR(-ECHILD);
+	}
+
+	if (!IS_POSIXACL(realinode))
 		return NULL;
 
 	if (rcu)
@@ -511,8 +522,13 @@ static int ovl_security_fileattr(struct path *realpath, struct fileattr *fa,
 	struct file *file;
 	unsigned int cmd;
 	int err;
+	unsigned int flags;
 
-	file = dentry_open(realpath, O_RDONLY, current_cred());
+	flags = O_RDONLY;
+	if (force_o_largefile())
+		flags |= O_LARGEFILE;
+
+	file = dentry_open(realpath, flags, current_cred());
 	if (IS_ERR(file))
 		return PTR_ERR(file);
 
@@ -874,8 +890,8 @@ static int ovl_set_nlink_common(struct dentry *dentry,
 	if (WARN_ON(len >= sizeof(buf)))
 		return -EIO;
 
-	return ovl_do_setxattr(OVL_FS(inode->i_sb), ovl_dentry_upper(dentry),
-			       OVL_XATTR_NLINK, buf, len);
+	return ovl_setxattr(OVL_FS(inode->i_sb), ovl_dentry_upper(dentry),
+			    OVL_XATTR_NLINK, buf, len);
 }
 
 int ovl_set_nlink_upper(struct dentry *dentry)
@@ -900,7 +916,7 @@ unsigned int ovl_get_nlink(struct ovl_fs *ofs, struct dentry *lowerdentry,
 	if (!lowerdentry || !upperdentry || d_inode(lowerdentry)->i_nlink == 1)
 		return fallback;
 
-	err = ovl_do_getxattr(ofs, upperdentry, OVL_XATTR_NLINK,
+	err = ovl_getxattr(ofs, upperdentry, OVL_XATTR_NLINK,
 			      &buf, sizeof(buf) - 1);
 	if (err < 0)
 		goto fail;

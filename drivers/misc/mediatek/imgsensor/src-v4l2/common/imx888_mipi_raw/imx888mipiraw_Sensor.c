@@ -967,7 +967,7 @@ static void imx888_seamless_switch(struct subdrv_ctx *ctx, u8 *para, u32 *len)
 			u32 frame_length_in_lut[IMGSENSOR_STAGGER_EXPOSURE_CNT] = {0};
 
 			set_multi_shutter_frame_length_in_lut(ctx,
-			ae_ctrl, 2, 0, frame_length_in_lut);
+			(u64)ae_ctrl, 2, 0, frame_length_in_lut);
 			set_multi_gain_in_lut(ctx, ae_ctrl + 5, 2);
 		}
 			break;
@@ -976,7 +976,7 @@ static void imx888_seamless_switch(struct subdrv_ctx *ctx, u8 *para, u32 *len)
 			u32 frame_length_in_lut[IMGSENSOR_STAGGER_EXPOSURE_CNT] = {0};
 
 			set_multi_shutter_frame_length_in_lut(ctx,
-			ae_ctrl, 3, 0, frame_length_in_lut);
+			(u64)ae_ctrl, 3, 0, frame_length_in_lut);
 			set_multi_gain_in_lut(ctx, ae_ctrl + 5, 3);
 		}
 			break;

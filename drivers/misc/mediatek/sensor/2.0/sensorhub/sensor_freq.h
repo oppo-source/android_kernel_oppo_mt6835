@@ -30,4 +30,7 @@ struct sensor_freq_tb {
 
 int sensor_register_freq(uint8_t sensor_type);
 int sensor_deregister_freq(uint8_t sensor_type);
+#if IS_ENABLED (CONFIG_OPLUS_FEATURE_MTK_LOW_SENSOR_FREQ)
+bool is_support_acc_low_freq(void);
+#endif
 #endif

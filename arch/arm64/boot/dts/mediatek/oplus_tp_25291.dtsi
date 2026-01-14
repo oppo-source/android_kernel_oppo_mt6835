@@ -1,0 +1,115 @@
+
+&spi3 {
+    status = "okay";
+    #address-cells = <1>;
+    #size-cells = <0>;
+    touchscreen@0{
+        compatible = "focaltech-FT3683g";
+        reg = <0>;
+        chip-num = <3>;
+        chip-name = "FT3683G","FT3683G","FT3683G";
+        status = "ok";
+
+        spi-max-frequency = <12000000>;
+        /* Interrupt && Irq-gpio */
+        interrupt-parent = <&pio>;
+        interrupts = <9 0x2002>;
+
+        /* Power Config */
+        vdd_2v8-supply  = <&mt6377_vtp>;
+        vdd_2v8_volt = <3300000>;
+
+        /* Other HW Resource */
+        irq-gpio = <&pio 9 0x2002>;
+        reset-gpio = <&pio 171 0x1>;
+
+        pinctrl-names = "default", "pin_cs_high","pin_cs_low";
+        pinctrl-0 = <&ctp_oplus_pins_default>;
+        pinctrl-1 = <&ts_cs_active>;
+        pinctrl-2 = <&ts_cs_suspend>;
+
+        touchpanel,max-num-support = <10>;
+        touchpanel,tx-rx-num = <18 39>;
+        touchpanel,panel-coords = <17280 37952>;
+        touchpanel,display-coords = <1080 2372>;
+        touchpanel,touchmajor-limit = <128 216>;
+        touchpanel,smooth-level = <0 110 115 120 140 155>;
+        touchpanel,smooth-level-charging = <0 110 115 120 140 155>;
+        touchpanel,sensitive-level = <0 19 16 13 11 10>;
+        touchpanel,click-sensitive-level = <0 55 54 52 50 48>;
+        touchpanel,high-frame-rate-time = <60>;
+        touchpanel,single-optimized-time = <8>;
+
+        panel_type = <3 7 18>;
+        // type of tp_dev ,TP-BOE = 3;  TP-Tianma = 7, VXN = 18;
+        firmware_name = "0xAC312","0xAC388TF","0xAC388VF";
+        platform_support_project = <25291 25292 25055>;
+        platform_support_project_dir = <25291 25291 25291>;
+        platform_support_project_commandline = "ac312_p_3_a0025_dsi_vdo","ac388_p_7_a0025_dsi_vdo","ac388_p_b_a0029_dsi_vdo";
+
+        /* SW Support Feature Control */
+        health_monitor_support;
+        black_gesture_support;
+        charger_pump_support;
+        fw_update_app_support;
+        smart_gesture_support;
+        game_switch_support;
+        esd_handle_support;
+        report_flow_unlock_support;
+        fingerprint_underscreen_support;
+        pressure_report_support;
+        report_rate_white_list_support;
+        auto_test_force_pass_support;
+        snr_read_support;
+        screenoff_fingerprint_info_support;
+        irq_need_dev_resume_ok;
+        sportify_aod_gesture_support;
+        black_gesture_indep_support;
+        thermal_detect_support;
+        exception_upload_support;
+        tp_data_record_support;
+        palm_to_sleep_support;
+        glove_mode_v2_support;
+        freq_hop_simulate_support;
+        fw_edge_limit_support;
+        temperature_detect_support;
+        temperature_detect_shellback_support;
+        disable_touch_event_support;
+        fingerprint_not_report_in_suspend;
+        fingerprint_error_report_support;
+        touchpanel,button-type = <4>;
+        touchpanel.button-TRx = <0 0>;
+    };
+};
+
+&pio {
+	ctp_oplus_pins_default: pins_default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO68__FUNC_SPI3_CLK>,
+					<PINMUX_GPIO69__FUNC_SPI3_CSB>,
+					<PINMUX_GPIO70__FUNC_SPI3_MO>,
+					<PINMUX_GPIO71__FUNC_SPI3_MI>;
+			bias-disable;
+			drive-strength = <4>;
+		};
+	};
+	ts_cs_active: ts_cs_active {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO69__FUNC_SPI3_CSB>;
+		};
+	};
+	ts_cs_suspend: ts_cs_suspend {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO69__FUNC_SPI3_CSB>;
+			output-low;
+		};
+	};
+	ctp_oplus_int_suspend: int1_suspend {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO9__FUNC_IO_JTAG_TCK>;
+			bias-disable;
+			input-enable;
+		};
+	};
+};
+

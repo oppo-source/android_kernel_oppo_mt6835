@@ -482,6 +482,11 @@ int pbm_psy_event(struct notifier_block *nb, unsigned long event, void *v)
 	union power_supply_propval val;
 	int ret;
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	if (pbm_func_enable_check() == false)
+		return NOTIFY_DONE;
+#endif
+
 	if (strcmp(psy->desc->name, "battery") != 0)
 		return NOTIFY_DONE;
 

@@ -6,6 +6,10 @@
 #ifndef _MTK_CAMERA_VIDEODEV2_H
 #define _MTK_CAMERA_VIDEODEV2_H
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif /* OPLUS_FEATURE_CAMERA_COMMON */
+
 #include <linux/videodev2.h>
 
 /**

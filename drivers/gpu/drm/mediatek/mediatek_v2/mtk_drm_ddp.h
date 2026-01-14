@@ -125,6 +125,8 @@ struct mtk_mmsys_reg_data {
 	unsigned int *path_sel;
 	unsigned int path_sel_size;
 	const unsigned int *dispsys_map;
+	const unsigned int *module_rst_offset;
+	const unsigned int *module_rst_bit;
 };
 
 #define MT6983_DUMMY_REG_CNT 85
@@ -134,8 +136,7 @@ extern struct dummy_mapping mt6983_dispsys_dummy_register[MT6983_DUMMY_REG_CNT];
 extern struct dummy_mapping mt6879_dispsys_dummy_register[MT6879_DUMMY_REG_CNT];
 
 
-const struct mtk_mmsys_reg_data *
-mtk_ddp_get_mmsys_reg_data(enum mtk_mmsys_id mmsys_id);
+const struct mtk_mmsys_reg_data *mtk_ddp_get_mmsys_reg_data(enum mtk_mmsys_id mmsys_id);
 
 void mtk_disp_ultra_offset(void __iomem *config_regs,
 			enum mtk_ddp_comp_id comp, bool is_dc);
@@ -283,5 +284,9 @@ void mtk_ddp_clean_ovl_pq_crossbar(struct mtk_drm_crtc *mtk_crtc,
 	struct cmdq_pkt *handle);
 
 char *mtk_ddp_get_mutex_sof_name(unsigned int regval);
+
+void mtk_ddp_rst_module (struct mtk_drm_crtc *mtk_crtc,
+			enum mtk_ddp_comp_id m,
+			struct cmdq_pkt *handle);
 
 #endif /* MTK_DRM_DDP_H */

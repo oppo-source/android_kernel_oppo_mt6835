@@ -646,15 +646,6 @@ EXPORT_SYMBOL_GPL(kmem_dump_obj);
 #endif
 
 #ifndef CONFIG_SLOB
-static int __init setup_android_kmalloc_64_create(char *str)
-{
-	if (IS_ALIGNED(64, cache_line_size()))
-		android_kmalloc_64_create = true;
-
-	return 1;
-}
-__setup("android_kmalloc_64_create", setup_android_kmalloc_64_create);
-
 /* Create a cache during boot when no slab services are available yet */
 void __init create_boot_cache(struct kmem_cache *s, const char *name,
 		unsigned int size, slab_flags_t flags,
@@ -662,14 +653,6 @@ void __init create_boot_cache(struct kmem_cache *s, const char *name,
 {
 	int err;
 	unsigned int align = ARCH_KMALLOC_MINALIGN;
-
-	/*
-	 * Ensure object alignment is 64. Otherwise, it can be larger
-	 * (e.g. 128 with ARM64), which causes SLUB to increase the object
-	 * size to 128 bytes to conform with the alignment.
-	 */
-	if (android_kmalloc_64_create && size == 64)
-		align = 64;
 
 	s->name = name;
 	s->size = s->object_size = size;
@@ -715,6 +698,7 @@ kmalloc_caches[NR_KMALLOC_TYPES][KMALLOC_SHIFT_HIGH + 1] __ro_after_init =
 { /* initialization for https://bugs.llvm.org/show_bug.cgi?id=42570 */ };
 EXPORT_SYMBOL(kmalloc_caches);
 
+/* This variable is intentionally unused. Preserved for KMI stability. */
 bool android_kmalloc_64_create __ro_after_init;
 EXPORT_SYMBOL(android_kmalloc_64_create);
 
@@ -782,6 +766,26 @@ struct kmem_cache *kmalloc_slab(size_t size, gfp_t flags)
 
 	return kmalloc_caches[kmalloc_type(flags)][index];
 }
+
+size_t kmalloc_size_roundup(size_t size)
+{
+	struct kmem_cache *c;
+
+	/* Short-circuit the 0 size case. */
+	if (unlikely(size == 0))
+		return 0;
+	/* Short-circuit saturated "too-large" case. */
+	if (unlikely(size == SIZE_MAX))
+		return SIZE_MAX;
+	/* Above the smaller buckets, size is a multiple of page size. */
+	if (size > KMALLOC_MAX_CACHE_SIZE)
+		return PAGE_SIZE << get_order(size);
+
+	/* The flags don't matter since size_index is common to all. */
+	c = kmalloc_slab(size, GFP_KERNEL);
+	return c ? c->object_size : 0;
+}
+EXPORT_SYMBOL(kmalloc_size_roundup);
 
 #ifdef CONFIG_ZONE_DMA
 #define KMALLOC_DMA_NAME(sz)	.name[KMALLOC_DMA] = "dma-kmalloc-" #sz,
@@ -864,10 +868,6 @@ void __init setup_kmalloc_cache_index_table(void)
 		size_index[elem] = KMALLOC_SHIFT_LOW;
 	}
 
-	if (android_kmalloc_64_create)
-		for (i = 8; i <= 64; i += 8)
-			size_index[size_index_elem(i)] = 6;
-
 	if (KMALLOC_MIN_SIZE >= 64) {
 		/*
 		 * The 96 byte size cache is not used if the alignment
@@ -924,10 +924,6 @@ void __init create_kmalloc_caches(slab_flags_t flags)
 {
 	int i;
 	enum kmalloc_cache_type type;
-
-	if (android_kmalloc_64_create)
-		for (type = KMALLOC_NORMAL; type <= KMALLOC_RECLAIM; type++)
-			new_kmalloc_cache(6, type, flags);
 
 	/*
 	 * Including KMALLOC_CGROUP if CONFIG_MEMCG_KMEM defined
@@ -1002,6 +998,9 @@ void *kmalloc_order(size_t size, gfp_t flags, unsigned int order)
 		mod_lruvec_page_state(page, NR_SLAB_UNRECLAIMABLE_B,
 				      PAGE_SIZE << order);
 	}
+
+	trace_android_vh_kmalloc_order_alloced(page, size, flags);
+
 	ret = kasan_kmalloc_large(ret, size, flags);
 	/* As ret might get tagged, call kmemleak hook after KASAN. */
 	kmemleak_alloc(ret, size, 1, flags);
@@ -1245,6 +1244,13 @@ static __always_inline void *__do_krealloc(const void *p, size_t new_size,
 
 	/* If the object still fits, repoison it precisely. */
 	if (ks >= new_size) {
+		/* Zero out spare memory. */
+		if (want_init_on_alloc(flags)) {
+			kasan_disable_current();
+			memset(kasan_reset_tag(p) + new_size, 0, ks - new_size);
+			kasan_enable_current();
+		}
+
 		p = kasan_krealloc((void *)p, new_size, flags);
 		return (void *)p;
 	}
@@ -1313,20 +1319,6 @@ void kfree_sensitive(const void *p)
 }
 EXPORT_SYMBOL(kfree_sensitive);
 
-/**
- * ksize - get the actual amount of memory allocated for a given object
- * @objp: Pointer to the object
- *
- * kmalloc may internally round up allocations and return more memory
- * than requested. ksize() can be used to determine the actual amount of
- * memory allocated. The caller may use this additional memory, even though
- * a smaller amount of memory was initially specified with the kmalloc call.
- * The caller must guarantee that objp points to a valid object previously
- * allocated with either kmalloc() or kmem_cache_alloc(). The object
- * must not be freed during the duration of the call.
- *
- * Return: size of the actual memory used by @objp in bytes
- */
 size_t ksize(const void *objp)
 {
 	size_t size;

@@ -62,6 +62,9 @@
 static atomic_t g_dmdp_aal_force_relay = ATOMIC_INIT(0);
 
 static int g_dre30_support;
+#ifdef OPLUS_FEATURE_DISPLAY
+extern bool g_dmdp_probe_ready;
+#endif
 struct mtk_dmdp_aal_data {
 	bool support_shadow;
 	bool need_bypass_shadow;
@@ -671,6 +674,9 @@ static int mtk_dmdp_aal_probe(struct platform_device *pdev)
 	if (!default_comp1 && comp_id == DDP_COMPONENT_DMDP_AAL1)
 		default_comp1 = &priv->ddp_comp;
 
+#ifdef OPLUS_FEATURE_DISPLAY
+	g_dmdp_probe_ready = true;
+#endif
 	return ret;
 }
 

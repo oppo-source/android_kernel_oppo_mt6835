@@ -1,0 +1,162 @@
+/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&pio {
+	sia81xx_gpio_L: sia81xx_gpio_L {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO124__FUNC_GPIO124>;
+			slew-rate = <1>;
+			bias-disable;
+		};
+	};
+	sia81xx_gpio_R: sia81xx_gpio_R {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO170__FUNC_GPIO170>;
+			slew-rate = <1>;
+			bias-disable;
+		};
+	};
+
+	fsa_hs_det: fsa_hs_det {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO35__FUNC_GPIO35>;
+			slew-rate = <1>;  /*direction 0:in, 1:out*/
+			output-high;
+		};
+	};
+};
+
+&odm {
+	sia81xx_L: sia81xx@L{
+		compatible = "si,sia81xx";
+		si,si_pa_type = "sia81x9";
+		si,si_pa_reset = <&pio 124 0>;
+		si,si_pa_owi = <&pio 124 0>;
+		pinctrl-names = "si_pa_gpio";
+		pinctrl-0 = <&sia81xx_gpio_L>;
+		si,si_pa_disable_pin = <0>;
+		channel_num = <0>;
+		owi_mode = <1>;
+	};
+	sia81xx_R: sia81xx@R{
+		compatible = "si,sia81xx";
+		si,si_pa_type = "sia81x9";
+		si,si_pa_reset = <&pio 170 0>;
+		si,si_pa_owi = <&pio 170 0>;
+		pinctrl-names = "si_pa_gpio";
+		pinctrl-0 = <&sia81xx_gpio_R>;
+		si,si_pa_disable_pin = <0>;
+		channel_num = <1>;
+		owi_mode = <1>;
+	};
+};
+
+&i2c7 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	clock-frequency = <400000>;
+
+	sia81xx_i2c_L: sia81xx_i2c@L {
+		compatible = "si,sia81xx-i2c";
+		reg = <0x29>;
+		si,sipa-dev = <&sia81xx_L>;
+	};
+	sia81xx_i2c_R: sia81xx_i2c@R {
+		compatible = "si,sia81xx-i2c";
+		reg = <0x28>;
+		si,sipa-dev = <&sia81xx_R>;
+	};
+
+/* AWINIC AW87XXX PA */
+	aw87xxx_pa_5B@5B {
+		compatible = "awinic,aw87xxx_pa_2_x_0";
+		reg = <0x5B>;
+		reset-gpio = <&pio 124 0>;
+		dev_index = < 0 >;
+		status = "okay";
+	};
+	aw87xxx_pa_58@58 {
+		compatible = "awinic,aw87xxx_pa_2_x_0";
+		reg = <0x58>;
+		reset-gpio = <&pio 170 0>;
+		dev_index = < 1 >;
+		status = "okay";
+	};
+/* AWINIC AW87XXX Smart K PA End */
+
+	fsa4480: fsa4480@42 {
+		compatible = "qcom,fsa4480-i2c";
+		reg = <0x42>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&fsa_hs_det>;
+		fsa4480,hs-det-gpio = <&pio 35 0>;
+		fsa4480,hp-bypass = <1>;
+		status = "okay";
+	};
+};
+
+&sound {
+	si,sia81xx-max-num = <2>;
+	si,sia81xx-aux-devs = <&sia81xx_L>, <&sia81xx_R>;
+	si,sia81xx-aux-devs-prefix = "SpkrLeft", "SpkrRight";
+	/* 2024/5/28, add for dual PA special dapm handle to resolve pop sound when PA closing */
+	oplus,special-pa-dapm = <1>;
+};
+
+&accdet{
+	// eint_use_ext_res = <1>;
+	// headset-eint-trig-mode = <2>;
+	headset-three-key-threshold = <0 82 170 306>;
+	hp-eint0-disable = <1>;
+};
+
+&speech_usip_mem{
+	adsp-phone-call-enh-enable = <0x5>;
+};
+
+&scp {
+	reg =	<0 0x1c400000 0 0x100000>, /* tcm */
+			<0 0x1c724000 0 0x1000>, /* cfg */
+			<0 0x1c721000 0 0x1000>, /* clk*/
+			<0 0x1c730000 0 0x1000>, /* cfg core0 */
+			<0 0x1c740000 0 0x1000>, /* cfg core1 */
+			<0 0x1c752000 0 0x1000>, /* bus tracker */
+			<0 0x1c760000 0 0x40000>, /* llc */
+			<0 0x1c7a5000 0 0x4>, /* cfg_sec */
+			<0 0x1c7fb000 0 0x100>, /* mbox0 base */
+			<0 0x1c7fb100 0 0x4>, /* mbox0 set */
+			<0 0x1c7fb10c 0 0x4>, /* mbox0 clr */
+			<0 0x1c7a5020 0 0x4>, /* mbox0 init */
+			<0 0x1c7fc000 0 0x100>, /* mbox1 base */
+			<0 0x1c7fc100 0 0x4>, /* mbox1 set */
+			<0 0x1c7fc10c 0 0x4>, /* mbox1 clr */
+			<0 0x1c7a5024 0 0x4>, /* mbox1 init */
+			<0 0x1c7fd000 0 0x100>, /* mbox2 base */
+			<0 0x1c7fd100 0 0x4>, /* mbox2 set */
+			<0 0x1c7fd10c 0 0x4>, /* mbox2 clr */
+			<0 0x1c7a5028 0 0x4>, /* mbox2 init */
+			<0 0x1c7fe000 0 0x100>, /* mbox3 base */
+			<0 0x1c7fe100 0 0x4>, /* mbox3 set */
+			<0 0x1c7fe10c 0 0x4>, /* mbox3 clr */
+			<0 0x1c7a502c 0 0x4>, /* mbox3 init */
+			<0 0x1c7ff000 0 0x100>, /* mbox4 base */
+			<0 0x1c7ff100 0 0x4>, /* mbox4 set */
+			<0 0x1c7ff10c 0 0x4>, /* mbox4 clr */
+			<0 0x1c7a5030 0 0x4>; /* mbox4 init */
+	scp-sramsize = <0x100000>;
+	secure-dump-size = <0x500000>;
+	memorydump = <0x100000>, /* l2tcm */
+				     <0x03c000>, /* l1c*/
+				     <0x003c00>, /* regdump */
+				     <0x000400>, /* trace buffer */
+				     <0x300000>; /* dram */
+};

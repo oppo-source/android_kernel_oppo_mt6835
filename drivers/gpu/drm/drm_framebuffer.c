@@ -469,8 +469,11 @@ int drm_mode_rmfb(struct drm_device *dev, u32 fb_id,
 		INIT_WORK_ONSTACK(&arg.work, drm_mode_rmfb_work_fn);
 		INIT_LIST_HEAD(&arg.fbs);
 		list_add_tail(&fb->filp_head, &arg.fbs);
-
-		schedule_work(&arg.work);
+		//#ifdef OPLUS_BUG_STABILITY
+		queue_work(system_highpri_wq, &arg.work);
+		//#else
+		//schedule_work(&arg.work);
+		//#endif
 		flush_work(&arg.work);
 		destroy_work_on_stack(&arg.work);
 	} else
@@ -572,7 +575,7 @@ int drm_mode_getfb2_ioctl(struct drm_device *dev,
 	struct drm_mode_fb_cmd2 *r = data;
 	struct drm_framebuffer *fb;
 	unsigned int i;
-	int ret;
+	int ret = 0;
 
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;

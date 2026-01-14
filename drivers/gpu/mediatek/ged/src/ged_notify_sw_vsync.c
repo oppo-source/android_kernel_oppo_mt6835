@@ -34,6 +34,12 @@
 #include <ged_gpufreq_v1.h>
 #endif /* CONFIG_MTK_GPUFREQ_V2 */
 
+#include "ged_perfetto_tracepoint.h"
+#ifndef OPLUS_ARCH_EXTENDS
+#define OPLUS_ARCH_EXTENDS
+#endif
+
+
 #define GED_DVFS_FB_TIMER_TIMEOUT 100000000
 #define GED_DVFS_TIMER_TIMEOUT g_fallback_time_out
 
@@ -200,7 +206,6 @@ static void ged_notify_sw_sync_work_handle(struct work_struct *psWork)
 #ifdef ENABLE_COMMON_DVFS
 static unsigned long long hw_vsync_ts;
 #endif
-static unsigned long long g_ns_gpu_on_ts;
 static unsigned long long g_ns_gpu_off_ts;
 
 static bool g_timer_on;
@@ -514,6 +519,9 @@ void ged_dvfs_gpu_clock_switch_notify(enum ged_gpu_power_state power_state)
 	}
 	// Update power on/off state
 	trace_tracing_mark_write(5566, "gpu_state", power_state);
+	#ifdef OPLUS_ARCH_EXTENDS
+	trace_oplus_tracing_mark_write(5566, "gpu_state", power_state);
+	#endif /*OPLUS_ARCH_EXTENDS*/
 }
 EXPORT_SYMBOL(ged_dvfs_gpu_clock_switch_notify);
 

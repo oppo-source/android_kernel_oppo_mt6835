@@ -1977,8 +1977,8 @@ int vcp_register_feature(enum feature_id id)
 		if (feature_table[i].feature == id)
 			feature_table[i].enable++;
 	}
-	ret = vcp_enable_pm_clk(id);
 	mutex_unlock(&vcp_feature_mutex);
+	ret = vcp_enable_pm_clk(id);
 
 	return ret;
 }
@@ -2006,8 +2006,8 @@ int vcp_deregister_feature(enum feature_id id)
 			feature_table[i].enable--;
 		}
 	}
-	ret = vcp_disable_pm_clk(id);
 	mutex_unlock(&vcp_feature_mutex);
+	ret = vcp_disable_pm_clk(id);
 
 	return ret;
 }
@@ -2135,12 +2135,21 @@ void vcp_sys_reset_ws(struct work_struct *ws)
 	__pm_stay_awake(vcp_reset_lock);
 
 	/*workqueue for vcp ee, vcp reset by cmd will not trigger vcp ee*/
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	if (vcp_reset_by_cmd == 0) {
+		vcp_aed(vcp_reset_type, VCP_A_ID);
+		/* vcp_aee_print("[VCP] %s(): vcp_reset_type %d remain %x times, encnt %d\n",
+		 *	__func__, vcp_reset_type, vcp_reset_counts, mmup_enable_count());
+		 */
+	}
+#else /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 	if (vcp_reset_by_cmd == 0 && vcp_ee_enable) {
 		vcp_aed(vcp_reset_type, VCP_A_ID);
 		/* vcp_aee_print("[VCP] %s(): vcp_reset_type %d remain %x times, encnt %d\n",
 		 *	__func__, vcp_reset_type, vcp_reset_counts, mmup_enable_count());
 		 */
 	}
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 	pr_debug("[VCP] %s(): disable logger\n", __func__);
 	/* logger disable must after vcp_aed() */
 	vcp_logger_init_set(0);

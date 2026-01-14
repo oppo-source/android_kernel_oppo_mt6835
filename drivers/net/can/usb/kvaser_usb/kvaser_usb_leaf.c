@@ -468,6 +468,7 @@ static const struct kvaser_usb_dev_cfg kvaser_usb_leaf_m32c_dev_cfg = {
 	.bittiming_const = &kvaser_usb_leaf_m32c_bittiming_const,
 };
 
+
 static const struct kvaser_usb_dev_cfg kvaser_usb_leaf_imx_dev_cfg_16mhz = {
 	.clock = {
 		.freq = 16000000,
@@ -907,8 +908,6 @@ static void kvaser_usb_leaf_tx_acknowledge(const struct kvaser_usb *dev,
 		if (skb) {
 			cf->can_id |= CAN_ERR_RESTARTED;
 
-			stats->rx_packets++;
-			stats->rx_bytes += cf->len;
 			netif_rx(skb);
 		} else {
 			netdev_err(priv->netdev,
@@ -1131,8 +1130,6 @@ static void kvaser_usb_leaf_rx_error(const struct kvaser_usb *dev,
 		cf->data[7] = es->rxerr;
 	}
 
-	stats->rx_packets++;
-	stats->rx_bytes += cf->len;
 	netif_rx(skb);
 }
 

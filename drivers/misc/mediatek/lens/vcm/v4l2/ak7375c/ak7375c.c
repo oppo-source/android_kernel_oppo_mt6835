@@ -38,6 +38,9 @@
 #define AK7375C_MOVE_STEPS			100
 #define AK7375C_MOVE_DELAY_US			5000
 
+static u16 g_last_pos = AK7375C_MAX_FOCUS_POS / 2;
+static u16 g_origin_pos = AK7375C_MAX_FOCUS_POS / 2;
+
 /* ak7375c device structure */
 struct ak7375c_device {
 	struct v4l2_ctrl_handler ctrls;
@@ -48,6 +51,8 @@ struct ak7375c_device {
 	struct pinctrl *vcamaf_pinctrl;
 	struct pinctrl_state *vcamaf_on;
 	struct pinctrl_state *vcamaf_off;
+	/* active or standby mode */
+	bool active;
 };
 
 #define VCM_IOC_POWER_ON         _IO('V', BASE_VIDIOC_PRIVATE + 3)
@@ -75,6 +80,33 @@ static int ak7375c_set_position(struct ak7375c_device *ak7375c, u16 val)
 
 	return i2c_smbus_write_word_data(client, AK7375C_SET_POSITION_ADDR,
 					 swab16(val << 6));
+}
+
+static int ak7375c_goto_last_pos(struct ak7375c_device *ak7375c)
+{
+	int ret, i, nStep_count, val = g_origin_pos, diff_dac;
+	int firstStep = AK7375C_MOVE_STEPS / 4;
+
+	diff_dac = g_last_pos - val;
+	if (diff_dac == 0) {
+		return 0;
+	}
+	nStep_count = (diff_dac < 0 ? (diff_dac*(-1)) : diff_dac) /
+			AK7375C_MOVE_STEPS;
+	for (i = 0; i < nStep_count; ++i) {
+		if (i == 0 && g_origin_pos == AK7375C_MAX_FOCUS_POS) {
+			val += (diff_dac < 0 ? (firstStep*(-1)) : firstStep);
+		} else {
+			val += (diff_dac < 0 ? (AK7375C_MOVE_STEPS*(-1)) : AK7375C_MOVE_STEPS);
+		}
+		ret = ak7375c_set_position(ak7375c, val);
+		if (ret) {
+			LOG_INF("%s I2C failure: %d", __func__, ret);
+		}
+		usleep_range(AK7375C_MOVE_DELAY_US, AK7375C_MOVE_DELAY_US + 1000);
+	}
+
+	return 0;
 }
 
 static int ak7375c_release(struct ak7375c_device *ak7375c)
@@ -114,6 +146,7 @@ static int ak7375c_release(struct ak7375c_device *ak7375c)
 	}
 
 	i2c_smbus_write_byte_data(client, 0x02, 0x20);
+	ak7375c->active = false;
 
 	LOG_INF("-\n");
 
@@ -132,8 +165,21 @@ static int ak7375c_init(struct ak7375c_device *ak7375c)
 
 	LOG_INF("Check HW version: %x\n", ret);
 
+	ret = i2c_smbus_read_word_data(client, 0x84);
+	if (ret < 0) {
+		g_origin_pos = AK7375C_MAX_FOCUS_POS / 2;
+	} else {
+		g_origin_pos = swab16(ret & 0xFFFF) >> 6;
+	}
+	if(g_origin_pos > AK7375C_MAX_FOCUS_POS) {
+		g_origin_pos = AK7375C_MAX_FOCUS_POS;
+	}
+	ak7375c_set_position(ak7375c, g_origin_pos);
+
 	/* 00:active mode , 10:Standby mode , x1:Sleep mode */
 	ret = i2c_smbus_write_byte_data(client, 0x02, 0x00);
+	ak7375c->active = true;
+	ak7375c_goto_last_pos(ak7375c);
 
 	LOG_INF("-\n");
 
@@ -227,6 +273,7 @@ static int ak7375c_set_ctrl(struct v4l2_ctrl *ctrl)
 				__func__, ret);
 			return ret;
 		}
+		g_last_pos = ctrl->val;
 	}
 	return 0;
 }
@@ -261,21 +308,39 @@ static int ak7375c_close(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 static long ak7375c_ops_core_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	int ret = 0;
-
+	struct ak7375c_device *ak7375c = sd_to_ak7375c_vcm(sd);
+	struct i2c_client *client = v4l2_get_subdevdata(&ak7375c->sd);
 	LOG_INF("+\n");
+	client->addr = AK7375C_I2C_SLAVE_ADDR >> 1;
 
 	switch (cmd) {
-
 	case VCM_IOC_POWER_ON:
 	{
 		// customized area
-		LOG_INF("active mode\n");
+		/* 00:active mode , 10:Standby mode , x1:Sleep mode */
+		if (ak7375c->active)
+			return 0;
+		ret = i2c_smbus_write_byte_data(client, 0x02, 0x00);
+		if (ret) {
+			LOG_INF("I2C failure!!!\n");
+		} else {
+			ak7375c->active = true;
+			LOG_INF("stand by mode, power on !!!!!!!!!!!!\n");
+		}
 	}
 	break;
 	case VCM_IOC_POWER_OFF:
 	{
 		// customized area
-		LOG_INF("stand by mode\n");
+		if (!ak7375c->active)
+			return 0;
+		ret = i2c_smbus_write_byte_data(client, 0x02, 0x40);
+		if (ret) {
+			LOG_INF("I2C failure!!!\n");
+		} else {
+			ak7375c->active = false;
+			LOG_INF("stand by mode, power off !!!!!!!!!!!!\n");
+		}
 	}
 	break;
 	default:

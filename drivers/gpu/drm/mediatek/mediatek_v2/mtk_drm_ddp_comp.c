@@ -127,6 +127,10 @@
 #define MTK_DDP_COMP_USER "DISP"
 #define CONFIG_MTK_IOMMU_MISC_DBG_DETAIL
 
+#ifdef OPLUS_FEATURE_DISPLAY
+extern unsigned int get_project(void);
+#endif
+
 void mtk_ddp_write(struct mtk_ddp_comp *comp, unsigned int value,
 		   unsigned int offset, void *handle)
 {
@@ -1939,6 +1943,9 @@ void mt6985_mtk_sodi_config(struct drm_device *drm, enum mtk_ddp_comp_id id,
 	unsigned int sodi_req_val = 0, sodi_req_mask = 0;
 	unsigned int emi_req_val = 0, emi_req_mask = 0;
 	bool en = *((bool *)data);
+	#ifdef OPLUS_FEATURE_DISPLAY
+	int prj_id = 0;
+	#endif
 	struct device_node *node = NULL;
 //need check
 	if (id == DDP_COMPONENT_ID_MAX) { /* config when top clk on */
@@ -2020,6 +2027,11 @@ void mt6985_mtk_sodi_config(struct drm_device *drm, enum mtk_ddp_comp_id id,
 		if (priv->side_config_regs)
 			writel_relaxed(v, priv->side_config_regs +  MMSYS_EMI_REQ_CTL);
 
+#ifdef OPLUS_FEATURE_DISPLAY
+		prj_id = get_project();
+		if (priv->side_config_regs && (22023 == prj_id || 22223 == prj_id))
+			writel_relaxed(0x1, priv->side_config_regs + 0x184);
+#endif
 		node = of_find_compatible_node(NULL, NULL, "boe,bf130,dphy,cmd,hd");
 		if (node && priv->side_config_regs)
 			writel_relaxed(0x01, priv->side_config_regs +  0x184);

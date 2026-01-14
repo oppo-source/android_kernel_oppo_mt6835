@@ -1400,6 +1400,8 @@ int emmc_rpmb_switch(struct mmc_card *card, struct emmc_rpmb_blk_data *md)
 		return 0;
 
 	if (md->part_type == EXT_CSD_PART_CONFIG_ACC_RPMB) {
+		if (card && card->host && card->host->cqe_enabled)
+			card->host->cqe_ops->cqe_wait_for_idle(card->host);
 		if (card->ext_csd.cmdq_en) {
 			ret = mmc_cmdq_disable(card);
 			if (ret) {
@@ -1623,9 +1625,12 @@ int emmc_rpmb_req_handle(struct mmc_card *card, struct emmc_rpmb_req *rpmb_req)
 
 error:
 	ret = emmc_rpmb_switch(card, dev_get_drvdata(&card->dev));
-	if (ret)
+	if (ret){
 		MSG(ERR, "%s emmc_rpmb_switch main failed. (%x)\n",
 			__func__, ret);
+
+		mmc_hw_reset(card->host);
+	}
 
 	mmc_put_card(card, NULL);
 

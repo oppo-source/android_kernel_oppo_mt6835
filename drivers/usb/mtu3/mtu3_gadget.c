@@ -11,7 +11,9 @@
 
 #include "mtu3.h"
 #include "mtu3_trace.h"
-
+#ifdef OPLUS_FEATURE_CHG_BASIC
+#include <linux/power_supply.h>
+#endif
 #include "u_fs.h"
 
 /* workaround for f_fs use after free issue */
@@ -736,7 +738,36 @@ static void mtu3_gadget_async_callbacks(struct usb_gadget *g, bool enable)
 	mtu->async_callbacks = enable;
 	spin_unlock_irqrestore(&mtu->lock, flags);
 }
+#ifdef OPLUS_FEATURE_CHG_BASIC
+static void mtu3_vbus_draw_work(struct work_struct *data)
+{
+	struct mtu3 *mtu = container_of(data, struct mtu3, draw_work);
+	union power_supply_propval val;
 
+	if (!mtu->usb_psy) {
+		if (mtu->usb_psy_name)
+			mtu->usb_psy = power_supply_get_by_name(mtu->usb_psy_name);
+		else
+			mtu->usb_psy = power_supply_get_by_name("battery");
+	}
+
+	val.intval = !(mtu->vbus_draw > USB_SELF_POWER_VBUS_MAX_DRAW);
+	pr_err("%s intval: %d\n", __func__, val.intval);
+	if (!IS_ERR_OR_NULL(mtu->usb_psy))
+		power_supply_set_property(mtu->usb_psy,
+			POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT, &val);
+}
+
+static mtu3_gadget_vbus_draw(struct usb_gadget *g, unsigned mA)
+{
+	struct mtu3 *mtu = gadget_to_mtu3(g);
+
+	mtu->vbus_draw = mA;
+	schedule_work(&mtu->draw_work);
+
+	return 0;
+}
+#endif
 static const struct usb_gadget_ops mtu3_gadget_ops = {
 	.get_frame = mtu3_gadget_get_frame,
 	.wakeup = mtu3_gadget_wakeup,
@@ -746,6 +777,9 @@ static const struct usb_gadget_ops mtu3_gadget_ops = {
 	.udc_stop = mtu3_gadget_stop,
 	.udc_set_speed = mtu3_gadget_set_speed,
 	.udc_async_callbacks = mtu3_gadget_async_callbacks,
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	.vbus_draw = mtu3_gadget_vbus_draw,
+#endif
 };
 
 static void mtu3_state_reset(struct mtu3 *mtu)
@@ -831,7 +865,9 @@ int mtu3_gadget_setup(struct mtu3 *mtu)
 	mtu->delayed_status = false;
 
 	mtu3_gadget_init_eps(mtu);
-
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	INIT_WORK(&mtu->draw_work, mtu3_vbus_draw_work);
+#endif
 	return usb_add_gadget_udc(mtu->dev, &mtu->g);
 }
 
@@ -866,11 +902,14 @@ void mtu3_gadget_suspend(struct mtu3 *mtu)
 /* called when VBUS drops below session threshold, and in other cases */
 void mtu3_gadget_disconnect(struct mtu3 *mtu)
 {
+	struct usb_gadget_driver *driver;
+
 	dev_dbg(mtu->dev, "gadget DISCONNECT\n");
 	if (mtu->async_callbacks && mtu->gadget_driver &&
 			mtu->gadget_driver->disconnect) {
+		driver = mtu->gadget_driver;
 		spin_unlock(&mtu->lock);
-		mtu->gadget_driver->disconnect(&mtu->g);
+		driver->disconnect(&mtu->g);
 		spin_lock(&mtu->lock);
 	}
 
