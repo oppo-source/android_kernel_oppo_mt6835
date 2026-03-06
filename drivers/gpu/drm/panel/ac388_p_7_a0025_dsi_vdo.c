@@ -61,6 +61,7 @@ extern unsigned int oplus_display_brightness;
 extern unsigned int oplus_max_normal_brightness;
 static int mode_id = -1;
 static unsigned int lhbm_last_backlight = 0;
+static unsigned int temp_seed_mode = 0;
 
 static unsigned int nt37703a_vdo_dphy_buf_thresh[14] ={896, 1792, 2688, 3584, 4480,
 	5376, 6272, 6720, 7168, 7616, 7744, 7872, 8000, 8064};
@@ -1041,6 +1042,34 @@ static int lcm_setbacklight_cmdq(void *dsi, dcs_write_gce cb, void *handle, unsi
 	return 0;
 }
 
+static int panel_set_seed(void *dsi, dcs_write_gce cb, void *handle, unsigned int mode)
+{
+	unsigned int i = 0;
+	pr_info("[DISP][INFO][%s: mode=%d\n", __func__, mode);
+	if (!dsi || !cb) {
+		pr_err("Invalid params\n");
+		return -EINVAL;
+	}
+
+	temp_seed_mode = mode;
+
+	switch(mode) {
+		case NATURAL:
+			for(i = 0; i < sizeof(dsi_set_seed_natural)/sizeof(struct LCM_setting_table); i++) {
+				cb(dsi, handle, dsi_set_seed_natural[i].para_list, dsi_set_seed_natural[i].count);
+			}
+		break;
+		case EXPERT:
+			for(i = 0; i < sizeof(dsi_set_seed_expert)/sizeof(struct LCM_setting_table); i++) {
+				cb(dsi, handle, dsi_set_seed_expert[i].para_list, dsi_set_seed_expert[i].count);
+			}
+		break;
+		default:
+		break;
+	}
+	return 0;
+}
+
 static int oplus_esd_backlight_recovery(void *dsi, dcs_write_gce cb, void *handle)
 {
 	unsigned int level = oplus_display_brightness;
@@ -1201,6 +1230,8 @@ static int panel_doze_disable(struct drm_panel *panel, void *dsi, dcs_write_gce 
 				cb(dsi, handle, aod_off_cmd[i].para_list, aod_off_cmd[i].count);
 		}
 	}
+	if (temp_seed_mode)
+		panel_set_seed(dsi, cb, handle, temp_seed_mode);
 
 	OFP_INFO("%s:success\n", __func__);
 	//atomic_set(&esd_pending, 0);
@@ -1218,7 +1249,7 @@ static int panel_doze_enable(struct drm_panel *panel, void *dsi, dcs_write_gce c
 	}
 
 	if(oplus_ofp_local_hbm_is_enabled() && oplus_ofp_get_hbm_state()) {
-		if (oplus_display_brightness >= 0 && oplus_display_brightness <= 1153) {
+		if (oplus_display_brightness <= 1153) {
 			reg_count = sizeof(lhbm_pressed_icon_off_cmd_exit_frist) / sizeof(struct LCM_setting_table);
 			lhbm_pressed_icon_off_cmd = lhbm_pressed_icon_off_cmd_exit_frist;
 		} else if (oplus_display_brightness >= 1154 && oplus_display_brightness <= 4094) {
@@ -1542,6 +1573,7 @@ static struct mtk_panel_funcs ext_funcs = {
 	.get_virtual_heigh = lcm_get_virtual_heigh,
 	.get_virtual_width = lcm_get_virtual_width,
 /* #endif  *//* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
+	.set_seed = panel_set_seed,
 };
 #endif
 

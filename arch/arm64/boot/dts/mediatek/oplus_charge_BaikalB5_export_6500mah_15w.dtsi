@@ -46,8 +46,8 @@
 	mediatek,eye-vrt = <7>;
 	mediatek,eye-term= <5>;
 	mediatek,rev6 = <2>;
-	mediatek,eye-vrt-host = <7>;
-	mediatek,eye-term-host = <4>;
+	mediatek,eye-vrt-host = <5>;
+	mediatek,eye-term-host = <3>;
 	mediatek,rev6-host = <2>;
 	mediatek,discth = <0xc>;
 	mediatek,rx-sqth = <3>;
@@ -167,13 +167,16 @@
 	Enable_Is_Force_Full = <(1)>;
 	DIM2_TABLE_DISTINGUISH = <(1)>;
 	#include "mediatek/bat_setting/mt6835_battery_table_Baikal_B5_15w.dtsi"
-	#include "mediatek/bat_setting/mt6835_battery_prop_dim2_ext_Baikal_B5.dtsi"
+	#include "mediatek/bat_setting/mt6835_battery_prop_dim2_ext_Baikal_B5_sink.dtsi"
 };
 
 &charger {
-	io-channels = <&auxadc 2>;
-	io-channel-names = "auxadc5-chargeric_temp";
+	io-channels = <&auxadc 2>, <&pmic_adc AUXADC_VCDT>;
+	io-channel-names = "auxadc5-chargeric_temp", "vbus";
 	oplus,support_ntc_01c_precision;
+	oplus,check_hmac_with_battery_id;
+	oplus,battery_type_by_cmdline;
+	oplus,support_batt_type_array = "graphite_lw_pd";
 	max_charger_voltage = <15000000>;
 	gauge = <&mtk_gauge>;
 	charger = <&oplus_sgm41515d_buck>;
@@ -199,6 +202,9 @@
 	high-temp-scheme;
 	over_high_temp_thr = <60>;
 	charger_i2c_bus_id = <0x03>;
+	bq27z561_i2c_id = <0x02>;
+	gauge_type_for_temp = <1>;
+	oplus,battery_type_gpio = <106>;
 	support_quickboot_charge;
 	support_4p48_single_battery;//待确定
 	max_charger_voltage = <15000000>;
@@ -213,10 +219,6 @@
 };
 
 &soc {
-	oplus_chg_quirks: oplus,chg_quirks {
-		compatible = "oplus,chg_quirks";
-	};
-
 	oplus_chg_plc: oplus,plc_charge {
 		compatible = "oplus,plc_charge";
 		oplus,plc_soc = <90>;
@@ -242,12 +244,6 @@
 		};
 	};
 
-	oplus_retention_charge: oplus,retention_charge {
-		compatible = "oplus,retention_charge";
-		oplus,topic-update-interval = <5000>;
-		oplus,support_retention_name = "oplus_retention_quirks";
-	};
-
 	oplus_smart_charge: oplus,smart_charge {
 		compatible = "oplus,smart_charge";
 		oplus,quick_mode_gain_support;
@@ -265,8 +261,8 @@
 		track,fast_chg_break_t_thd = <1000>;
 		track,general_chg_break_t_thd = <200>;
 		track,voocphy_type = <3>;
-		track,wired_max_power = <80000>;
-		track,wired_fast_chg_scheme = <2>;
+		track,wired_max_power = <15000>;
+		track,wired_fast_chg_scheme = <6>;
 	};
 
 	mt6375_gauge: mt6375_chg {
@@ -277,6 +273,7 @@
 		oplus,ic_index = <0>;
 		oplus,batt_num = <1>;
 		oplus,mtk_gauge_power_sel_support;
+		oplus,mtk_gauge_power_sel_by_power_support;
 		oplus,mtk_gauge_cali_track_support;
 	};
 
@@ -314,7 +311,6 @@
 					OPLUS_IC_FUNC_BUCK_SET_ITERM
 					OPLUS_IC_FUNC_BUCK_SET_RECHG_VOL
 					OPLUS_IC_FUNC_BUCK_GET_INPUT_CURR
-					OPLUS_IC_FUNC_BUCK_GET_INPUT_VOL
 					OPLUS_IC_FUNC_OTG_BOOST_ENABLE
 					OPLUS_IC_FUNC_SET_OTG_BOOST_VOL
 					OPLUS_IC_FUNC_SET_OTG_BOOST_CURR_LIMIT
@@ -331,6 +327,7 @@
 					OPLUS_IC_FUNC_BUCK_SET_AICL_POINT
 					OPLUS_IC_FUNC_BUCK_HARDWARE_INIT
 					OPLUS_IC_FUNC_BUCK_KICK_WDT
+					OPLUS_IC_FUNC_BUCK_GET_USB_AICL_ENHANCE
 				>;
 				virqs = <
 					OPLUS_IC_VIRQ_ERR
@@ -378,6 +375,7 @@
 					OPLUS_IC_FUNC_EXIT
 					OPLUS_IC_FUNC_REG_DUMP
 					OPLUS_IC_FUNC_SMT_TEST
+					OPLUS_IC_FUNC_BUCK_GET_INPUT_VOL
 				>;
 				virqs = <
 					OPLUS_IC_VIRQ_ERR
@@ -537,37 +535,37 @@
 	oplus_chg_wired: oplus,wired {
 		compatible = "oplus,wired";
 		oplus_spec,vbatt_pdqc_to_5v_thr = <4500>;
-		oplus_spec,vbatt_pdqc_to_9v_thr = <4500>;
-		oplus_spec,pd-iclmax-ma = <1500>;
+		oplus_spec,vbatt_pdqc_to_9v_thr = <0>;
+		oplus_spec,pd-iclmax-ma = <3000>;
 		oplus_spec,qc-iclmax-ma = <1500>;
 		oplus_spec,non-standard-ibatmax-ma = <500>;
 		oplus_spec,input-power-mw = <
 			2500		/* OPLUS_WIRED_CHG_MODE_UNKNOWN */
 			2500		/* OPLUS_WIRED_CHG_MODE_SDP */
 			7500		/* OPLUS_WIRED_CHG_MODE_CDP */
-			10000		/* OPLUS_WIRED_CHG_MODE_DCP */
+			15000		/* OPLUS_WIRED_CHG_MODE_DCP */
 			18000		/* OPLUS_WIRED_CHG_MODE_VOOC */
 			13500		/* OPLUS_WIRED_CHG_MODE_QC */
-			13500		/* OPLUS_WIRED_CHG_MODE_PD */
+			15000		/* OPLUS_WIRED_CHG_MODE_PD */
 		>;
 		oplus_spec,led_on-fccmax-ma = <0 1707 3300 3300 3300 3300 3300 1000 0>;
 		oplus_spec,fccmax-ma-lv = <
 			0 1200 2200 2200 2200 2200 2200 2200 0	/* OPLUS_WIRED_CHG_MODE_UNKNOWN */
 			0 600  600  600  600  600  600  600  0	/* OPLUS_WIRED_CHG_MODE_SDP */
-			0 1600 1600 1600 1600 1600 1600 1600 0	/* OPLUS_WIRED_CHG_MODE_CDP */
-			0 1707 2200 2200 2200 2200 2200 2200 0	/* OPLUS_WIRED_CHG_MODE_DCP */
-			0 1707 3300 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_VOOC */
-			0 1707 3300 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_QC */
-			0 1707 3300 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_PD */
+			0 950  1600 1600 1600 1600 1600 1600 0	/* OPLUS_WIRED_CHG_MODE_CDP */
+			0 950  2850 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_DCP */
+			0 1577 3300 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_VOOC */
+			0 950  2850 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_QC */
+			0 950  2850 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_PD */
 		>;
 		oplus_spec,fccmax-ma-hv = <
 			0 1200 2200 2200 2200 2200 2200 2200 0	/* OPLUS_WIRED_CHG_MODE_UNKNOWN */
-			0 600  600  600  600  600  600  600  0	/* OPLUS_WIRED_CHG_MODE_SDP */
-			0 1600 1600 1600 1600 1600 1600 1600 0	/* OPLUS_WIRED_CHG_MODE_CDP */
-			0 1707 2200 2200 2200 2200 2200 2200 0	/* OPLUS_WIRED_CHG_MODE_DCP */
-			0 1707 3300 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_VOOC */
-			0 1707 3300 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_QC */
-			0 1707 3300 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_PD */
+			0 600  600  600  600  600  600  500  0	/* OPLUS_WIRED_CHG_MODE_SDP */
+			0 950  1583 1600 1600 1600 1600 1000 0	/* OPLUS_WIRED_CHG_MODE_CDP */
+			0 950  1583 3300 3300 3300 3300 1000 0	/* OPLUS_WIRED_CHG_MODE_DCP */
+			0 1577 3300 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_VOOC */
+			0 950  1583 3300 3300 3300 3300 1000 0	/* OPLUS_WIRED_CHG_MODE_QC */
+			0 950  1583 3300 3300 3300 3300 1000 0	/* OPLUS_WIRED_CHG_MODE_PD */
 		>;
 
 		oplus_spec,cool_down_sale_pdqc_vol_mv = <5000>;
@@ -577,7 +575,7 @@
 		oplus_spec,cool_down_vooc_curr_ma = <1200 1500 2000 2500 3000 3000>;
 		oplus_spec,cool_down_normal_curr_ma = <1200 1500 2000>;
 
-		oplus_spec,vbus_ov_thr_mv = <11000 11000>;
+		oplus_spec,vbus_ov_thr_mv = <10000 10000>;
 		oplus_spec,vbus_uv_thr_mv = <4300 4300>;
 
 		/* first data is strategy used temp type */
@@ -594,19 +592,19 @@
 		oplus_spec,dec-vol-cc-full-thr = <0 400 600 800 1000 1200>;
 		oplus_spec,dec-vol-fv-full-mv = <0 20 20 40 40 40>;
 		oplus_spec,batt-them-thr = <(-100) 0 50 120 160 350 450 530>;
-		oplus_spec,iterm-ma = <352>;
+		oplus_spec,iterm-ma = <327>;
 		oplus_spec,removed_bat_decidegc = <390>; /*-39 degree*/
-		oplus_spec,fv-mv = <4490 4490 4490 4490 4490 4490 4470 4130 4130>;
-		oplus_spec,sw-fv-mv = <4440 4440 4440 4440 4440 4440 4420 4080 4080>;
+		oplus_spec,fv-mv = <4450 4450 4450 4450 4450 4450 4450 4130 4130>;
+		oplus_spec,sw-fv-mv = <4400 4400 4400 4400 4400 4400 4400 4080 4080>;
 		oplus_spec,hw-fv-inc-mv = <0 18 18 18 18 18 18 18 0>;
-		oplus_spec,sw-over-fv-mv = <4500 4500 4500 4500 4500 4500 4480 4140 4140>;
+		oplus_spec,sw-over-fv-mv = <4460 4460 4460 4460 4460 4460 4460 4140 4140>;
 		oplus_spec,sw-over-fv-dec-mv = <8>;
 		oplus_spec,non-standard-sw-fv-mv = <3930>;
 		oplus_spec,non-standard-fv-mv = <3980>;
 		oplus_spec,non-standard-hw-fv-inc-mv = <18>;
 		oplus_spec,non-standard-sw-over-fv-mv = <3990>;
 		oplus_spec,non-standard-vbatdet-mv = <3680>;
-		oplus_spec,wired-vbatdet-mv = <0 4190 4290 4390 4390 4390 4370 4030 0>;
+		oplus_spec,wired-vbatdet-mv = <0 4150 4250 4350 4350 4350 4350 4030 0>;
 		oplus_spec,fcc-gear-thr-mv = <4180>;
 		oplus_spec,vbatt-ov-thr-mv = <4600>;
 
@@ -630,6 +628,7 @@
 		oplus_spec,poweroff_high_batt_temp = <720>;
 		oplus_spec,poweroff_emergency_batt_temp = <770>;
 		oplus,vooc_show_ui_soc_decimal;
+		oplus,vooc_dis_show_ui_power;
 		oplus,ui_soc_decimal_speedmin = <20>;
 		oplus,gauge_stuck_jump_support;
 		oplus,gauge_stuck_threshold = <15>;
@@ -649,6 +648,7 @@
 	oplus_sgm41515d_buck:sgm41515d-buck@1A {
 		status = "okay";
 		compatible = "oplus,sgm41515-charger";
+		oplus,usb_aicl_enhance;
 		reg = <0x1A>;
 
 		io-channels = <&pmic_adc AUXADC_VCDT>;

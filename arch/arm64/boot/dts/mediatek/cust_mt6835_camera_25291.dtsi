@@ -374,7 +374,7 @@
 
 	cam0_enable_sensor = "ov50d40_mipi_raw_cruiserl5";
 	cam1_enable_sensor = "gc50f6_mipi_raw_cruiserl5 imx480_mipi_raw_cruiserl5";
-	cam2_enable_sensor = "ov08f10_mipi_raw_cruiserl5 sc202cs_mipi_raw_cruiserl5 gc02m1b_mipi_mono_cruiserl5";
+	cam2_enable_sensor = "sc202cs_mipi_raw_cruiserl5 gc02m1b_mipi_mono_cruiserl5";
 	status = "okay";
 };
 /* CAMERA GPIO end */
@@ -470,11 +470,6 @@
 	camera_sub_af_mtk:camera_sub_af@18 {
 		compatible = "mediatek,camera_sub_af";
 		reg = <0x18>;
-		status = "okay";
-	};
-	mtk_camera_eeprom2:camera_eeprom2@55 {
-		compatible = "mediatek,camera_eeprom";
-		reg = <0x55>;
 		status = "okay";
 	};
 };

@@ -227,9 +227,9 @@
 			use_tristate_gpio;
 			compatible = "hw-match, main-sub";
 			aboard-gpio0 = <&pio 111 0x00>;
-			aboard-patterns = <0 0 0 0 0 1 1 1 1 0 0 0>;        /*0[high-resistance] 1[pull-down] 2[pull-up]*/
+			aboard-patterns = <0 0 0 0 0 1 1 1 1 0 0 0 0 1 0>;        /*0[high-resistance] 1[pull-down] 2[pull-up]*/
 			/*main board*/
-			match-projects = <24095 24097 24363 24098 24367 24096 24364 24094 24365 24362 24366 24361>;
+			match-projects = <24095 24097 24363 24098 24367 24096 24364 24094 24365 24362 24366 24361 24368 24360 24369>;
 		};
 	};
 
@@ -417,6 +417,14 @@
 &odm {
 	oplus_mm_config: oplus,mm_config {
 		compatible = "oplus,mm_osvelte-config";
+		ram-4g {
+			oplus_boost_pool {
+				feature-disable;
+			};
+			oplus_bsp_zram_opt {
+				balance_anon_file_reclaim_always_true;
+			};
+		};
 		ram-6g {
 			oplus_boost_pool {
 				feature-disable;

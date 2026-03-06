@@ -12,7 +12,7 @@
 #include "lens_list.h"
 #include <linux/ioctl.h>
 
-#define MAX_NUM_OF_LENS 39
+#define MAX_NUM_OF_LENS 42
 
 #define AF_MAGIC 'A'
 

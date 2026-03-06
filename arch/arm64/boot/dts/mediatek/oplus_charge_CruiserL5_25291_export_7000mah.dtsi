@@ -182,6 +182,10 @@
 	KEEP_100_PERCENT_MINSOC = <9500>;
 	PSEUDO100_EN = <1>;
 	PSEUDO100_EN_DIS = <0>;
+	AGING_FACTOR_MIN = <(75)>;
+	AGING1_UPDATE_SOC = <(25)>;
+	AGING1_LOAD_SOC = <(75)>;
+	BAT_BH_EN = <(1)>;
 
 	io-channels = <&pmic_adc AUXADC_BAT_TEMP>,
 				<&pmic_adc AUXADC_BATADC>,
@@ -211,6 +215,7 @@
 		pinctrl-names = "maxim_active";
 		pinctrl-0 = <&maxim_active>;
 		support_encryption_in_lk;
+		support_encryption_in_kernel;
 		data-gpio = <&pio 3 0x00>;
 		gpio-addr-set-out = <0x10005004>;
 		gpio-addr-set-in = <0x10005008>;
@@ -283,6 +288,7 @@
 	en_vol_ctrl_vibrate = <3200>;
 	support_tuv_authentication;
 	support_maxim_battery_authentication;
+	support_maxim_battery_soh_data;
 	data-gpio = <3>;
 	oplus,batt_info = /bits/ 8 <0x36 0x31 0x31 0x33 0x30 0x33 0x30 0x30 0x30 0x32 0x35 0x37
 				0x36 0x31 0x31 0x33 0x30 0x33 0x30 0x30 0x30 0x32 0x35 0x33
@@ -338,6 +344,7 @@
 	oplus_chg_plc: oplus,plc_charge {
 		compatible = "oplus,plc_charge";
 		oplus,plc_soc = <90>;
+		oplus,plc_support_timeout;
 		oplus,plc_strategy-data = <&buck_simple_strategy>;
 		oplus,plc_strategy-names = "default";
 
@@ -363,7 +370,8 @@
 
 	oplus_smart_charge: oplus,smart_charge {
 		compatible = "oplus,smart_charge";
-		oplus,quick_mode_gain_support;
+		oplus,smart_chg_soh_support;
+		oplus,batt_sn_support;
 	};
 
 	oplus_battery_log: oplus,battery_log {
@@ -508,6 +516,9 @@
 					OPLUS_IC_FUNC_INIT
 					OPLUS_IC_FUNC_EXIT
 					OPLUS_IC_FUNC_GAUGE_GET_BATT_AUTH
+					OPLUS_IC_FUNC_GAUGE_GET_BATT_HISTSOH_DATA
+					OPLUS_IC_FUNC_GAUGE_SET_BATT_HISTSOH_DATA
+					OPLUS_IC_FUNC_GAUGE_GET_BATT_IC_SN
 				>;
 				virqs = <
 					OPLUS_IC_VIRQ_ERR
@@ -563,6 +574,7 @@
 					OPLUS_IC_FUNC_GAUGE_GET_AFI_UPDATE_DONE
 					OPLUS_IC_FUNC_GAUGE_CHECK_RESET
 					OPLUS_IC_FUNC_GAUGE_GET_DEVICE_TYPE_FOR_BCC
+					OPLUS_IC_FUNC_GAUGE_SET_RESET_GAUGE_DATE
 					OPLUS_IC_FUNC_GAUGE_GET_DOD0
 					OPLUS_IC_FUNC_GAUGE_GET_DOD0_PASSED_Q
 					OPLUS_IC_FUNC_GAUGE_GET_QMAX
@@ -574,6 +586,7 @@
 					OPLUS_IC_FUNC_GAUGE_GET_DEC_CV_SOH
 					OPLUS_IC_FUNC_GAUGE_SET_VCT
 					OPLUS_IC_FUNC_GAUGE_GET_VCT
+					OPLUS_IC_FUNC_GAUGE_SYNC_PLUGIN
 				>;
 				virqs = <
 					OPLUS_IC_VIRQ_ERR
@@ -664,7 +677,7 @@
 		compatible = "oplus,mms_wired";
 		oplus,buck_ic = <&oplus_virtual_buck>;
 		oplus,voocphy_ic = <&oplus_virtual_vphy>;
-		oplus,adc_info_name = "100k_1800mv";
+		oplus,adc_info_name = "100k_1840mv";
 		oplus_spec,usbtemp_batttemp_gap = <12>;
 		high-temp-scheme;
 
@@ -747,7 +760,7 @@
 			2500		/* OPLUS_WIRED_CHG_MODE_SDP */
 			7500		/* OPLUS_WIRED_CHG_MODE_CDP */
 			10000		/* OPLUS_WIRED_CHG_MODE_DCP */
-			18000		/* OPLUS_WIRED_CHG_MODE_VOOC */
+			30000		/* OPLUS_WIRED_CHG_MODE_VOOC */
 			13500		/* OPLUS_WIRED_CHG_MODE_QC */
 			13500		/* OPLUS_WIRED_CHG_MODE_PD */
 		>;
@@ -773,8 +786,8 @@
 
 		oplus_spec,cool_down_sale_pdqc_vol_mv = <5000>;
 		oplus_spec,cool_down_sale_pdqc_curr_ma = <1200>;
-		oplus_spec,cool_down_pdqc_vol_mv = <5000 5000 5000 9000>;
-		oplus_spec,cool_down_pdqc_curr_ma = <1200 1500 2000 1500>;
+		oplus_spec,cool_down_pdqc_vol_mv = <5000 5000 5000 9000 9000>;
+		oplus_spec,cool_down_pdqc_curr_ma = <1200 1500 2000 1500 2000>;
 		oplus_spec,cool_down_vooc_curr_ma = <1200 1500 2000 2500 3000 3000>;
 		oplus_spec,cool_down_normal_curr_ma = <1200 1500 2000>;
 
@@ -800,8 +813,8 @@
 		oplus_spec,fv-mv = <4490 4490 4490 4490 4490 4490 4470 4130 4130>;
 		oplus_spec,sw-fv-mv = <4440 4440 4440 4440 4440 4440 4420 4080 4080>;
 		oplus_spec,hw-fv-inc-mv = <0 18 18 18 18 18 18 18 0>;
-		oplus_spec,sw-over-fv-mv = <4500 4500 4500 4500 4500 4500 4480 4140 4140>;
-		oplus_spec,sw-over-fv-dec-mv = <8>;
+		oplus_spec,sw-over-fv-mv = <4498 4498 4498 4498 4498 4498 4478 4138 4138>;
+		oplus_spec,sw-over-fv-dec-mv = <10>;
 		oplus_spec,non-standard-sw-fv-mv = <3930>;
 		oplus_spec,non-standard-fv-mv = <3980>;
 		oplus_spec,non-standard-hw-fv-inc-mv = <18>;
@@ -886,6 +899,7 @@
 		oplus,default_protocol_list = <CHG_PROTOCOL_PPS
 							CHG_PROTOCOL_PD
 							CHG_PROTOCOL_VOOC>;
+		oplus,bc12_check_timeout_ms = <1000>;
 	};
 	oplus_virtual_cp: oplus,virtual_cp {
 		compatible = "oplus,virtual_cp";
@@ -1000,20 +1014,6 @@
 		oplus_spec,svooc_cool_down_current_limit = <146 20 20 24 30 34 40 44 50 54 60 64 70 74>;
 		oplus_spec,vooc_cool_down_current_limit = <73 20 20 24 30 34 40 44 50 54 60 64 70 74>;
 		oplus_spec,ap_control_allow;
-		oplus,abnormal_adapter_current = <CP_CURR_LIMIT_7BIT_15_0A CP_CURR_LIMIT_7BIT_15_0A
-						CP_CURR_LIMIT_7BIT_12_6A CP_CURR_LIMIT_7BIT_12_6A
-						CP_CURR_LIMIT_7BIT_10_0A CP_CURR_LIMIT_7BIT_10_0A
-						CP_CURR_LIMIT_7BIT_8_0A CP_CURR_LIMIT_7BIT_8_0A
-						CP_CURR_LIMIT_7BIT_6_0A CP_CURR_LIMIT_7BIT_6_0A
-						CP_CURR_LIMIT_7BIT_4_0A CP_CURR_LIMIT_7BIT_4_0A>;
-		oplus,abnormal_over_80w_adapter_current = <CP_CURR_LIMIT_7BIT_15_0A CP_CURR_LIMIT_7BIT_15_0A
-						CP_CURR_LIMIT_7BIT_14_0A CP_CURR_LIMIT_7BIT_14_0A
-						CP_CURR_LIMIT_7BIT_12_0A CP_CURR_LIMIT_7BIT_12_0A
-						CP_CURR_LIMIT_7BIT_10_0A CP_CURR_LIMIT_7BIT_10_0A
-						CP_CURR_LIMIT_7BIT_8_0A CP_CURR_LIMIT_7BIT_8_0A
-						CP_CURR_LIMIT_7BIT_6_0A CP_CURR_LIMIT_7BIT_6_0A
-						CP_CURR_LIMIT_7BIT_4_0A CP_CURR_LIMIT_7BIT_4_0A>;
-
 		oplus_spec,vooc_little_cold_full_voltage = <4570>;
 		oplus_spec,vooc_cool_full_voltage = <4570>;
 		oplus_spec,vooc_warm_full_voltage = <4130>;
@@ -1035,8 +1035,8 @@
 		oplus_spec,vooc_low_soc = <0>;
 		oplus_spec,vooc_high_soc = <90>;
 		oplus_spec,vooc_normal_high_temp = <440>;
-		oplus_spec,vooc_warm_allow_vol = <4000>;
-		oplus_spec,vooc_warm_allow_soc = <50>;
+		oplus_spec,vooc_warm_vol_thr = <4000>;
+		oplus_spec,vooc_warm_soc_thr = <55>;
 		oplus_spec,impedance_calculation_newmethod;
 		//oplus_spec,svooc_circuit_r_l = <0x18>;
 		//oplus_spec,svooc_circuit_r_h = <0x2>;/* 65 mR */
@@ -1045,8 +1045,8 @@
 		oplus_spec,voocphy_cp_max_ibus = <4750>;
 		oplus_spec,voocphy_svooc_cp_max_ibus = <4750>;
 		oplus_spec,voocphy_vooc_cp_max_ibus = <3500>;
-		oplus_spec,batt_pwd_curr_thd1 = <4300>;
-		oplus_spec,batt_pwd_vol_thd1 = <4514>;
+		oplus_spec,batt_pwd_curr_thd1 = <3000>;
+		oplus_spec,batt_pwd_vol_thd1 = <4600>;
 
 		oplus_spec,vooc_strategy1_batt_high_temp0 = <385>;
 		oplus_spec,vooc_strategy1_batt_high_temp1 = <395>;
@@ -1079,6 +1079,8 @@
 					1 1 1 1 0 0 0	// 4604mV
 					0 0 0 1 0 1 1	// 1100mA
 					1 1 1 1 0 0 0>;	// 4604mV
+
+		oplus_spec,soc_range = <0 20 35 55 75 85 90>;
 
 		svooc_lcf_strategy {
 			oplus,temp_type = <OPLUS_STRATEGY_USE_SHELL_TEMP>;
@@ -1571,6 +1573,11 @@
 			oplus,ic_func_group = <&sc8547_cp_groups>;
 		};
 	};
+};
+
+/* for pd common charger */
+&ssusb {
+	usb-psy-name = "mtk-master-charger";
 };
 
 #include "mediatek/oplus_charge_CruiserL5_PD.dtsi"

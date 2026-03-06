@@ -300,14 +300,14 @@
 			acc_static_length = <100>;
 			acc_move_threshold = <600>;
 			acc_move_length = <3>;
-			ax_max = <20>;
+			ax_max = <25>;
 			ax_min = <20>;
-			ax_delta = <70>;
+			ax_delta = <125>;
 			ax_peek_cnt = <1>;
 			ax_extra_cnt = <2>;
 			chop_cnt = <2>;
 			chop_between_ms = <250>;
-			chop_timeout_ms = <700>;
+			chop_timeout_ms = <550>;
 			chop_buffer_size = <10>;
 		};
 		oplus_pedometer_minute: oplus_pedometer_minute{

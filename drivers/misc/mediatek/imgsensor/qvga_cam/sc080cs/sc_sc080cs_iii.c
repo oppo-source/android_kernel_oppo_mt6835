@@ -78,6 +78,7 @@ enum qvga_sensor_type qvga_sensor_info;
 static void sc080cs_i2c_write(struct qvga *sc080cs, int address, int data)
 {
 	u8 i2c_buf[8];
+	int ret = 0;
 	struct i2c_client *client = sc080cs->i2c_client;
 	struct i2c_msg msg[1];
 	msg[0].flags = !I2C_M_RD;
@@ -89,7 +90,10 @@ static void sc080cs_i2c_write(struct qvga *sc080cs, int address, int data)
 	i2c_buf[1] = (address & 0xff);
 	i2c_buf[2] = data;
 
-	i2c_transfer(client->adapter, msg, 1);
+	ret = i2c_transfer(client->adapter, msg, 1);
+	if(ret < 0){
+		pr_err("KERN_ERR I2C transfer failed with error ret=%d\n", ret);
+	}
 }
 static int sp0821_i2c_write(struct qvga *sp0821,
 			     unsigned char reg_addr, unsigned char reg_data)
@@ -147,12 +151,12 @@ static int sc080cs_i2c_read(struct qvga *sc080cs, int address, unsigned char *rx
 				return ret;
 			} else {
 				qvga_dev_err(&client->dev, "%s: sc080cs_i2c_read fail\n", __func__);
-				break;
 			}
 		}
 		retry--;
 		mdelay(2);
 	}
+
 	return -1;
 }
 static int sp0821_i2c_read(struct qvga *sp0821,

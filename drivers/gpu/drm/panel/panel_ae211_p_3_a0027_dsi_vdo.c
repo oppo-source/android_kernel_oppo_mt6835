@@ -58,11 +58,13 @@
 #define LCM_BRIGHTNESS_TYPE 2
 #define FINGER_HBM_BRIGHTNESS 3760
 // #define OLED_VDDI_EN_HW_SUPPORT
-
+extern unsigned int last_backlight;
+extern void oplus_display_get_panel_brightness_time(void);
 extern unsigned int oplus_display_brightness;
 extern unsigned int oplus_max_normal_brightness;
 extern int oplus_display_panel_dbv_probe(struct device *dev);
 static int current_fps = 60;
+extern atomic_t esd_pending;
 
 extern void lcdinfo_notify(unsigned long val, void *v);
 
@@ -177,19 +179,7 @@ static void lcm_panel_init(struct lcm *ctx)
 	lcm_dcs_write_seq_static(ctx,0xC9,0x9F);
 	lcm_dcs_write_seq_static(ctx,0xB0,0xF5);
 	lcm_dcs_write_seq_static(ctx,0xC9,0x20);
-	lcm_dcs_write_seq_static(ctx,0xB0,0xE3);
-	lcm_dcs_write_seq_static(ctx,0xC9,0x7F,0x00,0x1A,0x13,0x0B,0x07,0x1D,0x15,0x0D,0x06,0x17,0x12,0x0B,0x06);
-	lcm_dcs_write_seq_static(ctx,0xB0,0x02);
-	lcm_dcs_write_seq_static(ctx,0xC9,0x2A);
-	lcm_dcs_write_seq_static(ctx,0xB0,0xF1);
-	lcm_dcs_write_seq_static(ctx,0xC9,0xFF,0xE6,0xC8,0x87);
-	lcm_dcs_write_seq_static(ctx,0xB0,0xA4);
-	lcm_dcs_write_seq_static(ctx,0xC9,0x00,0x00,0x01,0x05,0x1D,0x2B,0x3B,0x4B);
-	lcm_dcs_write_seq_static(ctx,0xB0,0xB4);
-	lcm_dcs_write_seq_static(ctx,0xC9,0x00,0x00,0x07,0x1A,0x22,0x2D,0x39,0x4A);
-	lcm_dcs_write_seq_static(ctx,0xB0,0xC4);
-	lcm_dcs_write_seq_static(ctx,0xC9,0x00,0x00,0x1F,0x24,0x28,0x30,0x35,0x4B);
-	lcm_dcs_write_seq_static(ctx,0xBF,0x29,0x00,0x43,0xFF,0x03,0x22,0x1E);
+	lcm_dcs_write_seq_static(ctx,0xBF,0x29,0x00,0x43,0xFF,0x03,0x22,0x02);
 	lcm_dcs_write_seq_static(ctx,0xB0,0x0C);
 	lcm_dcs_write_seq_static(ctx,0xBF,0x20);
 	lcm_dcs_write_seq_static(ctx,0xB0,0x14);
@@ -328,21 +318,21 @@ static bool need_fake_resolution;
 #define FRAME_WIDTH             (1080)
 #define FRAME_HEIGHT            (2376)
 
-#define HFP_30HZ                (1913)
-#define HFP                     (126)
+#define HFP_30HZ                (2030)
+#define HFP                     (146)
 #define HBP                     (32)
 #define HSA                     (4)
 #define VFP_30HZ                (44)
-#define VFP_60HZ                (2489)
-#define VFP_90HZ                (858)
-#define VFP_120HZ               (42)
+#define VFP_60HZ                (2492)
+#define VFP_90HZ                (860)
+#define VFP_120HZ               (44)
 #define VBP                     (24)
 #define VSA                     (4)
-#define DYN_PLL_CLK			    (526)
-#define DYN_DATA_RATE           (1052)
-#define HFP_DYN                 (126)
-#define HFP_DYN_30HZ            (1913)
-#define DATA_RATE				(1050)
+#define DYN_PLL_CLK			    (554)
+#define DYN_DATA_RATE           (1108)
+#define HFP_DYN                 (141)
+#define HFP_DYN_30HZ            (2030)
+#define DATA_RATE				(1107)
 
 static struct drm_display_mode disp_mode_30Hz = {
 	.clock = ((FRAME_WIDTH + HFP_30HZ + HBP + HSA) * (FRAME_HEIGHT + VFP_30HZ + VBP + VSA) * 30) / 1000,
@@ -817,6 +807,10 @@ static int lcm_setbacklight_cmdq(void *dsi, dcs_write_gce cb, void *handle, unsi
 		return 0;
 	}
 
+	if ((last_backlight == 0 || last_backlight == 1) && (level != 0 && level != 1)) {
+		oplus_display_get_panel_brightness_time();
+	}
+
 	if ((get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT) && (level > 1))
 		level = 1023;
 
@@ -840,7 +834,7 @@ static int lcm_setbacklight_cmdq(void *dsi, dcs_write_gce cb, void *handle, unsi
                         cb(dsi, handle, lcm_set_demura_offset1[i].para_list, lcm_set_demura_offset1[i].count);
                 }
 	}
-
+	last_backlight = level;
 	pr_info("%s,level = %d,", __func__, level);
 
 	return 0;
@@ -1056,9 +1050,10 @@ static int panel_set_aod_light_mode(void *dsi, dcs_write_gce cb, void *handle, u
 
 static struct vdo_aod_params vdo_aod_on = {
 	.porch_change_flag = 0x03,
-	.dst_hfp = 1913,
+	.dst_hfp = 2030,
 	.dst_vfp = 44, //30fps
 	.mode_idx = 3,
+	.change_mmclk = true,
 	.vdo_aod_cmd_table[0]={3, {0xF0,0x5A,0x5A} },
 	.vdo_aod_cmd_table[1]={2, {0x90,0x41} },
 	.vdo_aod_cmd_table[2]={2, {0xB0, 0x02}},
@@ -1069,9 +1064,10 @@ static struct vdo_aod_params vdo_aod_on = {
 
 static struct vdo_aod_params vdo_aod_to_120hz = {
 	.porch_change_flag = 0x03,
-	.dst_hfp = 126,
+	.dst_hfp = 146,
 	.dst_vfp = 44,
-	.mode_idx = 2,
+	.mode_idx = 0,
+	.change_mmclk = true,
 	.vdo_aod_cmd_table[0]={2, {0xB0,0x0B} },
 	.vdo_aod_cmd_table[1]={2, {0xB2,0x48} },
 	.vdo_aod_cmd_table[2]={2, {0x90,0x40} },
@@ -1079,9 +1075,10 @@ static struct vdo_aod_params vdo_aod_to_120hz = {
 
 static struct vdo_aod_params vdo_aod_to_120hz_unlocking = {
 	.porch_change_flag = 0x03,
-	.dst_hfp = 126,
+	.dst_hfp = 146,
 	.dst_vfp = 44,
-	.mode_idx = 2,
+	.mode_idx = 0,
+	.change_mmclk = true,
 	.vdo_aod_cmd_table[0]={2, {0x90,0x40} },
 	.vdo_aod_cmd_table[1]={3, {0x51, 0x00, 0x00}},
 
@@ -1089,9 +1086,10 @@ static struct vdo_aod_params vdo_aod_to_120hz_unlocking = {
 
 static struct vdo_aod_params vdo_aod_to_90hz = {
 	.porch_change_flag = 0x03,
-	.dst_hfp = 126,
+	.dst_hfp = 146,
 	.dst_vfp = 860,
 	.mode_idx = 1,
+	.change_mmclk = true,
 	.vdo_aod_cmd_table[0]={2, {0xB0,0x0B} },
 	.vdo_aod_cmd_table[1]={2, {0xB2,0x48} },
 	.vdo_aod_cmd_table[2]={2, {0x90,0x40} },
@@ -1100,18 +1098,20 @@ static struct vdo_aod_params vdo_aod_to_90hz = {
 
 static struct vdo_aod_params vdo_aod_to_90hz_unlocking = {
 	.porch_change_flag = 0x03,
-	.dst_hfp = 126,
+	.dst_hfp = 146,
 	.dst_vfp = 860,
 	.mode_idx = 1,
+	.change_mmclk = true,
 	.vdo_aod_cmd_table[0]={2, {0x90,0x40} },
 	.vdo_aod_cmd_table[1]={3, {0x51, 0x00, 0x00}},
 };
 
 static struct vdo_aod_params vdo_aod_to_60hz = {
 	.porch_change_flag = 0x03,
-	.dst_hfp = 126,
+	.dst_hfp = 146,
 	.dst_vfp = 2492,
-	.mode_idx = 0,
+	.mode_idx = 2,
+	.change_mmclk = true,
 	.vdo_aod_cmd_table[0]={2, {0xB0,0x0B} },
 	.vdo_aod_cmd_table[1]={2, {0xB2,0x48} },
 	.vdo_aod_cmd_table[2]={2, {0x90,0x40} },
@@ -1119,9 +1119,10 @@ static struct vdo_aod_params vdo_aod_to_60hz = {
 
 static struct vdo_aod_params vdo_aod_to_60hz_unlocking = {
 	.porch_change_flag = 0x03,
-	.dst_hfp = 126,
+	.dst_hfp = 146,
 	.dst_vfp = 2492,
-	.mode_idx = 0,
+	.mode_idx = 2,
+	.change_mmclk = true,
 	.vdo_aod_cmd_table[0]={2, {0x90,0x40} },
 	.vdo_aod_cmd_table[1]={3, {0x51, 0x00, 0x00}},
 };
@@ -1130,6 +1131,7 @@ static int mtk_get_vdo_aod_param(int aod_en, struct vdo_aod_params **vdo_aod_par
 {
 
 	if(aod_en) {
+		atomic_set(&esd_pending, 1);
 		*vdo_aod_param = &vdo_aod_on;
 	} else {
 		if(current_fps == 60) {
@@ -1151,6 +1153,7 @@ static int mtk_get_vdo_aod_param(int aod_en, struct vdo_aod_params **vdo_aod_par
 			*vdo_aod_param = &vdo_aod_to_120hz;
 			}
 		}
+		atomic_set(&esd_pending, 0);
 	}
 	OFP_INFO("%s:aod_en %d, current_fps %d  %d\n", __func__, aod_en, current_fps, oplus_ofp_get_aod_unlocking());
 	return 0;
@@ -1206,7 +1209,7 @@ static int lcm_panel_poweron(struct drm_panel *panel)
 	}
 	gpiod_set_value(ctx->vci3p0_enable_gpio, 1);
 	devm_gpiod_put(ctx->dev, ctx->vci3p0_enable_gpio);
-	usleep_range(1000, 1100);
+	usleep_range(3000, 3100);
 
 	//enable vddr
 	ctx->vddr1p2_enable_gpio =
@@ -1248,6 +1251,16 @@ static int lcm_panel_poweroff(struct drm_panel *panel)
 	gpiod_set_value(ctx->reset_gpio, 0);
 	devm_gpiod_put(ctx->dev, ctx->reset_gpio);
 	usleep_range(5000, 5100);
+	ctx->vddr1p2_enable_gpio =
+		devm_gpiod_get(ctx->dev, "vddr-enable", GPIOD_OUT_HIGH);
+	if (IS_ERR(ctx->vddr1p2_enable_gpio)) {
+		dev_err(ctx->dev, "%s: cannot get vddr1p2_enable_gpio %ld\n",
+			__func__, PTR_ERR(ctx->vddr1p2_enable_gpio));
+		return PTR_ERR(ctx->vddr1p2_enable_gpio);
+	}
+	gpiod_set_value(ctx->vddr1p2_enable_gpio, 0);
+	devm_gpiod_put(ctx->dev, ctx->vddr1p2_enable_gpio);
+	usleep_range(5000, 5100);
 	//disable 3.0V
 	ctx->vci3p0_enable_gpio =
 		devm_gpiod_get(ctx->dev, "vci-enable", GPIOD_OUT_HIGH);
@@ -1258,16 +1271,6 @@ static int lcm_panel_poweroff(struct drm_panel *panel)
 	}
 	gpiod_set_value(ctx->vci3p0_enable_gpio, 0);
 	devm_gpiod_put(ctx->dev, ctx->vci3p0_enable_gpio);
-	usleep_range(5000, 5100);
-	ctx->vddr1p2_enable_gpio =
-		devm_gpiod_get(ctx->dev, "vddr-enable", GPIOD_OUT_HIGH);
-	if (IS_ERR(ctx->vddr1p2_enable_gpio)) {
-		dev_err(ctx->dev, "%s: cannot get vddr1p2_enable_gpio %ld\n",
-			__func__, PTR_ERR(ctx->vddr1p2_enable_gpio));
-		return PTR_ERR(ctx->vddr1p2_enable_gpio);
-	}
-	gpiod_set_value(ctx->vddr1p2_enable_gpio, 0);
-	devm_gpiod_put(ctx->dev, ctx->vddr1p2_enable_gpio);
 	usleep_range(5000, 5100);
 #ifdef OLED_VDDI_EN_HW_SUPPORT
 	//enable vddi 1.8v

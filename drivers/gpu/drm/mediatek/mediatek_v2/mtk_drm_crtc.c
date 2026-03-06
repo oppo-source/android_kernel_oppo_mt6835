@@ -1961,6 +1961,10 @@ int mtk_drm_setbacklight(struct drm_crtc *crtc, unsigned int level,
 		ret = -EINVAL;
 	}
 
+	if (!is_frame_mode) {
+		mtk_drm_idlemgr_kick(__func__, crtc, 0);
+	}
+
 	DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
 
 	CRTC_MMP_EVENT_END(index, backlight, (unsigned long)crtc,

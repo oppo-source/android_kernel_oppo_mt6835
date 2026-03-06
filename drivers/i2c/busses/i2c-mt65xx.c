@@ -1657,6 +1657,31 @@ static int mtk_i2c_do_transfer(struct mtk_i2c *i2c, struct i2c_msg *msgs,
 	return 0;
 }
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+static void oplus_changeI2cSpeed(struct mtk_i2c *i2c, struct i2c_msg msgs[])
+{
+	int ret = 0;
+	const unsigned int project = get_project();
+	if ((project == 25604 || project == 25668 || project == 25669 || project == 25678 || project == 25679 ||
+	     project == 25617 || project == 25716 || project == 25717 || project == 25719) && (i2c->adap.nr == 2)) {
+		if ((msgs[0].addr == SC202CS_I2C_SLAVE_ADDR)||(msgs[0].addr == SC202CS_EEPROM_I2C_SLAVE_ADDR)||(msgs[0].addr == OV02F_I2C_SLAVE_ADDR)) {
+			i2c->speed_hz = SC202CS_I2C_MAX_FREQUENCY;
+		} else {
+			i2c->speed_hz = I2C_MAX_FREQUENCY;
+		}
+		ret = mtk_i2c_set_speed(i2c,PARENT_CLK);
+		if (!ret) {
+			pr_info("change i2c frequency to %u success", i2c->speed_hz);
+		} else {
+			pr_err("change i2c frequency to %u Fail !!!", i2c->speed_hz);
+		}
+		mtk_i2c_writew(i2c, i2c->timing_reg, OFFSET_TIMING);
+		mtk_i2c_writew(i2c, i2c->high_speed_reg, OFFSET_HS);
+		mtk_i2c_writew(i2c, i2c->ltiming_reg, OFFSET_LTIMING);
+	}
+}
+#endif
+
 static int mtk_i2c_transfer(struct i2c_adapter *adap,
 			    struct i2c_msg msgs[], int num)
 {

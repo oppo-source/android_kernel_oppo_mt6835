@@ -701,21 +701,28 @@ static int aw36410_baikalb5_set_driver(int set)
 
 static ssize_t aw36410_baikalb5_strobe_store(struct flashlight_arg arg)
 {
+	int channel;
+	int level;
+	int dur;
+
 	pr_debug("Unset driver: %d\n", use_count);
 	aw36410_baikalb5_set_driver(1);
 	//aw36410_baikalb5_set_level(arg.channel, arg.level);
 	//aw36410_baikalb5_timeout_ms[arg.channel] = 0;
 	//aw36410_baikalb5_enable(arg.channel);
-	aw36410_baikalb5_torch_brt_ctrl(aw36410_baikalb5_flash_data, arg.channel,
-				arg.level * 25000);
+	channel = arg.channel;
+	level   = arg.level;
+	dur     = arg.dur;
+
+	aw36410_baikalb5_torch_brt_ctrl(aw36410_baikalb5_flash_data, channel,level * 25000);
 	aw36410_baikalb5_flash_data->led_mode = FLASH_LED_MODE_TORCH;
 	aw36410_baikalb5_mode_ctrl(aw36410_baikalb5_flash_data);
-	aw36410_baikalb5_enable_ctrl(aw36410_baikalb5_flash_data, arg.channel, true);
-	msleep(arg.dur);
+	aw36410_baikalb5_enable_ctrl(aw36410_baikalb5_flash_data, channel, true);
+	msleep(dur);
 	//aw36410_baikalb5_disable(arg.channel);
 	aw36410_baikalb5_flash_data->led_mode = FLASH_LED_MODE_NONE;
 	aw36410_baikalb5_mode_ctrl(aw36410_baikalb5_flash_data);
-	aw36410_baikalb5_enable_ctrl(aw36410_baikalb5_flash_data, arg.channel, false);
+	aw36410_baikalb5_enable_ctrl(aw36410_baikalb5_flash_data, channel, false);
 	aw36410_baikalb5_set_driver(0);
 	return 0;
 }

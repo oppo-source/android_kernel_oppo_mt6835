@@ -202,21 +202,20 @@ static void imgsensor_mutex_unlock(struct IMGSENSOR_SENSOR_INST *psensor_inst)
 
 #ifdef OPLUS_FEATURE_CAMERA_COMMON
 int qvga_sensor_open(char *qvga_sensor_name, unsigned int qvga_idx,
-	bool power_on)
+    bool power_on)
 {
-	struct IMGSENSOR  *pimgsensor   = &gimgsensor;
-	enum   IMGSENSOR_SENSOR_IDX     sensor_idx;
-	enum   IMGSENSOR_HW_POWER_STATUS pwr_status = power_on ?
-	                                 IMGSENSOR_HW_POWER_STATUS_ON : IMGSENSOR_HW_POWER_STATUS_OFF;
-	int ret = 0;
-	if (qvga_idx > IMGSENSOR_SENSOR_IDX_MAX_NUM ||
-	    qvga_idx < IMGSENSOR_SENSOR_IDX_MIN_NUM ||
-		qvga_sensor_name == NULL) {
-		PK_PR_ERR("Invalid qvga name or idx: %d\n", qvga_idx);
-		return -EINVAL;
-	}
-	sensor_idx = qvga_idx;
+    struct IMGSENSOR  *pimgsensor   = &gimgsensor;
+    enum   IMGSENSOR_SENSOR_IDX     sensor_idx;
+    enum   IMGSENSOR_HW_POWER_STATUS pwr_status = power_on ?
+                                     IMGSENSOR_HW_POWER_STATUS_ON : IMGSENSOR_HW_POWER_STATUS_OFF;
+    int ret = 0;
+    sensor_idx = (enum IMGSENSOR_SENSOR_IDX)qvga_idx;
 
+    if (sensor_idx >= IMGSENSOR_SENSOR_IDX_MAX_NUM || qvga_sensor_name == NULL) {
+        PK_PR_ERR("sensor_idx %d exceed max limit %d\n",
+               sensor_idx, IMGSENSOR_SENSOR_IDX_MAX_NUM-1);
+        return -EINVAL;
+    }
 
 	ret = qvga_hw_power(&pimgsensor->hw, sensor_idx,  pwr_status, qvga_sensor_name);
 

@@ -303,6 +303,7 @@
 			fold_threshold_gap = <70>;
 			fold_threshold_default = <60>;
 			fold_threshold_limit = <200>;
+			interval_feedback_available = <1>;
 		};
 		ultrasound_prox: ultrasound_prox {
 			status = "okay";

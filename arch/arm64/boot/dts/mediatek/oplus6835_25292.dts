@@ -225,10 +225,10 @@
 			compatible = "hw-match, main-sub";
 			aboard-gpio0 = <&pio 111 0x00>;
 			rf_match_support;
-			aboard-patterns = <2 2 2 2 2 2 2 2 2 2>;        /*0[high-resistance] 1[pull-down] 2[pull-up]*/
-			rf-patterns = <40 41 43 44 49 50 52 53 67 68>;
+			aboard-patterns = <2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2>;        /*0[high-resistance] 1[pull-down] 2[pull-up]*/
+			rf-patterns = <40 41 43 44 49 50 52 53 67 68 70 71 76 77 79 80>;
 			/*main board*/
-			match-projects = <25292 25292 25292 25292 25292 25291 25291 25291 25291 25291>;
+			match-projects = <25292 25292 25292 25292 25292 25291 25291 25291 25291 25291 25291 25291 25291 25292 25292 25292>;
 		};
 	};
 

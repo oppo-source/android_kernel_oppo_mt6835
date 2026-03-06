@@ -284,10 +284,10 @@ static int opfunc_send_msg(struct msg_op_data *op)
     aol_core_rb_push_free(&g_rb1, rb_data);
     spin_unlock_irqrestore(&(g_rb1.lock), flags);
 
-    ret = conap_scp_send_message(ctx->drv_type, cmd,
+    ret = conap_scp_send_message(ctx->drv_type, type,
                     (unsigned char *)&g_buf1, sz);
 
-    pr_info("Send drv_type=[%d], cmd=[%d], ret=[%d]\n", ctx->drv_type, cmd, ret);
+    pr_info("Send drv_type=[%d], id=[%d], ret=[%d]\n", ctx->drv_type, type, ret);
     return ret;
 }
 

@@ -214,6 +214,10 @@
 		oplus,ic_type = <OPLUS_CHG_IC_GAUGE>;
 		oplus,ic_index = <0>;
 		//qcom,bq28z610_need_balancing;
+
+		battery_params {
+			sino_default_cell_model = /bits/ 16 <82 76 75 83 101 81 89 71 72 78 82 100 130 237 782>;
+		};
 	};
 };
 
@@ -232,6 +236,10 @@
 		oplus,ic_index = <1>;
 		oplus,i2c_rst_ext;
 		//qcom,bq28z610_need_balancing;
+
+		battery_params {
+			sino_default_cell_model = /bits/ 16 <199 188 178 202 257 186 220 168 169 165 175 250 286 244 680>;
+		};
 	};
 };
 
@@ -595,6 +603,11 @@
 					OPLUS_IC_FUNC_GAUGE_GET_BATT_PC
 					OPLUS_IC_FUNC_GAUGE_GET_BATT_QS
 					OPLUS_IC_FUNC_GAUGE_IS_SUSPEND
+					OPLUS_IC_FUNC_GAUGE_CHECK_IMP_MODEL
+					OPLUS_IC_FUNC_GAUGE_GET_DEC_FG_TYPE
+					OPLUS_IC_FUNC_GAUGE_GET_DEC_CV_SOH
+					OPLUS_IC_FUNC_GAUGE_SET_VCT
+					OPLUS_IC_FUNC_GAUGE_GET_VCT
 				>;
 				virqs = <
 					OPLUS_IC_VIRQ_ERR
@@ -671,6 +684,9 @@
 		oplus,gauge_ic_index = <0 1>;
 		oplus,gauge_ic_connect = <OPLUS_CHG_IC_CONNECT_PARALLEL>;
 		oplus,gauge_ic_capacity_ratio = <77 23>;
+		oplus,fcl_support;
+		oplus,fcl_index = <0>;
+		oplus,vb_offset = <40>;
 
 		oplus_virtual_gauge_main: oplus,virtual_gauge0 {
 			compatible = "oplus,virtual_gauge";
@@ -783,6 +799,9 @@
 
 	oplus_chg_comm: oplus,comm {
 		compatible = "oplus,common-charge";
+		oplus_spec,dec_step = <20>;
+		oplus_spec,dec-vol-cc-full-thr = <0 400 600 800 1000 1200>;
+		oplus_spec,dec-vol-fv-full-mv = <0 20 20 40 40 40>;
 		oplus_spec,batt-them-thr = <(-100) 0 50 120 160 450 530>;
 		oplus_spec,iterm-ma = <170>;
 		oplus_spec,sub-iterm-ma = <60>;
@@ -1097,12 +1116,17 @@
 	};
 };
 
+&mt6375_chg {
+	support_icl_optimization;
+};
+
 &lk_charger {
 	support_parallel_chg;
 	support_tuv_authentication;
 	support_sdp_screenoff;
 	support_4p48_single_battery;
 	support_sdp_backlight;
+	support_icl_optimization;
 	support_chg_time_cnt;
 	led_brightness = <102>;
 	parallel_vbat_gap = <400>;

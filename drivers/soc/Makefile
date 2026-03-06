@@ -55,3 +55,7 @@ obj-y += oplus/dft/
 obj-$(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)	+= oplus/oplus_mm_fb/
 #endif /* OPLUS_FEATURE_MM_FEEDBACK */
 obj-y	+= oplus/storage/
+
+#Test for Fence
+obj-y           += oplus/graphics/
+#Test for Fence

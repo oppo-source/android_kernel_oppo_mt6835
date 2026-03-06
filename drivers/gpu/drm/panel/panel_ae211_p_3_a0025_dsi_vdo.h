@@ -517,12 +517,12 @@ static struct LCM_setting_table AOD_on_setting[] = {
 
 static struct LCM_setting_table aod_high_bl_level[] = {
 	{REGFLAG_CMD, 2, {0x6F, 0x04}},
-	{REGFLAG_CMD, 3, {0x51, 0x03, 0xFF}},
+	{REGFLAG_CMD, 3, {0x51, 0x0F, 0xFE}},
 };
 
 static struct LCM_setting_table aod_low_bl_level[] = {
 	{REGFLAG_CMD, 2, {0x6F, 0x04}},
-	{REGFLAG_CMD, 3, {0x51, 0x01, 0xFF}},
+	{REGFLAG_CMD, 3, {0x51, 0x00, 0x03}},
 };
 /* -------------------------doze mode setting end------------------------- */
 

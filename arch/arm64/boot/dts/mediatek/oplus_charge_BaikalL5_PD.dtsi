@@ -87,7 +87,6 @@
 				bat,vid = <0x311c>;
 				bat,pid = <0x6600>;
 				bat,mfrs = "bat1";
-				bat,design_cap = <17>;
 			};
 		};
 		dpm_caps {

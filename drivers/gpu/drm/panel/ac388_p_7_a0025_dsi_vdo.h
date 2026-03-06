@@ -15,6 +15,11 @@ enum MODE_ID {
 	FHD_SDC30 = 3,
 };
 
+enum SEED_MODE_ID {
+	EXPERT = 101,
+	NATURAL = 102,
+};
+
 struct LCM_setting_table {
 	unsigned int cmd;
 	unsigned int count;
@@ -398,4 +403,14 @@ struct LCM_setting_table lhbm_pressed_icon_off_cmd_exit_frist[] = {
 //DBV=4094-1154
 struct LCM_setting_table lhbm_pressed_icon_off_cmd_exit_second[] = {
 	{REGFLAG_CMD,28, {0xA9, 0x01, 0x00, 0x51, 0x09, 0x0A, 0x00, 0x00, 0x01, 0x00, 0x87, 0x00, 0x00, 0x00, 0x02, 0x04, 0xB5, 0x01, 0x03, 0x00, 0x00, 0x0B, 0x01, 0x00, 0x9D, 0x00, 0x00, 0xAA}},
+};
+
+/* ---------------panel seed setting --------------- */
+/* ---------------Loading on 110% --------------- */
+struct LCM_setting_table dsi_set_seed_natural[] = {
+	{REGFLAG_CMD, 2, {0x5F,0x02}},
+};
+/* ---------------Loading off 100% --------------- */
+struct LCM_setting_table dsi_set_seed_expert[] = {
+	{REGFLAG_CMD, 2, {0x5F,0x02}},
 };

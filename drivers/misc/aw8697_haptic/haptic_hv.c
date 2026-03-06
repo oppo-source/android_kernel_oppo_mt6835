@@ -8674,18 +8674,22 @@ static ssize_t proc_vibration_style_write(struct file *filp, const char __user *
 	int rc = 0;
 	int val;
 
-	if (count > 5)
+	if (count >= sizeof(buffer)) {
 		return -EFAULT;
-
+	}
+	if (buf == NULL) {
+		return -EFAULT;
+	}
 	if (copy_from_user(buffer, buf, count)) {
 		aw_dev_err("%s: error.\n", __func__);
 		return -EFAULT;
 	}
-
+    
+	buffer[count] = '\0';
 	aw_dev_err("buffer=%s", buffer);
 	rc = kstrtoint(buffer, 0, &val);
 	if (rc < 0)
-		return count;
+		return rc;
 	aw_dev_err("val = %d", val);
 
 	if (val == 0) {

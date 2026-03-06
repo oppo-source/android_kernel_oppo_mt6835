@@ -58,6 +58,8 @@ bool read_ddic_once = true;
 unsigned long esd_flag = 0;
 extern unsigned int esd_mode;
 EXPORT_SYMBOL(esd_flag);
+atomic_t esd_pending = ATOMIC_INIT(0);
+EXPORT_SYMBOL(esd_pending);
 static count_irq_sta = 1;
 unsigned int dsi0te_err = 1;
 unsigned int dsi1te_err = 1;
@@ -910,7 +912,7 @@ static int mtk_drm_esd_check_worker_kthread(void *data)
 					continue;
 				}
 
-				if (mtk_state->prop_val[CRTC_PROP_DOZE_ACTIVE]) {
+				if (mtk_state->prop_val[CRTC_PROP_DOZE_ACTIVE] || atomic_read(&esd_pending)) {
 					DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
 					DDPINFO("[ESD] is in aod doze mode, skip esd check!\n");
 					continue;
@@ -923,7 +925,7 @@ static int mtk_drm_esd_check_worker_kthread(void *data)
 			time_gap = ktime_to_us(ktime_sub(ktime_get(), panel_ext->funcs->oplus_get_doze_disable_time()));
 			if (time_gap <= ESD_CHECK_AFTER_AOD_OFF) {
 				usleep_range((ESD_CHECK_AFTER_AOD_OFF - time_gap), (ESD_CHECK_AFTER_AOD_OFF - time_gap + 100));
-				DDPINFO("[ESD] Panel in aod state, wait %d esd check!\n", time_gap);
+				DDPINFO("[ESD] Panel in aod state, wait %lld esd check!\n", time_gap);
 			}
 		}
 

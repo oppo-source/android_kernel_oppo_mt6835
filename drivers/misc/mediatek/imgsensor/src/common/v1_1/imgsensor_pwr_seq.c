@@ -400,7 +400,7 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
             {AVDD1_GPIO, Vol_High, 2},
             {AVDD, Vol_2800, 5},
             {SensorMCLK, Vol_High, 1},
-            {RST, Vol_High, 2},
+            {RST, Vol_High, 4},
         },
     },
 #endif
@@ -413,7 +413,7 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
             {AVDD1_GPIO, Vol_High, 2},
             {AVDD, Vol_2800, 5},
             {SensorMCLK, Vol_High, 1},
-            {RST, Vol_High, 2},
+            {RST, Vol_High, 4},
         },
     },
 #endif

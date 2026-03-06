@@ -374,7 +374,14 @@ static inline void dpm_reaction_clear(struct pd_port *pd_port, uint32_t mask)
 
 static inline void dpm_reaction_set(struct pd_port *pd_port, uint32_t mask)
 {
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	struct tcpc_device *tcpc = pd_port->tcpc;
 	pd_port->pe_data.dpm_ready_reactions |= mask;
+	atomic_inc(&tcpc->pending_event);
+	wake_up(&tcpc->event_wait_que);
+#else
+	pd_port->pe_data.dpm_ready_reactions |= mask;
+#endif
 }
 
 static inline void dpm_reaction_set_ready_once(struct pd_port *pd_port)
@@ -386,9 +393,19 @@ static inline void dpm_reaction_set_ready_once(struct pd_port *pd_port)
 static inline void dpm_reaction_set_clear(
 	struct pd_port *pd_port, uint32_t set, uint32_t clear)
 {
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	struct tcpc_device *tcpc = pd_port->tcpc;
+	struct pe_data *pe_data = &pd_port->pe_data;
+	uint32_t val = pe_data->dpm_ready_reactions | set;
+
+	pe_data->dpm_ready_reactions = val & (~clear);
+	atomic_inc(&tcpc->pending_event);
+	wake_up(&tcpc->event_wait_que);
+#else
 	uint32_t val = pd_port->pe_data.dpm_ready_reactions | set;
 
 	pd_port->pe_data.dpm_ready_reactions = val & (~clear);
+#endif
 }
 
 static inline uint32_t dpm_reaction_check(

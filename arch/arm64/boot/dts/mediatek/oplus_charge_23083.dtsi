@@ -183,6 +183,9 @@
 
 	oplus_chg_comm: oplus,comm {
 		compatible = "oplus,common-charge";
+		oplus_spec,dec_step = <20>;
+		oplus_spec,dec-vol-cc-full-thr = <0 400 600 800 1000 1200>;
+		oplus_spec,dec-vol-fv-full-mv = <0 20 20 40 40 40>;
 		oplus_spec,batt-them-thr = <(-100) 0 50 120 160 450 530>;
 		oplus_spec,iterm-ma = <244>;
 		oplus_spec,removed_bat_decidegc = <390>; /*-39 degree*/
@@ -733,6 +736,9 @@
 		oplus,voocphy_ic = <&oplus_virtual_vphy>;
 		oplus,topic-update-interval = <10000>;
 		oplus,support_subboard_ntc;
+		oplus,fcl_support;
+		oplus,fcl_index = <1>;
+		oplus,vb_offset = <0>;
 
 		oplus_virtual_gauge: oplus,virtual_gauge {
 			compatible = "oplus,virtual_gauge";
@@ -748,8 +754,14 @@
 	};
 };
 
+&mt6375_chg {
+	support_icl_optimization;
+};
+
 &lk_charger {
 	support_tuv_authentication;
+	support_icl_optimization;
+	support_chg_time_cnt;
 
 	support_maxim_battery_authentication;
 	data-gpio = <149>;
@@ -936,6 +948,10 @@
 					OPLUS_IC_FUNC_GAUGE_GET_QMAX_PASSED_Q
 					OPLUS_IC_FUNC_GAUGE_SET_BATTERY_CURVE
 					OPLUS_IC_FUNC_GAUGE_GET_GAUGE_CAR_C
+					OPLUS_IC_FUNC_GAUGE_GET_DEC_FG_TYPE
+					OPLUS_IC_FUNC_GAUGE_GET_DEC_CV_SOH
+					OPLUS_IC_FUNC_GAUGE_SET_VCT
+					OPLUS_IC_FUNC_GAUGE_GET_VCT
 				>;
 				virqs = <
 					OPLUS_IC_VIRQ_ERR
@@ -1007,6 +1023,7 @@
 		oplus,default_protocol_list = <CHG_PROTOCOL_UFCS
 					       CHG_PROTOCOL_PD
 					       CHG_PROTOCOL_VOOC>;
+		oplus,protocol_wait_list = <CHG_PROTOCOL_UFCS 1000>;
 	};
 
 	oplus_ufcs_virtual_cp: oplus,ufcs_virtual_cp {

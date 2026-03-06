@@ -338,6 +338,7 @@
 	oplus_chg_plc: oplus,plc_charge {
 		compatible = "oplus,plc_charge";
 		oplus,plc_soc = <90>;
+		oplus,plc_support_timeout;
 		oplus,plc_strategy-data = <&buck_simple_strategy>;
 		oplus,plc_strategy-names = "default";
 
@@ -891,6 +892,7 @@
 							CHG_PROTOCOL_PPS
 							CHG_PROTOCOL_PD
 							CHG_PROTOCOL_VOOC>;
+		oplus,bc12_check_timeout_ms = <1000>;
 	};
 	oplus_virtual_cp: oplus,virtual_cp {
 		compatible = "oplus,virtual_cp";
@@ -1027,8 +1029,8 @@
 		oplus_spec,vooc_low_soc = <0>;
 		oplus_spec,vooc_high_soc = <90>;
 		oplus_spec,vooc_normal_high_temp = <440>;
-		oplus_spec,vooc_warm_allow_vol = <4000>;
-		oplus_spec,vooc_warm_allow_soc = <50>;
+		oplus_spec,vooc_warm_vol_thr = <4000>;
+		oplus_spec,vooc_warm_soc_thr = <55>;
 		oplus_spec,impedance_calculation_newmethod;
 		//oplus_spec,svooc_circuit_r_l = <0x18>;
 		//oplus_spec,svooc_circuit_r_h = <0x2>;/* 65 mR */
@@ -1071,6 +1073,8 @@
 					1 1 1 1 0 0 0	// 4604mV
 					0 0 0 1 0 1 1	// 1100mA
 					1 1 1 1 0 0 0>;	// 4604mV
+
+		oplus_spec,soc_range = <0 20 35 55 75 85 90>;
 
 		svooc_lcf_strategy {
 			oplus,temp_type = <OPLUS_STRATEGY_USE_SHELL_TEMP>;

@@ -51,8 +51,8 @@
 			sensor_name = <11>;//SC7A20
 			device_name = "sc7a20";
 			i2c_num = <4>;
-			i2c_addr = <0x18>;
-			direction = <0>;
+			i2c_addr = <0x19>;
+			direction = <3>;
 			eint_num = <17>;
 			acc_cali_range= <300 300 300>;
 		};

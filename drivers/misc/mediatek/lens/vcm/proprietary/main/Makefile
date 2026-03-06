@@ -77,4 +77,3 @@ mainaf-y  += common/dw9800saf/DW9800SAF.o
 mainaf-y  += common/gt9772af_alphal5/GT9772AF_ALPHAL5.o
 mainaf-y  += common/gt9764af_24314/GT9764AF_24314.o
 mainaf-y  += common/gt9772af_24314/GT9772AF_24314.o
-

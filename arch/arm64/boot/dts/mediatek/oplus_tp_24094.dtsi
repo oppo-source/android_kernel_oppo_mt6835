@@ -26,8 +26,8 @@
 		touchpanel,display-coords = <720 1570>;
 		touchpanel,touchmajor-limit = <0 54>;
 
-		platform_support_project = <24094 24095 24096 24097 24098 24361 24362 24363 24364 24365 24366 24367>;
-		platform_support_project_dir = <24094 24094 24094 24094 24094 24094 24094 24094 24094 24094 24094 24094>;
+		platform_support_project = <24094 24095 24096 24097 24098 24361 24362 24363 24364 24365 24366 24367 24360 24369 24093 24099 24370 24090 24101>;
+		platform_support_project_dir = <24094 24094 24094 24094 24094 24094 24094 24094 24094 24094 24094 24094 24094 24094 24094 24094 24094 24094 24094>;
 		platform_support_project_commandline = "oplus_ac321_p_3_a0035_dsi_video_mode_panel", "oplus_ac321_p_4_a0035_dsi_video_mode_panel";		/* hd*/
 		firmware_name = "AC316BI", "AC316TI";
 		pinctrl-names = "default", "pin_cs_high","pin_cs_low";

@@ -4172,7 +4172,8 @@ static void ufs_mtk_fixup_dev_quirks(struct ufs_hba *hba)
 		STR_PRFX_EQUAL("HN8T066EHKX155", dev_info->model) ||
 		STR_PRFX_EQUAL("XBUSC1A19A8TG3", dev_info->model) ||
 		STR_PRFX_EQUAL("YMUS9B5TH2A1C1", dev_info->model) ||
-		STR_PRFX_EQUAL("YMUSAB4TF3D1C1", dev_info->model)) {
+		STR_PRFX_EQUAL("YMUSAB4TF3D1C1", dev_info->model) ||
+		STR_PRFX_EQUAL("HBM2401280CHBC", dev_info->model)) {
 		hba->rpm_lvl = UFS_PM_LVL_1;
 		hba->spm_lvl = UFS_PM_LVL_1;
 	}

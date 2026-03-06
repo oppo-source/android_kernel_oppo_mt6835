@@ -406,6 +406,8 @@ static int ldo_shutdown_notifier_callback(struct notifier_block *np, unsigned lo
         switch (type) {
         case SYS_DOWN:
                 WL2866D_PRINT("[wl2866d]ldo sys_down ");
+                wl2866d_write(0x0E,0x00);
+                break;
 
         case SYS_POWER_OFF:
                 WL2866D_PRINT("[wl2866d] reboot_notify: SYS_POWER_OFF!\n");

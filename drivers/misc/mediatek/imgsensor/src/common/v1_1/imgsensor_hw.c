@@ -14,7 +14,8 @@
 
 #include <soc/oplus/system/oplus_project.h>
 #include "../../../../aw37004/aw37004.h"
-
+static DEFINE_MUTEX(avdd1_mutex);
+static DEFINE_MUTEX(avdd2_mutex);
 extern int aw37004_camera_power_up(int out_iotype, unsigned int out_val);
 extern int aw37004_camera_power_down(int out_iotype);
 
@@ -228,7 +229,9 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
     //static DEFINE_RATELIMIT_STATE(ratelimit, 1 * HZ, 30);
     unsigned int pwr_id_index_unit = 0;
     static int avdd1_flag = 0;
+    static int avdd2_flag = 0;
     static int dovdd_flag = 0;
+
 #ifdef CONFIG_FPGA_EARLY_PORTING  /*for FPGA*/
     if (1) {
         PK_DBG("FPGA return true for power control\n");
@@ -370,12 +373,20 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
                     }
                 } else if (is_project(25291) || is_project(25292) || is_project(25055)) {
                     if (ppwr_info->pin == IMGSENSOR_HW_PIN_DVDD && ((sensor_idx == 0) || (sensor_idx == 2))) {
-                        aw37004_camera_power_up(OUT_DVDD1, 1224);
+                        aw37004_camera_power_up(OUT_DVDD1, 1200);
                     } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_DVDD && (sensor_idx == 1)) {
-                        aw37004_camera_power_up(OUT_DVDD2, 1200);
+                        aw37004_camera_power_up(OUT_DVDD2, 1100);
                     } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_AVDD) {
+                        mutex_lock(&avdd1_mutex);
+                        avdd1_flag ++;
+                        pr_info("power on avdd1_flag = %d\n", avdd1_flag);
+                        mutex_unlock(&avdd1_mutex);
                         aw37004_camera_power_up(OUT_AVDD1, 2800);
                     } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_AFVDD && ((sensor_idx == 0) || (sensor_idx == 1))) {
+                        mutex_lock(&avdd2_mutex);
+                        avdd2_flag ++;
+                        pr_info("power on avdd2_flag = %d\n", avdd2_flag);
+                        mutex_unlock(&avdd2_mutex);
                         aw37004_camera_power_up(OUT_AVDD2, 2800);
                     } else {
                             pwr_id_index_unit = (psensor_pwr->id[ppwr_info->pin] < 0)
@@ -592,9 +603,29 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
                     } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_DVDD && (sensor_idx == 1)){
                         aw37004_camera_power_down(OUT_DVDD2);
                     } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_AVDD) {
-                        aw37004_camera_power_down(OUT_AVDD1);
+                        if (avdd1_flag > 1) {
+                            pr_info("avdd1_flag = %d do not power down\n", avdd1_flag);
+                        } else {
+                            aw37004_camera_power_down(OUT_AVDD1);
+                        }
+                        if (avdd1_flag > 0) {
+                            mutex_lock(&avdd1_mutex);
+                            avdd1_flag --;
+                            pr_info("power off avdd1_flag = %d\n", avdd1_flag);
+                            mutex_unlock(&avdd1_mutex);
+                        }
                     } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_AFVDD && ((sensor_idx == 0) || (sensor_idx == 1))) {
-                        aw37004_camera_power_down(OUT_AVDD2);
+                        if (avdd2_flag > 1) {
+                            pr_info("avdd2_flag = %d do not power down\n", avdd2_flag);
+                        } else {
+                            aw37004_camera_power_down(OUT_AVDD2);
+                        }
+                        if (avdd2_flag > 0) {
+                            mutex_lock(&avdd2_mutex);
+                            avdd2_flag --;
+                            pr_info("power off avdd2_flag = %d\n", avdd2_flag);
+                            mutex_unlock(&avdd2_mutex);
+                        }
                     } else {
                         pwr_id_index_unit = (psensor_pwr->id[ppwr_info->pin] < 0)
                         ? 0
@@ -887,7 +918,7 @@ enum IMGSENSOR_RETURN qvga_hw_power(struct IMGSENSOR_HW *phw,
     enum   IMGSENSOR_HW_POWER_STATUS pwr_status,
     char   *qvga_sensor_name)
 {
-    if (!qvga_sensor_name) {
+    if (qvga_sensor_name == NULL) {
         PK_DBG("NULL sensor name is not allowed");
         return IMGSENSOR_RETURN_ERROR;
     }

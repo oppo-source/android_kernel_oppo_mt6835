@@ -148,7 +148,7 @@
 			device_name = "tcs3720";
 			gold_cct_3k = <7628 3701 1694 12148 1001 1001>;
 			gold_cct_6k = <5046 4060 2220 10686 1001 1001>;
-			sup_changing_rpt = <1>;
+			sup_changing_rpt = <0>;
 			lb_bri_max = <4096>;
 			use_eint_mode = <1>;
 			ir_ratio = <8>; // *1000

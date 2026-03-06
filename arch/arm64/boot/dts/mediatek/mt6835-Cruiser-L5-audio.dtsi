@@ -9,18 +9,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-
-&pio {
-	typec_switch_hs_det: typec_switchs_hs_det {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO35__FUNC_GPIO35>;
-			slew-rate = <1>;  /*direction 0:in, 1:out*/
-			output-low;
-		};
-	};
-};
-
-
 &i2c7 {
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -45,10 +33,6 @@
 		compatible = "oplus,typec-switch-i2c";
 		reg = <0x42>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&typec_switch_hs_det>;
-		oplus,hs-det-gpio = <&pio 35 0>;
-		oplus,hs-det-level = <1>;
-		// add for supporting type-c headphone detect bypass
 		oplus,hp-bypass = <1>;
 		status = "okay";
 	};

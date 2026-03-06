@@ -77,6 +77,7 @@
         disable_touch_event_support;
         fingerprint_not_report_in_suspend;
         fingerprint_error_report_support;
+        idle_freq_support;
         touchpanel,button-type = <4>;
         touchpanel.button-TRx = <0 0>;
     };

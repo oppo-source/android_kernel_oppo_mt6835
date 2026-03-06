@@ -6796,15 +6796,17 @@ void mipi_dsi_dcs_write_gce2(struct mtk_dsi *dsi, struct cmdq_pkt *dummy,
 					  const void *data, size_t len)
 {
 
-	struct cmdq_pkt *handle;
+	struct cmdq_pkt *handle = NULL;
 	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(dsi->encoder.crtc);
-	int dsi_mode = readl(dsi->regs + DSI_MODE_CTRL);
+	int dsi_mode;   /*0:dsi cmd mode,1:dsi vdo mode*/
+	int panel_mode; /*0:vdo,1:cmd*/
 
 	struct mipi_dsi_msg msg = {
 		.tx_buf = data,
 		.tx_len = len
 	};
 
+	DDPINFO("%s +\n", __func__);
 	switch (len) {
 	case 0:
 		return;
@@ -6822,6 +6824,15 @@ void mipi_dsi_dcs_write_gce2(struct mtk_dsi *dsi, struct cmdq_pkt *dummy,
 		break;
 	}
 
+	panel_mode = mtk_dsi_is_cmd_mode(&dsi->ddp_comp);
+	if(!panel_mode){
+		mtk_crtc_pkt_create(&handle, &mtk_crtc->base,
+			mtk_crtc->gce_obj.client[CLIENT_DSI_CFG]);
+		cmdq_pkt_flush(handle);
+		cmdq_pkt_destroy(handle);
+	}
+
+	dsi_mode = readl(dsi->regs + DSI_MODE_CTRL);
 	if (dsi_mode == 0) {
 		mtk_crtc_pkt_create(&handle, &mtk_crtc->base,
 			mtk_crtc->gce_obj.client[CLIENT_CFG]);
@@ -6879,6 +6890,15 @@ void mipi_dsi_dcs_write_gce2(struct mtk_dsi *dsi, struct cmdq_pkt *dummy,
 
 	cmdq_pkt_flush(handle);
 	cmdq_pkt_destroy(handle);
+
+	if(!panel_mode){
+		mtk_crtc_pkt_create(&handle, &mtk_crtc->base,
+			mtk_crtc->gce_obj.client[CLIENT_DSI_CFG]);
+		cmdq_pkt_flush(handle);
+		cmdq_pkt_destroy(handle);
+	}
+
+	DDPINFO("%s - panel_mode=%d, dsi_mode=%d\n", __func__, panel_mode, dsi_mode);
 }
 
 void mipi_dsi_dcs_grp_write_gce(struct mtk_dsi *dsi, struct cmdq_pkt *handle,
@@ -10089,7 +10109,12 @@ static void mtk_dsi_vdo_aod_ctrl(struct mtk_dsi *dsi,
 		dsi_tmp_buf_bpp = 3;
 
 	if (dsi->ext && dsi->ext->funcs && dsi->ext->funcs->get_vdo_aod_param) {
-		dsi->ext->funcs->get_vdo_aod_param(vdo_aod_cfg->aod_en, &vdo_aod_param);
+		if (vdo_aod_cfg) {
+			dsi->ext->funcs->get_vdo_aod_param(vdo_aod_cfg->aod_en, &vdo_aod_param);
+		} else {
+			DDPPR_ERR("vdo_aod_cfg is NULL\n");
+			return;
+		}
 	}
 
 	if (!vdo_aod_param) {
@@ -10102,8 +10127,8 @@ static void mtk_dsi_vdo_aod_ctrl(struct mtk_dsi *dsi,
 	dst_vfp = vdo_aod_param->dst_vfp;
 	hfp_byte = ALIGN_TO((dst_hfp * dsi_tmp_buf_bpp - 12), 4);
 	dsi_mode = readl(dsi->regs + DSI_MODE_CTRL);
-	DDPMSG("%s, dsi_mode=0x%x, porch_change_flag=0x%x, dst_hfp=%d, dst_vfp=%d\n",
-		__func__, dsi_mode, porch_change_flag, dst_hfp, dst_vfp);
+	DDPMSG("%s, dsi_mode=0x%x, porch_change_flag=0x%x, dst_hfp=%d, dst_vfp=%d, mode_idx=%d\n",
+		__func__, dsi_mode, porch_change_flag, dst_hfp, dst_vfp, vdo_aod_param->mode_idx);
 
 	cb_data = kmalloc(sizeof(*cb_data), GFP_KERNEL);
 	if (!cb_data) {
@@ -10117,7 +10142,7 @@ static void mtk_dsi_vdo_aod_ctrl(struct mtk_dsi *dsi,
 		vrefresh = drm_mode_vrefresh(&mtk_crtc->base.state->adjusted_mode);
 		dst_mode = mtk_drm_crtc_avail_disp_mode(&mtk_crtc->base, vdo_aod_param->mode_idx);
 		dst_vrefresh = drm_mode_vrefresh(dst_mode);
-		DDPINFO("%s, vrefresh %d ,dst_vrefresh %d\n", __func__, vrefresh, dst_vrefresh);
+		DDPMSG("%s, vrefresh %d ,dst_vrefresh %d, change_mmclk %d\n", __func__, vrefresh, dst_vrefresh, vdo_aod_param->change_mmclk);
 		if (dst_vrefresh >= vrefresh && vdo_aod_param->change_mmclk) {
 			priv = mtk_crtc->base.dev->dev_private;
 			if (mtk_drm_helper_get_opt(priv->helper_opt, MTK_DRM_OPT_MMDVFS_SUPPORT)) {

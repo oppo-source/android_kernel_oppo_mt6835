@@ -903,6 +903,10 @@ static void __device_resume(struct device *dev, pm_message_t state, bool async)
 	
 	dev->power.is_suspended = false;
 
+	dev->power.is_suspended = false;
+
+	dev->power.is_suspended = false;
+
 	if (dev->power.direct_complete) {
 		/* Match the pm_runtime_disable() in __device_suspend(). */
 		pm_runtime_enable(dev);

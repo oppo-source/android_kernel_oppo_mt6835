@@ -58,12 +58,13 @@
 #define LCM_BRIGHTNESS_TYPE 2
 #define FINGER_HBM_BRIGHTNESS 3760
 // #define OLED_VDDI_EN_HW_SUPPORT
-
+extern atomic_t esd_pending;
+extern unsigned int last_backlight;
+extern void oplus_display_get_panel_brightness_time(void);
 extern unsigned int oplus_display_brightness;
 extern unsigned int oplus_max_normal_brightness;
 extern int oplus_display_panel_dbv_probe(struct device *dev);
 static int current_fps = 60;
-
 extern void lcdinfo_notify(unsigned long val, void *v);
 
 static unsigned int p_3_a0025_vdo_dphy_buf_thresh[14] ={896, 1792, 2688, 3584, 4480,
@@ -685,6 +686,10 @@ static int lcm_setbacklight_cmdq(void *dsi, dcs_write_gce cb, void *handle, unsi
 		return 0;
 	}
 
+	if ((last_backlight == 0 || last_backlight == 1) && (level != 0 && level != 1)) {
+		oplus_display_get_panel_brightness_time();
+	}
+
 	if ((get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT) && (level > 1))
 		level = 1023;
 
@@ -708,7 +713,7 @@ static int lcm_setbacklight_cmdq(void *dsi, dcs_write_gce cb, void *handle, unsi
                         cb(dsi, handle, lcm_set_demura_offset1[i].para_list, lcm_set_demura_offset1[i].count);
                 }
 	}
-
+	last_backlight = level;
 	pr_info("%s,level = %d,", __func__, level);
 
 	return 0;
@@ -881,6 +886,18 @@ static int panel_doze_enable(struct drm_panel *panel, void *dsi, dcs_write_gce c
 		pr_err("Invalid dsi params\n");
 	}
 
+	if(oplus_ofp_local_hbm_is_enabled() && oplus_ofp_get_hbm_state()) {
+	                if  ( oplus_display_brightness > 1147 ){
+                                for (i = 0; i < sizeof(lcm_finger_HBM_off_above_70nit)/sizeof(struct LCM_setting_table); i++){
+                                        cb(dsi, handle, lcm_finger_HBM_off_above_70nit[i].para_list, lcm_finger_HBM_off_above_70nit[i].count);
+                                }
+                        } else {
+                                for (i = 0; i < sizeof(lcm_finger_HBM_off_below_70nit)/sizeof(struct LCM_setting_table); i++){
+                                cb(dsi, handle, lcm_finger_HBM_off_below_70nit[i].para_list, lcm_finger_HBM_off_below_70nit[i].count);
+                                }
+                        }
+		OFP_INFO("ofp should off hbm\n");
+	}
 	for (i = 0; i < (sizeof(AOD_on_setting)/sizeof(struct LCM_setting_table)); i++) {
 		cmd = AOD_on_setting[i].cmd;
 		switch (cmd) {
@@ -925,9 +942,10 @@ static struct vdo_aod_params vdo_aod_on = {
 	.porch_change_flag = 0x03,
 	.dst_hfp = 1980,
 	.dst_vfp = 48, //30fps
+	.mode_idx = 3,
 	.vdo_aod_cmd_table[0]={1, {0x39} },
 	.vdo_aod_cmd_table[1]={2, {0x6F,0x04} },
-	.vdo_aod_cmd_table[2]={3, {0x51,0x09,0xD0}},
+	.vdo_aod_cmd_table[2]={3, {0x51,0x0F,0xFE}},
 };
 
 
@@ -935,6 +953,8 @@ static struct vdo_aod_params vdo_aod_to_120hz = {
 	.porch_change_flag = 0x03,
 	.dst_hfp = 114,
 	.dst_vfp = 48,
+	.mode_idx = 0,
+	.change_mmclk = true,
 	.vdo_aod_cmd_table[0]={1, {0x38}},
 
 };
@@ -943,6 +963,8 @@ static struct vdo_aod_params vdo_aod_to_120hz_unlocking = {
         .porch_change_flag = 0x03,
         .dst_hfp = 114,
         .dst_vfp = 48,
+		.change_mmclk = true,
+        .mode_idx = 0,
         .vdo_aod_cmd_table[0]={1, {0x38}},
         .vdo_aod_cmd_table[1]={3, {0x51, 0x00, 0x00}},
 
@@ -952,6 +974,8 @@ static struct vdo_aod_params vdo_aod_to_90hz = {
 	.porch_change_flag = 0x03,
 	.dst_hfp = 114,
 	.dst_vfp = 864,
+	.change_mmclk = true,
+	.mode_idx = 1,
 	.vdo_aod_cmd_table[0]={1, {0x38}},
 
 };
@@ -960,6 +984,8 @@ static struct vdo_aod_params vdo_aod_to_90hz_unlocking = {
         .porch_change_flag = 0x03,
         .dst_hfp = 114,
         .dst_vfp = 864,
+		.change_mmclk = true,
+        .mode_idx = 1,
         .vdo_aod_cmd_table[0]={1, {0x38}},
         .vdo_aod_cmd_table[1]={3, {0x51, 0x00, 0x00}},
 };
@@ -968,6 +994,8 @@ static struct vdo_aod_params vdo_aod_to_60hz = {
 	.porch_change_flag = 0x03,
 	.dst_hfp = 114,
 	.dst_vfp = 2496,
+	.change_mmclk = true,
+	.mode_idx = 2,
 	.vdo_aod_cmd_table[0]={1, {0x38}},
 
 };
@@ -976,6 +1004,8 @@ static struct vdo_aod_params vdo_aod_to_60hz_unlocking = {
         .porch_change_flag = 0x03,
         .dst_hfp = 114,
         .dst_vfp = 2496,
+		.change_mmclk = true,
+		.mode_idx = 2,
         .vdo_aod_cmd_table[0]={1, {0x38}},
         .vdo_aod_cmd_table[1]={3, {0x51, 0x00, 0x00}},
 
@@ -985,6 +1015,7 @@ static int mtk_get_vdo_aod_param(int aod_en, struct vdo_aod_params **vdo_aod_par
 {
 
 	if(aod_en) {
+		atomic_set(&esd_pending, 1);
 		*vdo_aod_param = &vdo_aod_on;
 	} else {
 		if(current_fps == 60) {
@@ -1006,6 +1037,8 @@ static int mtk_get_vdo_aod_param(int aod_en, struct vdo_aod_params **vdo_aod_par
 			*vdo_aod_param = &vdo_aod_to_120hz;
 			}
 		}
+		atomic_set(&esd_pending, 0);
+
 	}
 	OFP_INFO("%s:aod_en %d, current_fps %d\n", __func__, aod_en, current_fps);
 	return 0;

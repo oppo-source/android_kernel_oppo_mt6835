@@ -445,6 +445,6 @@
 	};
 };
 
-#include <oplus6835_25291/cust.dtsi>
+#include <oplus6835_25055/cust.dtsi>
 /*#include "mediatek/cust_mt6985_luna_thermal.dtsi"*/
 /*End of this file, DO NOT ADD ANYTHING HERE*/

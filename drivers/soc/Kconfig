@@ -38,6 +38,8 @@ source "drivers/soc/oplus/system/Kconfig"
 source "drivers/soc/oplus/device_info/Kconfig"
 #endif /*#ifdef OPLUS_TP_BASIC*/
 
+source "drivers/soc/oplus/graphics/Kconfig"
+
 #ifdef OPLUS_DFR_FEATURE
 source "drivers/soc/oplus/dfr/Kconfig"
 #endif /* OPLUS_DFR_FEATURE */
