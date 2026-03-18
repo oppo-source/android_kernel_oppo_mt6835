@@ -75,6 +75,8 @@ extern const struct flashlight_device_id flashlight_id_23281[];
 extern const struct flashlight_device_id flashlight_id_rado[];
 extern const struct flashlight_device_id flashlight_id_alphal5[];
 extern const struct flashlight_device_id flashlight_id_baikall5[];
+extern const struct flashlight_device_id flashlight_id_baikalb5[];
+extern const struct flashlight_device_id flashlight_id_baikalb5_aw36410[];
 extern const struct flashlight_device_id flashlight_id_rado_gpio[];
 extern const struct flashlight_device_id flashlight_id_alphab5[];
 extern const struct flashlight_device_id flashlight_id_dongfeng[];
@@ -371,6 +373,14 @@ int flashlight_dev_register(
 	} else if (is_project(24351) || is_project(24091) || is_project(24092)) {
 		flashlight_id = flashlight_id_baikall5;
 		flashlight_device_num = 1;
+	} else if (is_project(24095) || is_project(24096) || is_project(24097) || is_project(24098) || is_project(24363) ||
+			is_project(24364) || is_project(24367) || is_project(24094) || is_project(24365) || is_project(24362) || is_project(24360) ||
+			is_project(24093) || is_project(24099) || is_project(24370) || is_project(24090) || is_project(24101)) {
+		flashlight_id = flashlight_id_baikalb5;
+		flashlight_device_num = 1;
+	} else if (is_project(24366) || is_project(24361) || is_project(24368) || is_project(24369)) {
+		flashlight_id = flashlight_id_baikalb5_aw36410;
+		flashlight_device_num = 1;
 	} else if (is_project(24053) || is_project(24054) || is_project(24311) || is_project(24312) || is_project(24313) ||
 			is_project(24314) || is_project(24315) || is_project(24316)) {
 		flashlight_id = flashlight_id_alphab5;
@@ -399,7 +409,7 @@ int flashlight_dev_register(
 		flashlight_device_num = 1;
 	}
 
-	if (is_project(25610) || is_project(25676) || is_project(25685) || is_project(25686)) {
+	if (is_project(25610) || is_project(25676) || is_project(25685) || is_project(25686) || is_project(25731)) {
 		pr_err("set flashlight id mumbai\n");
 		flashlight_id = flashlight_id_mumbai;
 		flashlight_device_num = 1;
@@ -2037,4 +2047,3 @@ module_exit(flashlight_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Simon Wang <Simon-TCH.Wang@mediatek.com>");
 MODULE_DESCRIPTION("MTK Flashlight Core Driver");
-

@@ -485,7 +485,7 @@ static void sensor_init(void)
 	write_cmos_sensor8(0x3698,0x86);
 	write_cmos_sensor8(0x3699,0x8d);
 	write_cmos_sensor8(0x369a,0x99);
-	write_cmos_sensor8(0x369b,0xb7);
+	write_cmos_sensor8(0x369b,0x95);
 	write_cmos_sensor8(0x369c,0x0f);
 	write_cmos_sensor8(0x369d,0x1f);
 	write_cmos_sensor8(0x36a2,0x09);
@@ -732,10 +732,10 @@ static int read_sc800cs_module_data()
     kal_uint16 idx = 0;
     kal_uint16 sn_length = 23;
     kal_uint32 sum = 0;
-    kal_uint32 checksumAddr;
-    kal_uint32 sn_starAddr;
-    kal_uint32 vcmAddr;
-    kal_uint32 lensAddr;
+    kal_uint32 checksumAddr = 0;
+    kal_uint32 sn_starAddr = 0;
+    kal_uint32 vcmAddr = 0;
+    kal_uint32 lensAddr = 0;
 
     if (sc820cs_txd_front_otp.ModuleFlag == SC820CS_GROUP1_FLAG){
         sn_starAddr = 0X82BC;

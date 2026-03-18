@@ -6488,7 +6488,7 @@
 			< 8 2 10 0>,/* IPI_IN_SCP_ERROR_INFO_0 */
 			//<12 2  6 0>,/* IPI_IN_SCP_MPOOL_0 */
 			<34 2 16 0>,/* IPI_IN_SCP_CONNSYS */
-			<42 2  8 0>,/* IPI_IN_RV_SPK_PROCESS */
+			<42 2  4 0>,/* IPI_IN_RV_SPK_PROCESS */
 			< 7 3  2 0>,/* IPI_IN_APCCCI_0 */
 			<28 3  5 0>,/* IPI_IN_AUDIO_ULTRA_SND_0 */
 			<27 3  2 0>,/* IPI_IN_AUDIO_ULTRA_SND_ACK_0 */
@@ -6518,7 +6518,7 @@
 					  <11  20 0>,	/* vow dual mic */
 					  <12 100 0>,	/* vow dual mic barge in */
 					  <13 200 0>,	/* ultrasound */
-					  <14 500 0>,	/* spk process */
+					  <14 728 0>,	/* spk process */
 					  <15 728 0>;	/* voice call */
 
 
@@ -7598,6 +7598,16 @@
 
 	flashlights_baikall5: flashlights_baikall5 {
 		compatible = "mediatek,flashlights_baikall5";
+		decouple = <1>;
+		channel@1 {
+			type = <0>;
+			ct = <0>;
+			part = <0>;
+		};
+	};
+
+	flashlights_baikalb5: flashlights_baikalb5 {
+		compatible = "mediatek,flashlights_baikalb5";
 		decouple = <1>;
 		channel@1 {
 			type = <0>;

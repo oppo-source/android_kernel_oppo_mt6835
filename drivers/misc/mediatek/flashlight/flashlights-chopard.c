@@ -388,12 +388,20 @@ int chopard_init(void)
 		reg_val |= CHOPARD_AW36515_SOFT_RESET_ENABLE;
 		pr_info("flashlight chip id: reg:0x0c, data:0x%x;boost confgiuration: reg:0x07, reg_val: 0x%x", chip_id, reg_val);
 		ret = chopard_write_reg(chopard_i2c_client, CHOPARD_AW36515_REG_BOOST_CONFIG, reg_val);
+		if (ret < 0) {
+			pr_err("Failed to write to boost configuration register\n");
+			return ret;
+		}
 		msleep(2);
 	}
 	/* clear enable register */
 	reg = CHOPARD_REG_ENABLE;
 	val = CHOPARD_DISABLE;
 	ret = chopard_write_reg(chopard_i2c_client, reg, val);
+	if (ret < 0) {
+		pr_err("Failed to write to enable register\n");
+		return ret;
+	}
 
 	chopard_reg_enable = val;
 
@@ -401,6 +409,10 @@ int chopard_init(void)
 	reg = CHOPARD_REG_TIMING_CONF;
 	val = CHOPARD_TORCH_RAMP_TIME | CHOPARD_FLASH_TIMEOUT;
 	ret = chopard_write_reg(chopard_i2c_client, reg, val);
+	if (ret < 0) {
+		pr_err("Failed to write to timing configuration register\n");
+		return ret;
+	}
 
 	return ret;
 }

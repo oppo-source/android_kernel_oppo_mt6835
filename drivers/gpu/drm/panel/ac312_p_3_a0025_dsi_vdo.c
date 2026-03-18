@@ -846,7 +846,6 @@ static struct mtk_panel_params ext_params[MODE_NUM] = {
 	.dyn_fps = {
 		.switch_en = 1,
 		.vact_timing_fps = 30,
-		.dfps_cmd_table[0] = {0, 2 , {0x2F, 0x04}},
 	},
 	.panel_bpp = 10,
 	},
@@ -1281,6 +1280,7 @@ static struct vdo_aod_params vdo_aod_on = {
 	.vdo_aod_cmd_table[0]={1, {0x39} },
 	.vdo_aod_cmd_table[1]={2, {0x6F,0x04} },
 	.vdo_aod_cmd_table[2]={3, {0x51,0x0F,0xFE}},
+	.vdo_aod_cmd_table[3]={3, {0x51,0x03,0xE8}},
 };
 
 

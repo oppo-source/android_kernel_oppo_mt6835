@@ -8,6 +8,7 @@
 #include "eeprom_i2c_common_driver.h"
 #include "eeprom_i2c_custom_driver.h"
 #include "eeprom_i2c_sc800cs_driver.h"
+#include "eeprom_i2c_gc08a8_mumbai_driver.h"
 #include "kd_imgsensor.h"
 
 #define MAX_EEPROM_SIZE_32K 0x8000
@@ -88,7 +89,7 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{GC50F6_SENSOR_ID_MUMBAI, 0xA0, Common_read_region, MAX_EEPROM_SIZE_8K},
 	{IMX852_SENSOR_ID_MUMBAI, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
 	{SC800CS_SENSOR_ID_MUMBAI, 0x20, sc800cs_read_region,MAX_EEPROM_SIZE_16K},
-	{GC08A8_SENSOR_ID_MUMBAI, 0x20, Common_read_region, MAX_EEPROM_SIZE_8K},
+	{GC08A8_SENSOR_ID_MUMBAI, 0x62, Gc08a8_mumbai_read_region, MAX_EEPROM_SIZE_8K},
 	{OV50D40_SENSOR_ID_MUMBAI, 0xA8, Common_read_region, MAX_EEPROM_SIZE_8K},
 #ifdef OPLUS_FEATURE_CAMERA_COMMON
 	{IMX709LUNA_SENSOR_ID, 0xA8, Common_read_region, MAX_EEPROM_SIZE_16K},
@@ -117,6 +118,12 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{OV50D40_SENSOR_ID_BAIKALL5, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
 	{IMX480_SENSOR_ID_BAIKALL5, 0xA8, Common_read_region, MAX_EEPROM_SIZE_8K},
 	{GC08A8_SENSOR_ID_BAIKALL5, 0xA0, Common_read_region, MAX_EEPROM_SIZE_8K},
+	/*baikalb5*/
+	{OV50D40_SENSOR_ID_BAIKALB5, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
+	{IMX480_SENSOR_ID_BAIKALB5, 0xA8, Common_read_region, MAX_EEPROM_SIZE_8K},
+	{GC08A8_SENSOR_ID_BAIKALB5, 0xA0, Common_read_region, MAX_EEPROM_SIZE_8K},
+	{OV13B10_SENSOR_ID_BAIKALB5, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
+	{SC520CS_SENSOR_ID_BAIKALB5, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
 	/*alphab5*/
 	{OV50D40_SENSOR_ID_ALPHAB5, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
 	{GC08A8_SENSOR_ID_ALPHAB5, 0xA0, Common_read_region, MAX_EEPROM_SIZE_8K},

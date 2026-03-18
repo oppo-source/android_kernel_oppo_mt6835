@@ -99,8 +99,14 @@ static struct work_struct mumbai_work_ch2;
 
 /* define device id */
 #define USE_AW36515_IC  0x1111
+#define USE_OCP81378_IC 0x2222
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 struct i2c_client *mumbai_flashlight_client;
+
+static struct pinctrl *mumbai_pinctrl;
+static struct pinctrl_state *mumbai_hwen_high;
+static struct pinctrl_state *mumbai_hwen_low;
 
 /* define usage count */
 static int use_count;
@@ -125,8 +131,43 @@ struct mumbai_chip_data {
 
 enum FLASHLIGHT_DEVICE {
 	AW36515_SM = 0x02,
+	OCP81378_SM = 0x3A,
 };
 
+/******************************************************************************
+ * Pinctrl configuration
+ *****************************************************************************/
+static int mumbai_pinctrl_init(struct platform_device *pdev)
+{
+	int ret = 0;
+
+	pr_info("mumbai_pinctrl_init start\n");
+	/* get pinctrl */
+	mumbai_pinctrl = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR(mumbai_pinctrl)) {
+		pr_err("Failed to get flashlight pinctrl.\n");
+		ret = PTR_ERR(mumbai_pinctrl);
+		return ret;
+	}
+
+	/* Flashlight HWEN pin initialization */
+	mumbai_hwen_high = pinctrl_lookup_state(mumbai_pinctrl, MUMBAI_PINCTRL_STATE_HWEN_HIGH);
+	if (IS_ERR(mumbai_hwen_high)) {
+		pr_err("Failed to init (%s)\n", MUMBAI_PINCTRL_STATE_HWEN_HIGH);
+		ret = PTR_ERR(mumbai_hwen_high);
+		return ret;
+	}
+
+	mumbai_hwen_low = pinctrl_lookup_state(mumbai_pinctrl, MUMBAI_PINCTRL_STATE_HWEN_LOW);
+	if (IS_ERR(mumbai_hwen_low)) {
+		pr_err("Failed to init (%s)\n", MUMBAI_PINCTRL_STATE_HWEN_LOW);
+		ret = PTR_ERR(mumbai_hwen_low);
+		return ret;
+	}
+	pr_info("pinctrl_lookup_state mumbai_hwen_low finish\n");
+
+	return ret;
+}
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // i2c write and read
@@ -160,6 +201,36 @@ static int mumbai_read_reg(struct i2c_client *client, u8 reg)
 	return val;
 }
 
+static int mumbai_pinctrl_set(int pin, int state)
+{
+	int ret = 0;
+
+	if (IS_ERR(mumbai_pinctrl)) {
+		pr_err("pinctrl is not available\n");
+		return -1;
+	}
+
+	switch (pin) {
+	case MUMBAI_PINCTRL_PIN_HWEN:
+		if (state == MUMBAI_PINCTRL_PINSTATE_LOW && !IS_ERR(mumbai_hwen_low)) {
+			ret = pinctrl_select_state(mumbai_pinctrl, mumbai_hwen_low);
+			//pinctrl_select_state(mumbai_pinctrl, mumbai_hwen_low);//rm to keep HWEN high
+		}
+		else if (state == MUMBAI_PINCTRL_PINSTATE_HIGH && !IS_ERR(mumbai_hwen_high)) {
+			ret = pinctrl_select_state(mumbai_pinctrl, mumbai_hwen_high);
+		}
+		else {
+			pr_err("set err, pin(%d) state(%d)\n", pin, state);
+		}
+		break;
+	default:
+		pr_err("set err, pin(%d) state(%d)\n", pin, state);
+		break;
+	}
+	pr_info("pin(%d) state(%d)\n", pin, state);
+
+	return ret;
+}
 
 /******************************************************************************
  * mumbai operations
@@ -193,6 +264,29 @@ static const unsigned char AW36515_flash_level[MUMBAI_LEVEL_NUM] = {
 	0x6D, 0x73, 0x79, 0x7F, 0x86, 0x8C, 0x92, 0x99
 };
 
+static const int OCP81378_current[MUMBAI_LEVEL_NUM] = {
+	26,   45,   68,   98,   118,  141,  164,  202,  250,  296,
+	343,  397,  437,  500,  547,  594,  656,  703,  750,  797,
+	860,  907,  954,  1000,  1063, 1095, 1157, 1204
+};
+
+/*Offset: 0.98mA(00000000)
+Step:3.84mA
+Range: 0.98mA(00000000)~500mA(11111111)*/
+static const unsigned char OCP81378_torch_level[MUMBAI_LEVEL_NUM] = {
+	0x06, 0x0B, 0x11, 0x19, 0x1E, 0x24, 0x2A, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+/*Offset: 15mA(00000000)
+Step:15.65mA
+Range: 15 mA(00000000)~2.0 A(11111111)*/
+static const unsigned char OCP81378_flash_level[MUMBAI_LEVEL_NUM] = {
+	0x01, 0x02, 0x03, 0x05, 0x06, 0x08, 0x09, 0x0C, 0x0F, 0x12,
+	0x15, 0x18, 0x1B, 0x1F, 0x22, 0x25, 0x29, 0x2C, 0x2F, 0x32,
+	0x36, 0x39, 0x3C, 0x3F, 0x43, 0x45, 0x48, 0x4C
+};
 
 static volatile unsigned char mumbai_reg_enable;
 static volatile int mumbai_level_ch1 = -1;
@@ -379,11 +473,17 @@ int mumbai_init(void)
 	unsigned char reg, val, reg_val;
 	int chip_id;
 
-
-	chip_id = mumbai_read_reg(mumbai_i2c_client, 0x0c);
+	chip_id = mumbai_read_reg(mumbai_i2c_client, 0x0C);
 	msleep(2);
 	pr_info("flashlight chip id: reg:0x0c, chip_id 0x%x",chip_id);
 	if ( chip_id == AW36515_SM ) {
+		reg_val = mumbai_read_reg(mumbai_i2c_client, MUMBAI_AW36515_REG_BOOST_CONFIG);
+		reg_val |= MUMBAI_AW36515_SOFT_RESET_ENABLE;
+		pr_info("flashlight chip id: reg:0x0c, data:0x%x;boost confgiuration: reg:0x07, reg_val: 0x%x", chip_id, reg_val);
+		ret = mumbai_write_reg(mumbai_i2c_client, MUMBAI_AW36515_REG_BOOST_CONFIG, reg_val);
+		msleep(2);
+	} else {
+		mumbai_pinctrl_set(MUMBAI_PINCTRL_PIN_HWEN, MUMBAI_PINCTRL_PINSTATE_HIGH);
 		reg_val = mumbai_read_reg(mumbai_i2c_client, MUMBAI_AW36515_REG_BOOST_CONFIG);
 		reg_val |= MUMBAI_AW36515_SOFT_RESET_ENABLE;
 		pr_info("flashlight chip id: reg:0x0c, data:0x%x;boost confgiuration: reg:0x07, reg_val: 0x%x", chip_id, reg_val);
@@ -410,7 +510,7 @@ int mumbai_uninit(void)
 {
 	mumbai_disable(MUMBAI_CHANNEL_CH1);
 	mumbai_disable(MUMBAI_CHANNEL_CH2);
-
+	mumbai_pinctrl_set(MUMBAI_PINCTRL_PIN_HWEN, MUMBAI_PINCTRL_PINSTATE_LOW);
 	return 0;
 }
 
@@ -561,17 +661,14 @@ static int mumbai_open(void)
 static int mumbai_release(void)
 {
 	/* uninit chip and clear usage count */
-/*
+
 	mutex_lock(&mumbai_mutex);
-	use_count--;
-	if (!use_count)
-		mumbai_uninit();
-	if (use_count < 0)
-		use_count = 0;
+	use_count = 0;
+	mumbai_uninit();
 	mutex_unlock(&mumbai_mutex);
 
 	pr_info("Release: %d\n", use_count);
-*/
+
 	return 0;
 }
 
@@ -582,16 +679,20 @@ static int mumbai_set_driver(int set)
 	/* set chip and usage count */
 	mutex_lock(&mumbai_mutex);
 	if (set) {
-		if (!use_count)
+		if (!use_count) {
 			ret = mumbai_init();
+		}
 		use_count++;
 		pr_info("Set driver: %d\n", use_count);
 	} else {
 		use_count--;
-		if (!use_count)
+		if (!use_count) {
 			ret = mumbai_uninit();
-		if (use_count < 0)
+		}
+		if (use_count < 0) {
 			use_count = 0;
+		}
+		mumbai_pinctrl_set(MUMBAI_PINCTRL_PIN_HWEN, MUMBAI_PINCTRL_PINSTATE_LOW);
 		pr_info("Unset driver: %d\n", use_count);
 	}
 	mutex_unlock(&mumbai_mutex);
@@ -694,7 +795,7 @@ static int mumbai_chip_id(void)
 	int chip_id;
 	int reg00_id = -1;
 	msleep(1);
-	chip_id = mumbai_read_reg(mumbai_i2c_client, 0x0c);
+	chip_id = mumbai_read_reg(mumbai_i2c_client, 0x0C);
 	pr_info("flashlight chip id: reg:0x0c, data:0x%x", chip_id);
 	if (chip_id == AW36515_SM) {
 		reg00_id = mumbai_read_reg(mumbai_i2c_client, 0x00);
@@ -703,10 +804,21 @@ static int mumbai_chip_id(void)
 			chip_id = AW36515_SM;
 			pr_info("flashlight reg00_id = 0x%x, set chip_id to AW36515_SM", reg00_id);
 		}
+	} else {
+		mumbai_pinctrl_set(MUMBAI_PINCTRL_PIN_HWEN, MUMBAI_PINCTRL_PINSTATE_HIGH);
+		if(mumbai_read_reg(mumbai_i2c_client, 0x0C) == OCP81378_SM) {
+			chip_id = OCP81378_SM;
+			pr_info("flashlight reg00_id = 0x%x, set chip_id to OCP81378_SM", reg00_id);
+		}
+		mumbai_pinctrl_set(MUMBAI_PINCTRL_PIN_HWEN, MUMBAI_PINCTRL_PINSTATE_LOW);
 	}
-    if (chip_id == AW36515_SM){
+	if (chip_id == AW36515_SM) {
 		pr_info(" the device's flashlight driver IC is AW36515\n");
 		return USE_AW36515_IC;
+	} else if(chip_id == OCP81378_SM) {
+		pr_info(" the device's flashlight driver IC is OCP81378\n");
+		// pr_err(" the device's flashlight driver IC is not used in our project!\n");
+		return USE_OCP81378_IC;
 	} else {
 		pr_err(" the device's flashlight driver IC is not used in our project!\n");
 		return USE_AW36515_IC;
@@ -715,144 +827,149 @@ static int mumbai_chip_id(void)
 
 static int mumbai_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
-    struct mumbai_chip_data *chip;
-    struct mumbai_platform_data *pdata = client->dev.platform_data;
-    int err;
-    int i;
-    int chip_id;
-    bool curProject = false;
-    pr_info("mumbai_i2c_probe Probe start.\n");
-    curProject = is_project(25610) || is_project(25676) || is_project(25686) || is_project(25685);
+	struct mumbai_chip_data *chip;
+	struct mumbai_platform_data *pdata = client->dev.platform_data;
+	int err;
+	int i;
+	int chip_id;
+	bool curProject = false;
+	pr_info("mumbai_i2c_probe Probe start.\n");
+	curProject = is_project(25610) || is_project(25676) || is_project(25686) || is_project(25685) || is_project(25731);
 
-    if (!curProject) {
-        err = -ENODEV;
-        goto err_out;
-    }
+	if (!curProject) {
+		err = -ENODEV;
+		goto err_out;
+	}
 
-    /* check i2c */
-    if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
-        pr_err("Failed to check i2c functionality.\n");
-        err = -ENODEV;
-        goto err_out;
-    }
+	/* check i2c */
+	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
+		pr_err("Failed to check i2c functionality.\n");
+		err = -ENODEV;
+		goto err_out;
+	}
 
-    /* init chip private data */
-    chip = kzalloc(sizeof(struct mumbai_chip_data), GFP_KERNEL);
-    if (!chip) {
-        err = -ENOMEM;
-        goto err_out;
-    }
-    chip->client = client;
+	/* init chip private data */
+	chip = kzalloc(sizeof(struct mumbai_chip_data), GFP_KERNEL);
+	if (!chip) {
+		err = -ENOMEM;
+		goto err_out;
+	}
+	chip->client = client;
 
-    /* init platform data */
-    if (!pdata) {
-        pr_err("Platform data does not exist\n");
-        pdata = kzalloc(sizeof(struct mumbai_platform_data), GFP_KERNEL);
-        if (!pdata) {
-            err = -ENOMEM;
-            goto err_free_chip;
-        }
-        client->dev.platform_data = pdata;
-        err = mumbai_parse_dt(&client->dev, pdata);
-        if (err) {
-            goto err_free_pdata;
-        }
-        chip->no_pdata = 1; // Mark that pdata is dynamically allocated
-    }
-    chip->pdata = pdata;
-    i2c_set_clientdata(client, chip);
-    mumbai_i2c_client = client;
+	/* init platform data */
+	if (!pdata) {
+		pr_err("Platform data does not exist\n");
+		pdata = kzalloc(sizeof(struct mumbai_platform_data), GFP_KERNEL);
+		if (!pdata) {
+			err = -ENOMEM;
+			goto err_free_chip;
+		}
+		client->dev.platform_data = pdata;
+		err = mumbai_parse_dt(&client->dev, pdata);
+		if (err) {
+			goto err_free_pdata;
+		}
+		chip->no_pdata = 1; // Mark that pdata is dynamically allocated
+	}
+	chip->pdata = pdata;
+	i2c_set_clientdata(client, chip);
+	mumbai_i2c_client = client;
 
-    /* init mutex and spinlock */
-    mutex_init(&chip->lock);
+	/* init mutex and spinlock */
+	mutex_init(&chip->lock);
 
-    /* init work queue */
-    INIT_WORK(&mumbai_work_ch1, mumbai_work_disable_ch1);
-    INIT_WORK(&mumbai_work_ch2, mumbai_work_disable_ch2);
+	/* init work queue */
+	INIT_WORK(&mumbai_work_ch1, mumbai_work_disable_ch1);
+	INIT_WORK(&mumbai_work_ch2, mumbai_work_disable_ch2);
 
-    /* init timer */
-    hrtimer_init(&mumbai_timer_ch1, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-    mumbai_timer_ch1.function = mumbai_timer_func_ch1;
-    hrtimer_init(&mumbai_timer_ch2, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-    mumbai_timer_ch2.function = mumbai_timer_func_ch2;
-    mumbai_timeout_ms[MUMBAI_CHANNEL_CH1] = 100;
-    mumbai_timeout_ms[MUMBAI_CHANNEL_CH2] = 100;
+	/* init timer */
+	hrtimer_init(&mumbai_timer_ch1, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	mumbai_timer_ch1.function = mumbai_timer_func_ch1;
+	hrtimer_init(&mumbai_timer_ch2, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	mumbai_timer_ch2.function = mumbai_timer_func_ch2;
+	mumbai_timeout_ms[MUMBAI_CHANNEL_CH1] = 100;
+	mumbai_timeout_ms[MUMBAI_CHANNEL_CH2] = 100;
 
-    /* init chip hw */
-    mumbai_chip_init(chip);
-    chip_id = mumbai_chip_id();
-    if (chip_id == USE_AW36515_IC){
-        mumbai_current = AW36515_current;
-        mumbai_torch_level = AW36515_torch_level;
-        mumbai_flash_level = AW36515_flash_level;
-    }
+	/* init chip hw */
+	mumbai_chip_init(chip);
+	chip_id = mumbai_chip_id();
+	if (chip_id == USE_AW36515_IC) {
+		mumbai_current = AW36515_current;
+		mumbai_torch_level = AW36515_torch_level;
+		mumbai_flash_level = AW36515_flash_level;
+	} else if (chip_id == USE_OCP81378_IC) {
+		mumbai_current = OCP81378_current;
+		mumbai_torch_level = OCP81378_torch_level;
+		mumbai_flash_level = OCP81378_flash_level;
+	}
 
-    /* register flashlight operations */
-    if (pdata->channel_num) {
-        for (i = 0; i < pdata->channel_num; i++)
-            if (flashlight_dev_register_by_device_id(
-                        &pdata->dev_id[i],
-                        &mumbai_ops)) {
-                pr_err("Failed to register flashlight device.\n");
-                err = -EFAULT;
-                goto err_free_pdata;
-            }
-    } else {
-        if (flashlight_dev_register(MUMBAI_NAME, &mumbai_ops)) {
-            pr_err("Failed to register flashlight device.\n");
-            err = -EFAULT;
-            goto err_free_pdata;
-        }
-    }
+	/* register flashlight operations */
+	if (pdata->channel_num) {
+		for (i = 0; i < pdata->channel_num; i++)
+			if (flashlight_dev_register_by_device_id(
+						&pdata->dev_id[i],
+						&mumbai_ops)) {
+				pr_err("Failed to register flashlight device.\n");
+				err = -EFAULT;
+				goto err_free_pdata;
+			}
+	} else {
+		if (flashlight_dev_register(MUMBAI_NAME, &mumbai_ops)) {
+			pr_err("Failed to register flashlight device.\n");
+			err = -EFAULT;
+			goto err_free_pdata;
+		}
+	}
 
-    //mumbai_create_sysfs(client);
+	//mumbai_create_sysfs(client);
 
-    pr_info("Probe done.\n");
+	pr_info("Probe done.\n");
 
-    return 0;
+	return 0;
 
 err_free_pdata:
-    if (chip->no_pdata)
-        kfree(chip->pdata);
+	if (chip->no_pdata)
+		kfree(chip->pdata);
 err_free_chip:
-    kfree(chip);
+	kfree(chip);
 err_out:
-    return err;
+	return err;
 }
 
 static int mumbai_i2c_remove(struct i2c_client *client)
 {
-    struct mumbai_platform_data *pdata = dev_get_platdata(&client->dev);
-    struct mumbai_chip_data *chip = i2c_get_clientdata(client);
-    int i;
+	struct mumbai_platform_data *pdata = dev_get_platdata(&client->dev);
+	struct mumbai_chip_data *chip = i2c_get_clientdata(client);
+	int i;
 
-    pr_info("Remove start.\n");
+	pr_info("Remove start.\n");
+	mumbai_pinctrl_set(MUMBAI_PINCTRL_PIN_HWEN, MUMBAI_PINCTRL_PINSTATE_LOW);
 
-    client->dev.platform_data = NULL;
+	client->dev.platform_data = NULL;
 
-    /* unregister flashlight device */
-    if (pdata && pdata->channel_num)
-        for (i = 0; i < pdata->channel_num; i++)
-            flashlight_dev_unregister_by_device_id(
-                    &pdata->dev_id[i]);
-    else
-        flashlight_dev_unregister(MUMBAI_NAME);
+	/* unregister flashlight device */
+	if (pdata && pdata->channel_num)
+		for (i = 0; i < pdata->channel_num; i++)
+			flashlight_dev_unregister_by_device_id(
+					&pdata->dev_id[i]);
+	else
+		flashlight_dev_unregister(MUMBAI_NAME);
 
-    /* flush work queue */
-    flush_work(&mumbai_work_ch1);
-    flush_work(&mumbai_work_ch2);
+	/* flush work queue */
+	flush_work(&mumbai_work_ch1);
+	flush_work(&mumbai_work_ch2);
 
-    /* unregister flashlight operations */
-    flashlight_dev_unregister(MUMBAI_NAME);
+	/* unregister flashlight operations */
+	flashlight_dev_unregister(MUMBAI_NAME);
 
-    /* free resource */
-    if (chip && chip->no_pdata)
-        kfree(chip->pdata);
-    kfree(chip);
+	/* free resource */
+	if (chip && chip->no_pdata)
+		kfree(chip->pdata);
+	kfree(chip);
 
-    pr_info("Remove done.\n");
+	pr_info("Remove done.\n");
 
-    return 0;
+	return 0;
 }
 
 static const struct i2c_device_id mumbai_i2c_id[] = {
@@ -887,6 +1004,12 @@ static struct i2c_driver mumbai_i2c_driver = {
 static int mumbai_probe(struct platform_device *dev)
 {
 	pr_info("Probe start %s.\n", MUMBAI_DTNAME_I2C);
+
+	/* init pinctrl */
+	if (mumbai_pinctrl_init(dev)) {
+		pr_err("Failed to init pinctrl.\n");
+		return -1;
+	}
 
 	if (i2c_add_driver(&mumbai_i2c_driver)) {
 		pr_err("Failed to add i2c driver.\n");

@@ -47,6 +47,9 @@
 #define BAIKALL5_DTNAME    "mediatek,flashlights_baikall5"
 #define BAIKALl5_DTNAME_I2C "mediatek,strobe_main"
 
+#define BAIKALB5_DTNAME    "mediatek,flashlights_baikalb5"
+#define BAIKALB5_DTNAME_I2C "mediatek,strobe_main"
+
 #define ALPHAB5_DTNAME    "mediatek,flashlights_alphab5"
 #define ALPHAB5_DTNAME_I2C "mediatek,strobe_main"
 #endif /* _FLASHLIGHT_DT_H */

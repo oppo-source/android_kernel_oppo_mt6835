@@ -388,7 +388,9 @@
 #define DSI_INPUT_DBG		0x1D4
 #define DSI_DBG_FLD_ROI_X	REG_FLD_MSB_LSB(12, 0)
 #define DSI_DBG_FLD_ROI_Y	REG_FLD_MSB_LSB(28, 16)
-
+#ifdef OPLUS_FEATURE_DISPLAY
+static u32 esd_value_before = 0x01, esd_value_current = 0x00;
+#endif
 struct phy;
 
 unsigned int data_phy_cycle;
@@ -1374,6 +1376,9 @@ static int mtk_dsi_poweron(struct mtk_dsi *dsi)
 		mtk_dsi_mask(dsi, DSI_SHADOW_DEBUG,
 			DSI_BYPASS_SHADOW, DSI_BYPASS_SHADOW);
 
+#ifdef OPLUS_FEATURE_DISPLAY
+	esd_value_before = 0xFF;
+#endif
 	DDPDBG("%s-\n", __func__);
 
 	return 0;
@@ -5148,27 +5153,57 @@ int mtk_dsi_esd_cmp(struct mtk_ddp_comp *comp, void *handle, void *ptr)
 		}
 
 		for (j = 0; j < lcm_esd_tb->count && j < 4; j++) {
-#ifndef OPLUS_FEATURE_DISPLAY
-			if (lcm_esd_tb->mask_list[j])
-				chk_val[j] = chk_val[j] & lcm_esd_tb->mask_list[j];
+#ifdef OPLUS_FEATURE_DISPLAY
+			if(strstr(params->vendor,"A0032") && strstr(params->manufacture,"P_D")  && (i == 0))
+			{
+				esd_value_current = chk_val[j];
 
-			if (chk_val[j] == lcm_esd_tb->para_list[j]) {
-#else
-			if (chk_val[j] == lcm_esd_tb->para_list[j] || chk_val[j] == lcm_esd_tb->mask_list[j]) {
-#endif
-				ret = 0;
-				DDPPR_ERR("[DSI]esd cmp ok :read(0x%x)==expect(0x%x)\n",
-					  chk_val[j], lcm_esd_tb->para_list[j]);
-			} else {
-				DDPPR_ERR("[DSI]esd cmp fail:read(0x%x)!=expect(0x%x)\n",
-					  chk_val[j], lcm_esd_tb->para_list[j]);
-				ret = -1;
-				#ifdef OPLUS_FEATURE_DISPLAY
-				DDPPR_ERR("ESD check failed, DisplayDriverID@@507$$\n");
-				mm_fb_display_kevent("DisplayDriverID@@507$$", MM_FB_KEY_RATELIMIT_1H, "ESD check failed");
-				#endif
-				return ret;
+				if (esd_value_current != esd_value_before) {
+
+					ret = 0;
+					DDPPR_ERR("[DSI]TD4160C esd cmp ok :read(0x%x)!=expect(0x%x)\n",
+						esd_value_current, esd_value_before);
+					esd_value_before = esd_value_current;
+				} else {
+					DDPPR_ERR("[DSI]TD4160C esd cmp fail :read(0x%x)==expect(0x%x)\n",
+						esd_value_current, esd_value_before);
+					ret = -1;
+					#ifdef OPLUS_FEATURE_DISPLAY
+					DDPPR_ERR("ESD check failed, DisplayDriverID@@507$$\n");
+					mm_fb_display_kevent("DisplayDriverID@@507$$", MM_FB_KEY_RATELIMIT_1H, "ESD check failed");
+					#endif
+					esd_value_before = 0x01;
+					return ret;
+				}
+
 			}
+			else
+			{
+#endif
+#ifndef OPLUS_FEATURE_DISPLAY
+				if (lcm_esd_tb->mask_list[j])
+					chk_val[j] = chk_val[j] & lcm_esd_tb->mask_list[j];
+
+				if (chk_val[j] == lcm_esd_tb->para_list[j]) {
+#else
+				if (chk_val[j] == lcm_esd_tb->para_list[j] || chk_val[j] == lcm_esd_tb->mask_list[j]) {
+#endif
+					ret = 0;
+					DDPPR_ERR("[DSI]esd cmp ok :read(0x%x)==expect(0x%x)\n",
+						chk_val[j], lcm_esd_tb->para_list[j]);
+				} else {
+					DDPPR_ERR("[DSI]esd cmp fail:read(0x%x)!=expect(0x%x)\n",
+						chk_val[j], lcm_esd_tb->para_list[j]);
+					ret = -1;
+					#ifdef OPLUS_FEATURE_DISPLAY
+					DDPPR_ERR("ESD check failed, DisplayDriverID@@507$$\n");
+					mm_fb_display_kevent("DisplayDriverID@@507$$", MM_FB_KEY_RATELIMIT_1H, "ESD check failed");
+					#endif
+					return ret;
+				}
+#ifdef OPLUS_FEATURE_DISPLAY
+			}
+#endif
 		}
 	}
 
@@ -9721,6 +9756,20 @@ static void mtk_dsi_vdo_timing_change(struct mtk_dsi *dsi,
 				adjusted_mode.vdisplay;
 		dsi->vm.vfront_porch = vfp;
 
+		/* if change hfp, get hfp, refer to hfp modification */
+#ifdef OPLUS_FEATURE_DISPLAY
+		if (dsi->ext && dsi->ext->params
+			&& dsi->ext->params->change_fps_by_vfp_send_cmd) {
+			if (dsi->mipi_hopping_sta && dsi->ext) {
+				DDPINFO("%s,mipi_clk_change_sta\n", __func__);
+				hfp = dsi->ext->params->dyn.hfp;
+			} else
+				hfp = adjusted_mode.hsync_start -
+					adjusted_mode.hdisplay;
+			dsi->vm.hfront_porch = hfp;
+		}
+#endif /* OPLUS_FEATURE_DISPLAY */
+
 		/* Msync 2.0 ToDo: can we change vm.vfront_porch according msync?
 		 * mmdvfs,dramdvfs according to vm.vfront_porch?
 		 */
@@ -9764,6 +9813,10 @@ static void mtk_dsi_vdo_timing_change(struct mtk_dsi *dsi,
 				oplus_ofp_video_mode_aod_handle(dsi->encoder.crtc, dsi->ext, dsi->panel, dsi, mipi_dsi_dcs_write_gce_dyn, handle);
 			}
 #endif /* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
+			if (oplus_ofp_video_mode_30hz_aod_is_enabled()) {
+				DDPMSG("%s:%d, hfp:%d\n", __func__, __LINE__, hfp);
+				mtk_dsi_porch_setting(comp, handle, DSI_HFP, dsi->hfp_byte);
+			}
 			/*1.2 send cmd: send cmd*/
 			mtk_dsi_send_switch_cmd(dsi, handle, mtk_crtc, src_mode,
 				drm_mode_vrefresh(&adjusted_mode));
@@ -9813,6 +9866,10 @@ static void mtk_dsi_timing_change(struct mtk_dsi *dsi,
 static void mtk_dsi_vdo_aod_off_cmdq_cb(struct cmdq_cb_data data)
 {
 	struct mtk_cmdq_cb_data *cb_data = data.data;
+	if(!cb_data) {
+		DDPPR_ERR("cb_data is NULL\n");
+		return;
+	}
 
 	DDPINFO("%s vdo mode fps change done\n", __func__);
 
@@ -9842,9 +9899,13 @@ static void mtk_dsi_vdo_aod_ctrl(struct mtk_dsi *dsi,
 	struct mtk_drm_private *priv = NULL;
 
 	DDPMSG("%s+\n", __func__);
-	if(!vdo_aod_cfg)
+	if (!vdo_aod_cfg) {
+		DDPPR_ERR("vdo_aod_cfg is NULL\n");
+		return;
+	} else {
 		DDPINFO("aod_en:%d, wfe_cmd_eof:%d, need_dsi_trigger:%d \n",
-			vdo_aod_cfg->aod_en,vdo_aod_cfg->wfe_cmd_eof, vdo_aod_cfg->need_dsi_trigger);
+		vdo_aod_cfg->aod_en, vdo_aod_cfg->wfe_cmd_eof, vdo_aod_cfg->need_dsi_trigger);
+	}
 
 	if (!dsi) {
 		DDPPR_ERR("%s, %d, invalid parameter\n", __func__, __LINE__);
@@ -9858,6 +9919,11 @@ static void mtk_dsi_vdo_aod_ctrl(struct mtk_dsi *dsi,
 
 	if (dsi->ext && dsi->ext->funcs && dsi->ext->funcs->get_vdo_aod_param) {
 		dsi->ext->funcs->get_vdo_aod_param(vdo_aod_cfg->aod_en, &vdo_aod_param);
+	}
+
+	if (!vdo_aod_param) {
+		DDPPR_ERR("vdo_aod_param is NULL!\n");
+		return;
 	}
 
 	porch_change_flag = vdo_aod_param->porch_change_flag;
@@ -10018,6 +10084,7 @@ static void mtk_dsi_vdo_aod_ctrl(struct mtk_dsi *dsi,
 
 			cmdq_pkt_flush(handle);
 			cmdq_pkt_destroy(handle);
+			kfree(cb_data);
 		}
 	}
 }

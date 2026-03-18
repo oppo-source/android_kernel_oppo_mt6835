@@ -293,6 +293,43 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
                                     ppwr_info->pin_state_on);
                          }
                     }
+                } else if (is_project(24094) || is_project(24095) || is_project(24096) ||
+                        is_project(24097) || is_project(24098) || is_project(24361) || is_project(24362) ||
+                        is_project(24363) || is_project(24364) || is_project(24365) || is_project(24366) ||
+                        is_project(24367) || is_project(24360) || is_project(24369) || is_project(24093) ||
+                        is_project(24099) || is_project(24370) || is_project(24090) || is_project(24101)) {
+                    if (ppwr_info->pin == IMGSENSOR_HW_PIN_DVDD && (sensor_idx == 0)) {
+                        aw37004_camera_power_up(OUT_DVDD1, 1224);
+                    } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_DVDD && (sensor_idx == 1)) {
+                        aw37004_camera_power_up(OUT_DVDD2, 1200);
+                    } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_AVDD && (sensor_idx == 0)) {
+                        aw37004_camera_power_up(OUT_AVDD1, 2800);
+                    } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_AVDD && ((sensor_idx == 1) || (sensor_idx == 2))) {
+                        aw37004_camera_power_up(OUT_AVDD2, 2800);
+                    } else {
+                            pwr_id_index_unit = (psensor_pwr->id[ppwr_info->pin] < 0)
+                         ? 0
+                         : psensor_pwr->id[ppwr_info->pin];
+
+                         if (pwr_id_index_unit != IMGSENSOR_HW_ID_MAX_NUM) {
+                            pdev = phw->pdev[pwr_id_index_unit];
+
+                            //if (__ratelimit(&ratelimit))
+                                PK_PR_ERR(
+                                "caibwon sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_on %d, delay %u",
+                            sensor_idx,
+                            ppwr_info->pin,
+                            ppwr_info->pin_state_on,
+                            ppwr_info->pin_on_delay);
+
+                            if (pdev->set != NULL)
+                                pdev->set(
+                                    pdev->pinstance,
+                                    sensor_idx,
+                                    ppwr_info->pin,
+                                    ppwr_info->pin_state_on);
+                         }
+                    }
                 } else if (is_project(23111) || is_project(23301) || is_project(23302) ||
                     is_project(23303) || is_project(23304) || is_project(23305) || is_project(23887) ||
                     is_project(24059) || is_project(24251) || is_project(24252) || is_project(24253) || is_project(24254) ||
@@ -590,6 +627,43 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
                                     ppwr_info->pin_state_off);
                         }
                     }
+                } else if (is_project(24094) || is_project(24095) || is_project(24096) ||
+                        is_project(24097) || is_project(24098) || is_project(24361) || is_project(24362) ||
+                        is_project(24363) || is_project(24364) || is_project(24365) || is_project(24366) ||
+                        is_project(24367) || is_project(24360) || is_project(24369) || is_project(24093) ||
+                        is_project(24099) || is_project(24370) || is_project(24090) || is_project(24101)) {
+                    if (ppwr_info->pin == IMGSENSOR_HW_PIN_DVDD && (sensor_idx == 0)){
+                        aw37004_camera_power_down(OUT_DVDD1);
+                    } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_DVDD && (sensor_idx == 1)){
+                        aw37004_camera_power_down(OUT_DVDD2);
+                    } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_AVDD && (sensor_idx == 0)){
+                        aw37004_camera_power_down(OUT_AVDD1);
+                    } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_AVDD && ((sensor_idx == 1) || (sensor_idx == 2))){
+                        aw37004_camera_power_down(OUT_AVDD2);
+                    } else {
+                        pwr_id_index_unit = (psensor_pwr->id[ppwr_info->pin] < 0)
+                        ? 0
+                        : psensor_pwr->id[ppwr_info->pin];
+
+                        if (pwr_id_index_unit != IMGSENSOR_HW_ID_MAX_NUM) {
+                            pdev = phw->pdev[pwr_id_index_unit];
+
+                            //if (__ratelimit(&ratelimit))
+                                PK_PR_ERR(
+                                "caibwoff sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_off %d, delay %u",
+                                sensor_idx,
+                                ppwr_info->pin,
+                                ppwr_info->pin_state_off,
+                                ppwr_info->pin_on_delay);
+
+                            if (pdev->set != NULL)
+                                pdev->set(
+                                    pdev->pinstance,
+                                    sensor_idx,
+                                    ppwr_info->pin,
+                                    ppwr_info->pin_state_off);
+                        }
+                    }
                 } else if (is_project(24312) || is_project(24313) || is_project(24314) || is_project(24315) || is_project(24316) ||
                     is_project(24311) || is_project(24053) || is_project(24054)) {
                     if (ppwr_info->pin == IMGSENSOR_HW_PIN_DVDD && (sensor_idx == 0)){
@@ -727,6 +801,32 @@ enum IMGSENSOR_RETURN imgsensor_hw_power(
     return IMGSENSOR_RETURN_SUCCESS;
 }
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+enum IMGSENSOR_RETURN qvga_hw_power(struct IMGSENSOR_HW *phw,
+    enum   IMGSENSOR_SENSOR_IDX     sensor_idx,
+    enum   IMGSENSOR_HW_POWER_STATUS pwr_status,
+    char   *qvga_sensor_name)
+{
+    if (qvga_sensor_name == NULL) {
+        PK_DBG("NULL sensor name is not allowed");
+        return IMGSENSOR_RETURN_ERROR;
+    }
+
+    if (phw->enable_sensor_by_index[(uint32_t)sensor_idx] == NULL) {
+        PK_DBG("qvga_hw_power: sensor not enabled, sensor_idx %d. hould config one dummy sensor for power pin init in dtsi\n", sensor_idx);
+        return IMGSENSOR_RETURN_ERROR;
+    }
+    imgsensor_hw_power_sequence(phw,
+                sensor_idx,
+                pwr_status,
+                qvga_power_sequence,
+                qvga_sensor_name);
+
+
+    return IMGSENSOR_RETURN_SUCCESS;
+}
+#endif
+
 enum IMGSENSOR_RETURN imgsensor_hw_dump(struct IMGSENSOR_HW *phw)
 {
     int i;
@@ -737,4 +837,3 @@ enum IMGSENSOR_RETURN imgsensor_hw_dump(struct IMGSENSOR_HW *phw)
     }
     return IMGSENSOR_RETURN_SUCCESS;
 }
-

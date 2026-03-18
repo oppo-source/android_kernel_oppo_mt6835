@@ -1082,6 +1082,9 @@ int ssusb_gadget_init(struct ssusb_mtk *ssusb)
 	mtu->u3_lpm = !of_property_read_bool(dev->of_node, "usb3-lpm-disable");
 #ifdef OPLUS_FEATURE_CHG_BASIC
 	g_mtu = mtu;
+
+	if (device_property_read_string(mtu->dev, "usb-psy-name", &mtu->usb_psy_name) >= 0)
+		dev_info(mtu->dev, "usb psy: %s\n", mtu->usb_psy_name);
 #endif
 	dev_dbg(dev, "mac_base=0x%p, ippc_base=0x%p\n",
 		mtu->mac_base, mtu->ippc_base);

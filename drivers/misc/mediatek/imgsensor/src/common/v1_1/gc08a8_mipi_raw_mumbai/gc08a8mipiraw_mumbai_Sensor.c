@@ -52,6 +52,8 @@
 #include "kd_imgsensor_define.h"
 #include "kd_imgsensor_errcode.h"
 
+#include "../imgsensor_i2c.h"
+#include "gc08a8_mumbai_otp.h"
 #include "gc08a8mipiraw_mumbai_Sensor.h"
 static DEFINE_SPINLOCK(imgsensor_drv_lock);
 #define DEVICE_VERSION  "gc08a8"
@@ -165,10 +167,10 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,
 	.mipi_sensor_type = MIPI_OPHY_NCSI2,
 	.mipi_settle_delay_mode = MIPI_SETTLEDELAY_AUTO,
-	.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_R,
+	.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_B,
 	.mclk = 24,
 	.mipi_lane_num = SENSOR_MIPI_2_LANE,
-	.i2c_addr_table = {0x20,0xff},
+	.i2c_addr_table = {0x62,0xff},
 	/* record sensor support all write id addr,
 	 * only supprt 4 must end with 0xff
 	 */
@@ -190,7 +192,7 @@ static struct imgsensor_struct imgsensor = {
 	.test_pattern = KAL_FALSE,
 	.current_scenario_id = MSDK_SCENARIO_ID_CAMERA_PREVIEW,
 	.ihdr_mode = 0, /* sensor need support LE, SE with HDR feature */
-	.i2c_write_id = 0x20, /* record current sensor's i2c write id */
+	.i2c_write_id = 0x62, /* record current sensor's i2c write id */
 };
 
 
@@ -203,78 +205,6 @@ static struct SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[6] = {
 	{ 3264, 2448, 0, 0, 3264, 2448, 1632, 1224, 0, 0, 1632, 1224, 0, 0, 1632, 1224}, /* slim video */
 	{ 3264, 2448, 0, 408, 3264, 1632, 3264, 1632, 0, 0, 1632, 1632, 0, 0, 3264, 1632}, /* 18:9 */
 };
-
-static kal_uint16 read_gc08a8_mumbai_eeprom_module(kal_uint32 addr)
-{
-	kal_uint16 get_byte = 0;
-	char pusendcmd[2] = { (char)(addr >> 8), (char)(addr & 0xFF) };
-
-	iReadRegI2C(pusendcmd, 2, (u8 *) &get_byte, 1, GC08A8_MUMBAI_EEPROM_I2C_ADDR);
-
-	return get_byte;
-}
-static void read_gc08a8_mumbai_module_data()
-{
-// gc08a8_mumbai_common_data
-// length   : 64
-// QR       : [8 ~ 26]
-// vcm      : [40 ~ 41]
-// lensid   : [44 ~ 45]
-// sensorid : [30 ~ 33]
-
-	kal_uint16 idx = 0;
-    kal_uint16 sn_length = 23;
-	kal_uint32 sn_starAddr = 0xB0;
-	kal_uint32 vcmAddr = 0x0C;
-	kal_uint32 lensAddr = 0x08;
-
-	memset(gc08a8_mumbai_common_data, 0, sizeof(gc08a8_mumbai_common_data));
-	// QR
-	for(idx = 0; idx < sn_length; idx++)
-	{
-		gc08a8_mumbai_common_data[8 + idx] = read_gc08a8_mumbai_eeprom_module(sn_starAddr + idx);
-	}
-	//vcm
-	gc08a8_mumbai_common_data[40] = read_gc08a8_mumbai_eeprom_module(vcmAddr);
-	gc08a8_mumbai_common_data[41] = read_gc08a8_mumbai_eeprom_module(vcmAddr + 1);
-	//lensid
-	gc08a8_mumbai_common_data[44] = read_gc08a8_mumbai_eeprom_module(lensAddr);
-	gc08a8_mumbai_common_data[45] = read_gc08a8_mumbai_eeprom_module(lensAddr + 1);
-
-	for (idx = 0; idx < CAMERA_EEPPROM_COMDATA_LENGTH; idx = idx + 4)
-		printk("cam data, idx: %02x %02x %02x %02x %d\n",
-		       gc08a8_mumbai_common_data[idx],
-		       gc08a8_mumbai_common_data[idx + 1],
-		       gc08a8_mumbai_common_data[idx + 2],
-		       gc08a8_mumbai_common_data[idx + 3],
-			   idx);
-}
-
-static void read_cmos_eeprom_table(kal_uint16 addr, kal_uint8 *table, kal_uint32 size)
-{
-	char pusendcmd[2] = {(char)(addr >> 8), (char)(addr & 0xFF) };
-	iReadRegI2C(pusendcmd, 2, (u8 *)table, size, 0xA0);
-}
-
-static kal_uint16 read_otp_info(kal_uint8 *data)
-{
-	kal_uint16 addr = 0x00;
-	kal_uint16 left_size = 0;
-
-	left_size = 0x4000;
-	while(left_size > 0){
-		if (left_size >= 1024) {
-			read_cmos_eeprom_table(addr,data, 1024);
-			left_size = left_size - 1024;
-		}else {
-			read_cmos_eeprom_table(addr,data, left_size);
-			break;
-		}
-		addr = addr + 1024;
-		data = data + 1024;
-	}
-	return 0;
-}
 
 static kal_uint16 read_cmos_sensor(kal_uint32 addr)
 {
@@ -318,10 +248,10 @@ static void write_cmos_sensor_m(kal_uint32 addr, kal_uint32 para)
 
 static void write_cmos_sensor_8bit(kal_uint32 addr, kal_uint32 para)
 {
-	char pu_send_cmd[3] = { 
-		(char)((addr >> 8) & 0xff), 
-		(char)(addr & 0xff), 
-		(char)(para & 0xff) 
+	char pu_send_cmd[3] = {
+		(char)((addr >> 8) & 0xff),
+		(char)(addr & 0xff),
+		(char)(para & 0xff)
 	};
 
 	iWriteRegI2C(pu_send_cmd, 3, imgsensor.i2c_write_id);
@@ -444,7 +374,7 @@ static void write_shutter(kal_uint32 shutter)
 	} else
 			write_cmos_sensor(0x0340, imgsensor.frame_length & 0xfffe);
 	write_cmos_sensor(0x0202, shutter & 0xffff);
-	
+
 	pr_debug("shutter =%d, framelength =%d\n",
 		shutter, imgsensor.frame_length);
 }	/*	write_shutter  */
@@ -1579,6 +1509,42 @@ static kal_uint16 gc08a8_normal_video_addr_data[] = {
 	0x0102, 0x09,
 };
 
+static void sn_get(void)
+{
+	unsigned int temp_offset_1 = 0x17B8;
+	unsigned int temp_sn_length = 23;
+	char *p = NULL;
+	struct i2c_client *client = NULL;
+
+	p = gc08a8_mumbai_common_data;
+	memset(gc08a8_mumbai_common_data, 0, sizeof(gc08a8_mumbai_common_data));
+	memset(otp_data, 0, sizeof(otp_data));
+
+	mutex_lock(&gc08a8_i2c_mutex);
+
+	client = gi2c.inst[1].pi2c_client;
+	if (client == NULL) {
+		printk("gi2c.inst[1].pi2c_client is NULL!\n");
+		mutex_unlock(&gc08a8_i2c_mutex);
+		return;
+	}
+
+	printk("gi2c.inst[1].pi2c_client is ok, addr: 0x%x\n", client->addr);
+
+	if (client->addr == 0x20) {
+		struct i2c_client new_client = *client;
+		new_client.addr = 0x31;
+		printk("Using temp I2C client with addr: 0x%x\n", new_client.addr);
+		Gc08a8_mumbai_read_region(&new_client, temp_offset_1, p + 8, temp_sn_length);
+	} else {
+		Gc08a8_mumbai_read_region(client, temp_offset_1, p + 8, temp_sn_length);
+	}
+
+	temp_sn_length += SN_OFFSET;
+	memcpy(otp_data, gc08a8_mumbai_common_data, temp_sn_length);
+	mutex_unlock(&gc08a8_i2c_mutex);
+}
+
 static void sensor_init(void)
 {
 	pr_debug("[%s] init_start\n", __func__);
@@ -1683,21 +1649,15 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 		do {
 			*sensor_id = return_sensor_id();
 			printk("mumbai_front_gc08a8 get_imgsensor_id : 0x%x\n", *sensor_id);
-			if (*sensor_id == imgsensor_info.sensor_id - 0x5) {
+			if (*sensor_id == imgsensor_info.sensor_id + 0x1B) {
 				if ((read_gc08a8_version()) < GC08A8_ECO_VALUE) {
 					*sensor_id = 0xFFFFFFFF;
 					printk("mumbai_front_gc08a8 get_imgsensor_id failed: 0x%x\n", *sensor_id);
 					return ERROR_SENSOR_CONNECT_FAIL;
 				} else {
-					//Eeprom_DataInit(1, OV08D10_SENSOR_ID_BARLEY );
-					if(deviceInfo_register_value == 0x00) {
+					if (deviceInfo_register_value == 0x00) {
 						register_imgsensor_deviceinfo("Cam_f", DEVICE_VERSION, imgsensor_info.module_id);
-						read_gc08a8_mumbai_module_data();
-						if(otp_data[0] == 0) {
-							read_otp_info(otp_data);
-						} else {
-							pr_err("otp data has already read");
-						}
+						sn_get();//get otp_data
 						deviceInfo_register_value = 0x01;
 					}
 					printk("mumbai_front_gc08a8 get_imgsensor_id success: 0x%x\n", *sensor_id);
@@ -1709,7 +1669,7 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 		i++;
 		retry = 2;
 	}
-	if (*sensor_id != imgsensor_info.sensor_id) {
+	if (*sensor_id != imgsensor_info.sensor_id + 0x1B) {
 		/* if Sensor ID is not correct,
 		 * Must set *sensor_id to 0xFFFFFFFF
 		 */
@@ -1750,7 +1710,7 @@ static kal_uint32 open(void)
 		spin_unlock(&imgsensor_drv_lock);
 		do {
 			sensor_id = return_sensor_id();
-			if (sensor_id == imgsensor_info.sensor_id- 0x5) {
+			if (sensor_id == imgsensor_info.sensor_id + 0x1B) {
 				pr_debug("[gc08a8_camera_sensor]open:i2c write id: 0x%x, sensor id: 0x%x\n",
 					imgsensor.i2c_write_id, sensor_id);
 				break;
@@ -1760,11 +1720,11 @@ static kal_uint32 open(void)
 			retry--;
 		} while (retry > 0);
 		i++;
-		if (sensor_id == imgsensor_info.sensor_id)
+		if (sensor_id == imgsensor_info.sensor_id + 0x1B)
 			break;
 		retry = 2;
 	}
-	if (imgsensor_info.sensor_id != sensor_id)
+	if (imgsensor_info.sensor_id + 0x1B != sensor_id)
 		return ERROR_SENSOR_CONNECT_FAIL;
 
 	/* initail sequence write in  */
@@ -1954,19 +1914,19 @@ static kal_uint32 slim_video(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 }
 
 static kal_uint32 Custom1(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
-                      MSDK_SENSOR_CONFIG_STRUCT *sensor_config_data)
+					MSDK_SENSOR_CONFIG_STRUCT *sensor_config_data)
 {
-    pr_debug("E\n");
+	pr_debug("E\n");
 
-    spin_lock(&imgsensor_drv_lock);
-    imgsensor.sensor_mode = IMGSENSOR_MODE_CUSTOM1;
-    imgsensor.pclk = imgsensor_info.custom1.pclk;
-    imgsensor.line_length = imgsensor_info.custom1.linelength;
-    imgsensor.frame_length = imgsensor_info.custom1.framelength;
-    imgsensor.min_frame_length = imgsensor_info.custom1.framelength;
-    imgsensor.autoflicker_en = KAL_FALSE;
-    spin_unlock(&imgsensor_drv_lock);
-    custom1_setting();
+	spin_lock(&imgsensor_drv_lock);
+	imgsensor.sensor_mode = IMGSENSOR_MODE_CUSTOM1;
+	imgsensor.pclk = imgsensor_info.custom1.pclk;
+	imgsensor.line_length = imgsensor_info.custom1.linelength;
+	imgsensor.frame_length = imgsensor_info.custom1.framelength;
+	imgsensor.min_frame_length = imgsensor_info.custom1.framelength;
+	imgsensor.autoflicker_en = KAL_FALSE;
+	spin_unlock(&imgsensor_drv_lock);
+	custom1_setting();
 	set_mirror_flip(imgsensor.mirror);
 	return ERROR_NONE;
 }   /*  Custom1   */

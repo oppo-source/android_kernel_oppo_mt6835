@@ -9,6 +9,10 @@
 #include "imgsensor_hw.h"
 #include "imgsensor_cfg_table.h"
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif
+
 /* Legacy design */
 struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 #if defined(OV50D40_MIPI_RAW_AVATARB5)
@@ -817,6 +821,117 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
         },
     },
 #endif
+
+#if defined(OV50D40_MIPI_RAW_BAIKALB5)
+    {
+        SENSOR_DRVNAME_OV50D40_MIPI_RAW_BAIKALB5,
+        {
+            {RST, Vol_Low, 1},
+            {DOVDD, Vol_1800, 3},
+            {AVDD, Vol_2800, 1},
+            {DVDD, Vol_1200, 1},
+            {AFVDD, Vol_2800, 1},
+            {SensorMCLK, Vol_High, 2},
+            {RST, Vol_High, 5},
+        },
+    },
+#endif
+#if defined(GC08A8_MIPI_RAW_BAIKALB5)
+    {
+        SENSOR_DRVNAME_GC08A8_MIPI_RAW_BAIKALB5,
+        {
+            {SensorMCLK, Vol_High, 0},
+            {RST, Vol_Low,  3},
+            {DOVDD, Vol_1800, 1},
+            {AVDD1_GPIO, Vol_High, 2},
+            {DVDD, Vol_1200, 1},
+            {AVDD, Vol_2800, 3},
+            {RST, Vol_High, 1},
+        },
+    },
+#endif
+#if defined(IMX480_MIPI_RAW_BAIKALB5)
+    {
+        SENSOR_DRVNAME_IMX480_MIPI_RAW_BAIKALB5,
+        {
+            {SensorMCLK, Vol_High, 0},
+            {RST, Vol_Low,  3},
+            {DOVDD, Vol_1800, 1},
+            {AVDD1_GPIO, Vol_High, 2},
+            {DVDD, Vol_1200, 1},
+            {AVDD, Vol_2800, 3},
+            {RST, Vol_High, 1},
+        },
+    },
+#endif
+#if defined(SC202CS_MIPI_RAW_BAIKALB5)
+    {
+        SENSOR_DRVNAME_SC202CS_MIPI_RAW_BAIKALB5,
+        {
+            {RST, Vol_Low, 1},
+            {DOVDD, Vol_1800, 1},
+            {AVDD1_GPIO, Vol_High, 2},
+            {AVDD, Vol_2800, 5},
+            {SensorMCLK, Vol_High, 1},
+            {RST, Vol_High, 5},
+        },
+    },
+#endif
+#if defined(GC02M1B_MIPI_MONO_BAIKALB5)
+    {
+        SENSOR_DRVNAME_GC02M1B_MIPI_MONO_BAIKALB5,
+        {
+            {RST, Vol_Low, 1},
+            {DOVDD, Vol_1800, 1},
+            {AVDD1_GPIO, Vol_High, 2},
+            {AVDD, Vol_2800, 5},
+            {SensorMCLK, Vol_High, 1},
+            {RST, Vol_High, 2},
+        },
+    },
+#endif
+#if defined(OV13B10_MIPI_RAW_BAIKALB5)
+    {
+        SENSOR_DRVNAME_OV13B10_MIPI_RAW_BAIKALB5,
+        {
+            {RST, Vol_Low, 1},
+            {DOVDD, Vol_1800, 3},
+            {AVDD, Vol_2800, 1},
+            {DVDD, Vol_1200, 1},
+            {AFVDD, Vol_2800, 1},
+            {SensorMCLK, Vol_High, 2},
+            {RST, Vol_High, 5},
+        },
+    },
+#endif
+#if defined(SC520CS_MIPI_RAW_BAIKALB5)
+    {
+        SENSOR_DRVNAME_SC520CS_MIPI_RAW_BAIKALB5,
+        {
+            {SensorMCLK, Vol_High, 0},
+            {RST, Vol_Low,  3},
+            {DOVDD, Vol_1800, 1},
+            {AVDD1_GPIO, Vol_High, 2},
+            {DVDD, Vol_1200, 1},
+            {AVDD, Vol_2800, 3},
+            {RST, Vol_High, 5},
+        },
+    },
+#endif
+#if defined(OV02F_MIPI_MONO_BAIKALB5)
+    {
+        SENSOR_DRVNAME_OV02F_MIPI_MONO_BAIKALB5,
+        {
+            {RST, Vol_Low, 1},
+            {DOVDD, Vol_1800, 1},
+            {AVDD1_GPIO, Vol_High, 2},
+            {SensorMCLK, Vol_High, 0},
+            {AVDD, Vol_2800, 9},
+            {RST, Vol_High, 9}
+        },
+    },
+#endif
+
 #if defined(OV50D40_MIPI_RAW_DONGFENG)
     {
         SENSOR_DRVNAME_OV50D40_MIPI_RAW_DONGFENG,
@@ -955,9 +1070,9 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
     {
         SENSOR_DRVNAME_IMX852_MIPI_RAW_MUMBAI,
         {
-			  {RST, Vol_Low, 1},
+              {RST, Vol_Low, 1},
               {DOVDD, Vol_1800, 1},
-              {AVDD, Vol_2800, 2},
+              {AVDD, Vol_2900, 2},
               {DVDD, Vol_1100, 5},
               {AFVDD, Vol_2800, 2},
               {SensorMCLK, Vol_High, 1},
@@ -2280,4 +2395,46 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 	/* add new sensor before this line */
 	{NULL,},
 };
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+struct IMGSENSOR_HW_POWER_SEQ qvga_power_sequence[] = {
+    {
+        "qvga_sensor_sc080cs",
+        {
+            {RST, Vol_Low, 1},
+            {DOVDD, Vol_1800, 0},
+            {AVDD, Vol_2800, 1},
+            {RST, Vol_High, 5},
+            {SensorMCLK, Vol_High, 5},
+            {AVDD1_GPIO, Vol_High, 5},
+        },
+    },
+    {
+        "qvga_sensor_sp0821",
+        {
+            {RST, Vol_Low, 0},
+            {DOVDD, Vol_1800, 1},
+            {AVDD, Vol_2800, 1},
+            {SensorMCLK, Vol_High, 2},
+            {RST, Vol_High, 2},
+            {RST, Vol_Low, 2},
+            {AVDD1_GPIO, Vol_High, 2},
+        },
+    },
+    {
+        "qvga_sensor_sp0821_powerdown",
+        {
+            {DOVDD, Vol_1800, 1},
+            {AVDD, Vol_2800, 1},
+            {SensorMCLK, Vol_High, 1},
+            {RST, Vol_Low, 2, Vol_High, 2},
+            {RST, Vol_Low, 2, Vol_Low, 2},
+            {AVDD1_GPIO, Vol_High, 2},
+        },
+    },
+	/* add new sensor before this line */
+	{NULL,},
+};
+#endif
+
 

@@ -967,4 +967,6 @@ source "drivers/leds/aw210xx/Kconfig"
 
 source "drivers/leds/aw2027/Kconfig"
 
+source "drivers/leds/sgm31323/Kconfig"
+
 endif # NEW_LEDS

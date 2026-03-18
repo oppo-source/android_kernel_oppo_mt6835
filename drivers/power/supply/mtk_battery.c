@@ -178,6 +178,93 @@ int battery_type_check(int *battery_type)
 
 	return battery_id;
 }
+
+#define BATTYPE_STR_MESSAGE_LEN 32
+static char *oplus_get_battype_str_cmdline(void)
+{
+	struct device_node *of_chosen = NULL;
+	char *bat_type = NULL;
+	static char bat_str[BATTYPE_STR_MESSAGE_LEN];
+
+	if (strlen(bat_str) != 0)
+		return bat_str;
+
+	of_chosen = of_find_node_by_path("/chosen");
+	if (of_chosen) {
+		bat_type = (char *)of_get_property(
+					of_chosen, "bat_type", NULL);
+		if (!bat_type) {
+			bm_err("%s: failed to get bat_type\n", __func__);
+			return NULL;
+		} else {
+			strcpy(bat_str, bat_type);
+			bm_err("%s: bat_str=%s\n", __func__, bat_str);
+		}
+	} else {
+		bm_err("%s: failed to get /chosen \n", __func__);
+		return NULL;
+	}
+
+	return bat_str;
+}
+
+static bool cmdline_battery_type_check(void)
+{
+	char *batt_str = NULL;
+	int i;
+
+	if (oplus_gm == NULL) {
+		bm_err("%s: oplus_gm is NULL\n", __func__);
+		return false;
+	}
+
+	batt_str = oplus_get_battype_str_cmdline();
+	if (!batt_str)
+		return false;
+
+	for (i = 0; i < oplus_gm->battype_array_cnt; i++) {
+		if (strstr(oplus_gm->battype_array[i], batt_str))
+			return true;
+	}
+
+	return false;
+}
+
+static int get_support_battype_array(struct device *dev,
+					struct mtk_battery *gm, struct device_node *node)
+{
+	int ret;
+	int count;
+	const char **string;
+	int i;
+
+	count = of_property_count_strings(node, "oplus,support_batt_type_array");
+	if (count < 0) {
+		bm_err("%s: fail to get string count\n", __func__);
+		return count;
+	}
+
+	string = devm_kcalloc(dev, count + 1, sizeof(*string), GFP_KERNEL);
+	if (!string) {
+		bm_err("%s: no mem\n", __func__);
+		return -ENOMEM;
+	}
+
+	ret = of_property_read_string_array(node, "oplus,support_batt_type_array", string, count);
+	if (ret < 0) {
+		bm_err("%s: fail to read array, ret=%d\n", __func__, ret);
+		devm_kfree(dev, string);
+		return ret;
+	}
+
+	gm->battype_array_cnt = count;
+	gm->battype_array = string;
+	bm_err("%s: battype_array_cnt=%d\n", __func__, gm->battype_array_cnt);
+	for (i = 0; i < gm->battype_array_cnt; i++)
+		bm_err("support[%s]\n", gm->battype_array[i]);
+
+	return 0;
+}
 #endif
 
 struct tag_bootmode {
@@ -4639,10 +4726,39 @@ bool meter_fg_30_get_battery_authenticate(void)
 			return true;
 	}
 
+	if (oplus_gm->check_hmac_with_battery_id) {
+		if (force_get_tbat_internal(oplus_gm) <= oplus_gm->removed_bat_decidegc/10)
+			return false;
+		else
+			return true;
+	} else {
+		battery_id = fgauge_get_profile_id();
+		if (battery_id == BAT_ATL_BATT_ID || battery_id == BAT_LWN_BATT_ID || (battery_id == BAT_COS_BATT_ID)) {
+			return battery_type_is_4450mv();
+		} else {
+			return battery_type_is_4400mv();
+		}
+	}
+}
+
+static bool meter_fg_30_get_battery_hmac(void)
+{
+	int battery_id = 0;
+
+	if (external_authenticate_support) {
+		if (!oplus_get_hmac())
+			return false;
+		else
+			return true;
+	}
+
+	if (oplus_gm && oplus_gm->battery_type_by_cmdline)
+		return cmdline_battery_type_check();
+
 	battery_id = fgauge_get_profile_id();
 	if (battery_id == BAT_ATL_BATT_ID || battery_id == BAT_LWN_BATT_ID || (battery_id == BAT_COS_BATT_ID)) {
 		return battery_type_is_4450mv();
-    } else {
+	} else {
 		return battery_type_is_4400mv();
 	}
 }
@@ -4780,6 +4896,7 @@ static struct oplus_gauge_operations oplus_battery_gauge = {
 	.get_battery_cc 			= meter_fg_30_get_battery_cc,
 	.get_battery_soh				= meter_fg_30_get_battery_soh,
 	.get_battery_authenticate		= meter_fg_30_get_battery_authenticate,
+	.get_battery_hmac				= meter_fg_30_get_battery_hmac,
 	.set_battery_full				= meter_fg_30_set_battery_full,
 	.get_prev_battery_mvolts		= meter_fg_30_get_battery_mvolts,
 	.get_prev_battery_temperature	= meter_fg_30_get_battery_temperature,
@@ -4871,8 +4988,20 @@ int battery_init(struct platform_device *pdev)
 			gm->removed_bat_decidegc = -removed_bat_decidegc;
 		}
 		bm_err("%s, removed_bat_decidegc:%d\n", __func__, gm->removed_bat_decidegc);
+
+		gm->check_hmac_with_battery_id = of_property_read_bool(node, "oplus,check_hmac_with_battery_id");
+		bm_err("%s, check_hmac_with_battery_id:%d\n", __func__, gm->check_hmac_with_battery_id);
+
+		gm->battery_type_by_cmdline =
+				of_property_read_bool(node, "oplus,battery_type_by_cmdline");
+		if (gm->battery_type_by_cmdline)
+			get_support_battype_array(&pdev->dev, gm, node);
+		else
+			bm_err("%s: not support battery_type_by_cmdline\n", __func__);
 	} else {
 		gm->removed_bat_decidegc = REMOVED_BATT_TEMP;
+		gm->check_hmac_with_battery_id = false;
+		gm->battery_type_by_cmdline = false;
 		bm_err("%s, failed to find charger device node\n", __func__);
 	}
 

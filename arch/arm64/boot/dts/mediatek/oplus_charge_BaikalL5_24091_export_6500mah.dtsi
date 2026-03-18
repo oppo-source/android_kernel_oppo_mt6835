@@ -217,7 +217,7 @@
 		gpio-addr-level_high = <0x10005104>;
 		gpio-addr-level_low = <0x10005108>;
 		gpio-addr-data-in = <0x10005200>;
-		gpio-addr-offset = <0x16>;
+		gpio-addr-offset = <0x3>;
 
 		oplus,batt_info = /bits/ 8 <0x36 0x31 0x31 0x33 0x30 0x37 0x30 0x30 0x30 0x30 0x36 0x37>;
 		oplus,ic_type = <OPLUS_CHG_IC_GAUGE>;
@@ -279,6 +279,7 @@
 	en_vol_ctrl_vibrate = <3200>;
 	support_tuv_authentication;
 	support_maxim_battery_authentication;
+	dual_cells_batt_status_check_support;
 	data-gpio = <3>;
 	oplus,batt_info = /bits/ 8 <0x36 0x31 0x31 0x33 0x30 0x37 0x30 0x30 0x30 0x30 0x36 0x37>;
 	charger_no_wiress;
@@ -342,6 +343,21 @@
 		compatible = "oplus,retention_charge";
 		oplus,topic-update-interval = <5000>;
 		oplus,support_retention_name = "oplus_retention_quirks";
+	};
+
+	oplus_dual_cells_protection: oplus,dual_cells_protection {
+		compatible = "oplus,dual_cells_protection";
+		oplus,fcc_check_support;
+		oplus,intfcc_check_support;
+		oplus,soc_check_support;
+		oplus,fcc_track_support;
+		oplus,intfcc_track_support;
+		oplus,soc_track_support;
+		oplus_spec,min-fcc = <4000>;
+		oplus_spec,soc-jump-thr = <30>;
+		oplus_spec,min-oplus-fcc = <4000>;
+		oplus_spec,cur-recover-thr = <500>;
+		oplus_spec,cur_limit = <3500>;
 	};
 
 	oplus_smart_charge: oplus,smart_charge {

@@ -67,6 +67,7 @@ extern int (*tp_gesture_enable_notifier)(unsigned int tp_index);
 #endif
 static bool is_pd_with_guesture = false;
 extern unsigned int g_shutdown_flag;
+extern unsigned int get_project(void);
 
 static void lcm_cabc_mode_switch(void *dsi, dcs_write_gce cb,
 		void *handle, unsigned int cabc_mode);
@@ -84,7 +85,7 @@ int set_low_brightness_cabc_mode = 0;
 #include "../bias/oplus23661_aw37501_bias.h"
 #include <linux/reboot.h>
 
-#define MAX_NORMAL_BRIGHTNESS    (3460)
+#define MAX_NORMAL_BRIGHTNESS    (3276)
 
 static int cabc_status = 1;
 static int esd_brightness;
@@ -178,7 +179,7 @@ static void lcm_init_set_cabc(struct lcm *ctx, int cabc_mode)
 		pr_info("%s()  set_low_brightness_cabc_mode ture, cabc_mode =%d return!\n",	__func__, cabc_mode);
 		return;
 	}
-	lcm_dcs_write_seq_static(ctx, 0xFF, 0x98, 0x83, 0x00);
+	lcm_dcs_write_seq_static(ctx, 0xFF, 0x5A, 0xA5, 0x00);
 	if (cabc_mode == 0) {
 		lcm_dcs_write_seq_static(ctx, 0x55, 0x00);
 	} else if (cabc_mode == 1) {
@@ -220,15 +221,120 @@ static int lcm_disable(struct drm_panel *panel)
 static int lcm_unprepare(struct drm_panel *panel)
 {
 	struct lcm *ctx = panel_to_lcm(panel);
+	int flag_poweroff = 1;
 	if (!ctx->prepared)
 		return 0;
 
 	pr_info("%s enter+, send lcm off: esd_flag = %d\n", __func__, esd_flag);
 	push_table(ctx, lcm_off_setting, sizeof(lcm_off_setting)/sizeof(struct LCM_setting_table));
 
+	pr_err("[TP] oplus_ac321_p_3_a0035_dsi_video_mode_panel g_shutdown_flag is %d, esd_flag is %d\n", g_shutdown_flag, esd_flag);
+	if (tp_gesture_enable_notifier && tp_gesture_enable_notifier(0)) {
+		if (g_shutdown_flag == 1) {
+			is_pd_with_guesture = true;
+			flag_poweroff = 1;
+			pr_err("[TP] tp gesture is disable,Display to poweroff\n");
+		} else {
+			flag_poweroff = 0;
+			pr_err("[TP] tp gesture is enable,Display not to poweroff\n");
+		}
+	} else {
+		is_pd_with_guesture = false;
+		flag_poweroff = 1;
+		pr_err("[TP] set poweroff to 1\n");
+	}
+	pr_info("%s+ enter \n", __func__);
+	usleep_range(20000, 20100);
+	lcm_dcs_write_seq_static(ctx, MIPI_DCS_SET_DISPLAY_OFF);
+	usleep_range(60000, 60100);
+	lcm_dcs_write_seq_static(ctx, MIPI_DCS_ENTER_SLEEP_MODE);
+	usleep_range(150000, 150100);
+	pr_info("%s enter+, flag_poweroff = %d \n", __func__, flag_poweroff);
+	if (flag_poweroff == 1) {
+		pr_info("%s enter+, lcm ctx->prepared = %d, esd_flag = %d\n", __func__, ctx->prepared, esd_flag);
+		if (g_shutdown_flag == 1) {
+			ctx->reset_gpio = devm_gpiod_get(ctx->dev, "reset", GPIOD_OUT_HIGH);
+			gpiod_set_value(ctx->reset_gpio, 0);
+			devm_gpiod_put(ctx->dev, ctx->reset_gpio);
+			usleep_range(5000, 5100);
+		}
+
+		ctx->bias_neg = devm_gpiod_get_index(ctx->dev, "bias", 1, GPIOD_OUT_HIGH);
+		gpiod_set_value(ctx->bias_neg, 0);
+		devm_gpiod_put(ctx->dev, ctx->bias_neg);
+
+		usleep_range(5000, 5100);
+		ctx->bias_pos = devm_gpiod_get_index(ctx->dev, "bias", 0, GPIOD_OUT_HIGH);
+		gpiod_set_value(ctx->bias_pos, 0);
+		devm_gpiod_put(ctx->dev, ctx->bias_pos);
+	}
+
 	ctx->error = 0;
 	ctx->prepared = false;
 	pr_info("%s Successful-\n", __func__);
+	return 0;
+}
+
+static int lcm_panel_poweron(struct drm_panel *panel)
+{
+	struct lcm *ctx = panel_to_lcm(panel);
+	int ret;
+	int mode;
+	int blank;
+
+	if (ctx->prepared)
+		return 0;
+
+	pr_info("%s: oplus_ac321_p_3_a0035_dsi_video_mode_panel  lcm ctx->prepared %d\n", __func__, ctx->prepared);
+
+	ctx->bias_pos = devm_gpiod_get_index(ctx->dev, "bias", 0, GPIOD_OUT_HIGH);
+	gpiod_set_value(ctx->bias_pos, 1);
+	devm_gpiod_put(ctx->dev, ctx->bias_pos);
+
+	usleep_range(5000, 5100);
+	ctx->bias_neg = devm_gpiod_get_index(ctx->dev, "bias", 1, GPIOD_OUT_HIGH);
+	gpiod_set_value(ctx->bias_neg, 1);
+	devm_gpiod_put(ctx->dev, ctx->bias_neg);
+	usleep_range(5000, 5100);
+
+	/* set VSP voltage etc. 4.0+ (parameter 2)* 0.10 */
+	ret = lcm_i2c_write_bytes(0x0, 0x14);
+	pr_debug("%s:  aw37051_write_byte return value = %d\n", __func__, ret);
+	usleep_range(1000, 1100);
+	/* set VSN voltage etc. 4.0+ (parameter 2)* 0.10 */
+	ret = lcm_i2c_write_bytes(0x1, 0x14);
+	pr_debug("%s:  aw37051_write_byte return value = %d\n", __func__, ret);
+
+	/* lcm reset - 1-0-1 */
+	usleep_range(3000, 3100);
+	ctx->reset_gpio = devm_gpiod_get(ctx->dev, "reset", GPIOD_OUT_HIGH);
+	gpiod_set_value(ctx->reset_gpio, 1);
+	usleep_range(3000, 3100);
+	gpiod_set_value(ctx->reset_gpio, 0);
+	usleep_range(3000, 3100);
+	gpiod_set_value(ctx->reset_gpio, 1);
+	devm_gpiod_put(ctx->dev, ctx->reset_gpio);
+	usleep_range(10000, 10100);
+
+        mode = get_boot_mode();
+        pr_info("[TP] in dis_panel_power_on,mode = %d\n", mode);
+        if ((mode != MSM_BOOT_MODE__FACTORY) &&(mode != MSM_BOOT_MODE__RF) && (mode != MSM_BOOT_MODE__WLAN)) {
+                #define LCD_CTL_TP_LOAD_FW 0x10
+                #define LCD_CTL_CS_ON  0x19
+                blank = LCD_CTL_CS_ON;
+                mtk_disp_notifier_call_chain(MTK_DISP_EVENT_FOR_TOUCH, &blank);
+                pr_err("[TP]TP CS will chang to spi mode and high\n");
+                usleep_range(5000, 5100);
+                blank = LCD_CTL_TP_LOAD_FW;
+                mtk_disp_notifier_call_chain(MTK_DISP_EVENT_FOR_TOUCH, &blank);
+                pr_info("[TP] start to load fw!\n");
+        }
+
+	ret = ctx->error;
+	if (ret < 0)
+		lcm_unprepare(panel);
+
+	pr_info("%s:Successful\n", __func__);
 	return 0;
 }
 
@@ -241,6 +347,7 @@ static int lcm_prepare(struct drm_panel *panel)
 
 	pr_info("%s enter:prepared = %d\n", __func__, ctx->prepared);
 
+	lcm_panel_poweron(panel);
 	lcm_panel_init(ctx);
 
 	ret = ctx->error;
@@ -271,40 +378,36 @@ static int lcm_enable(struct drm_panel *panel)
 
 static void lcm_gamma_enter (void *dsi, dcs_write_gce cb, void *handle)
 {
-	/*
-	char bl_tb1[] = {0xFF, 0x98, 0x83, 0x08};
-	char bl_tb2[] = {0xE0, 0x55, 0x66, 0x69, 0x71, 0x7C, 0x55, 0x8D, 0xA0, 0xB1, 0xC9,
-					0xA9, 0xDE, 0x04, 0x28, 0x4C, 0xAA, 0x70, 0x99, 0xCA, 0xE9, 0xFF, 0x10, 0x2F, 0x58, 0x88,
-					0x3F, 0xAF, 0xC7, 0xDB};
-	char bl_tb3[] = {0xE1, 0x55, 0x66, 0x69, 0x71, 0x7C, 0x55, 0x8D, 0xA0, 0xB1, 0xC9,
-					0xA9, 0xDE, 0x04, 0x28, 0x4C, 0xAA, 0x70, 0x99, 0xCA, 0xE9, 0xFF, 0x10, 0x2F, 0x58, 0x88,
-					0x3F, 0xAF, 0xC7, 0xDB};
-	char bl_tb4[] = {0xFF, 0x98, 0x83, 0x00};
+	char bl_tb1[] = {0xFF, 0x5A, 0xA5, 0x08};
+	char bl_tb2[] = {0xE0, 0x55, 0x6F, 0x7A, 0x85, 0x97, 0x55, 0xA9, 0xBA, 0xD1,
+			 0xE7, 0xAA, 0x0D, 0x31, 0x54, 0x77, 0xEA, 0x9F, 0xCF, 0xEE,
+			 0x14, 0xFF, 0x33, 0x5A, 0x89, 0xAF, 0x03, 0xDA};
+	char bl_tb3[] = {0xE1, 0x55, 0x6F, 0x7A, 0x85, 0x97, 0x55, 0xA9, 0xBA, 0xD1,
+			 0xE7, 0xAA, 0x0D, 0x31, 0x54, 0x77, 0xEA, 0x9F, 0xCF, 0xEE,
+			 0x14, 0xFF, 0x33, 0x5A, 0x89, 0xAF, 0x03, 0xDA};
+	char bl_tb4[] = {0xFF, 0x5A, 0xA5, 0x00};
 
 	cb(dsi, handle, bl_tb1, ARRAY_SIZE(bl_tb1));
 	cb(dsi, handle, bl_tb2, ARRAY_SIZE(bl_tb2));
 	cb(dsi, handle, bl_tb3, ARRAY_SIZE(bl_tb3));
 	cb(dsi, handle, bl_tb4, ARRAY_SIZE(bl_tb4));
-	*/
 }
 
 static void lcm_gamma_exit (void *dsi, dcs_write_gce cb, void *handle)
 {
-	/*
-	char bl_tb1[] = {0xFF, 0x98, 0x83, 0x08};
-	char bl_tb2[] = {0xE0, 0x00, 0x00, 0x18, 0x50, 0x85, 0x50, 0xC7, 0xFF, 0x2A, 0x5D, \
-					0x95, 0x85, 0xC5, 0xF8, 0x25, 0xAA, 0x50, 0x7D, 0xB2, 0xD2, 0xFE, 0xFB, 0x1D, 0x48, 0x7C, \
-					0x3F, 0xA6, 0xC7, 0xDB};
-	char bl_tb3[] = {0xE1, 0x00, 0x00, 0x18, 0x50, 0x85, 0x50, 0xC7, 0xFF, 0x2A, 0x5D, \
-					0x95, 0x85, 0xC5, 0xF8, 0x25, 0xAA, 0x50, 0x7D, 0xB2, 0xD2, 0xFE, 0xFB, 0x1D, 0x48, 0x7C, \
-					0x3F, 0xA6, 0xC7, 0xDB};
-	char bl_tb4[] = {0xFF, 0x98, 0x83, 0x00};
+	char bl_tb1[] = {0xFF, 0x5A, 0xA5, 0x08};
+	char bl_tb2[] = {0xE0, 0x00, 0x00, 0x55, 0x8D, 0xD0, 0x55, 0x09, 0x33, 0x66,
+			 0x8D, 0xA5, 0xCC, 0xFE, 0x2C, 0x56, 0xAA, 0x81, 0xB5, 0xD5,
+			 0xFF, 0xFF, 0x1E, 0x49, 0x7C, 0xA6, 0x03, 0xDA};
+	char bl_tb3[] = {0xE1, 0x00, 0x00, 0x55, 0x8D, 0xD0, 0x55, 0x09, 0x33, 0x66,
+			 0x8D, 0xA5, 0xCC, 0xFE, 0x2C, 0x56, 0xAA, 0x81, 0xB5, 0xD5,
+			 0xFB, 0xFF, 0x1E, 0x49, 0x7C, 0xA6, 0x03, 0xDA};
+	char bl_tb4[] = {0xFF, 0x5A, 0xA5, 0x00};
 
 	cb(dsi, handle, bl_tb1, ARRAY_SIZE(bl_tb1));
 	cb(dsi, handle, bl_tb2, ARRAY_SIZE(bl_tb2));
 	cb(dsi, handle, bl_tb3, ARRAY_SIZE(bl_tb3));
 	cb(dsi, handle, bl_tb4, ARRAY_SIZE(bl_tb4));
-	*/
 }
 
 static const struct drm_display_mode disp_mode_60HZ = {
@@ -382,6 +485,7 @@ static struct mtk_panel_params ext_params_60HZ = {/* 60hz */
 		.hbp = HOPPING_HBP,
 	},
 	.vdo_per_frame_lp_enable = 1,
+	.oplus_display_color_mode_suppor = MTK_DRM_COLOR_MODE_DISPLAY_P3,
 	/* .cabc_three_to_zero = 1, */
 /* #ifdef CONFIG_MTK_ROUND_CORNER_SUPPORT */
 /*
@@ -431,6 +535,7 @@ static struct mtk_panel_params ext_params_90HZ = {/* 90hz */
 		.hbp = HOPPING_HBP,
 	},
 	.vdo_per_frame_lp_enable = 1,
+	.oplus_display_color_mode_suppor = MTK_DRM_COLOR_MODE_DISPLAY_P3,
 	/* .cabc_three_to_zero = 1, */
 /* #ifdef CONFIG_MTK_ROUND_CORNER_SUPPORT */
 /*
@@ -480,6 +585,7 @@ static struct mtk_panel_params ext_params_120HZ = {/* 120hz */
 		.hbp = HOPPING_HBP,
 	},
 	.vdo_per_frame_lp_enable = 1,
+	.oplus_display_color_mode_suppor = MTK_DRM_COLOR_MODE_DISPLAY_P3,
 	/* .cabc_three_to_zero = 1, */
 /* #ifdef CONFIG_MTK_ROUND_CORNER_SUPPORT */
 /*
@@ -494,20 +600,18 @@ static struct mtk_panel_params ext_params_120HZ = {/* 120hz */
 
 static void lcm_dimming_on(void *dsi, dcs_write_gce cb,	void *handle)
 {
-	char bl_tb0[] = {0xFF, 0x98, 0x83, 0x00};
+	char bl_tb0[] = {0xFF, 0x5A, 0xA5, 0x00};
 	char bl_tb1[] = {0x68, 0x05, 0x00};
 	char bl_tb2[] = {0x53, 0x2C};
-	char bl_tb3[] = {0x22, 0x00};
 
 	cb(dsi, handle, bl_tb0, ARRAY_SIZE(bl_tb0));
 	cb(dsi, handle, bl_tb1, ARRAY_SIZE(bl_tb1));
 	cb(dsi, handle, bl_tb2, ARRAY_SIZE(bl_tb2));
-	cb(dsi, handle, bl_tb3, ARRAY_SIZE(bl_tb3));
 	pr_info("%s end\n", __func__);
 }
 static void lcm_dimming_off(void *dsi, dcs_write_gce cb, void *handle)
 {
-	char bl_tb0[] = {0xFF, 0x98, 0x83, 0x00};
+	char bl_tb0[] = {0xFF, 0x5A, 0xA5, 0x00};
 	char bl_tb1[] = {0x68, 0x03, 0x00};
 	char bl_tb2[] = {0x53, 0x2C};
 
@@ -521,7 +625,7 @@ static int lcm_dimming_flag = 0;
 static int lcm_setbacklight_cmdq(void *dsi, dcs_write_gce cb,
 	void *handle, unsigned int level)
 {
-	char bl_tb2[] = {0xFF, 0x98, 0x83, 0x00};
+	char bl_tb2[] = {0xFF, 0x5A, 0xA5, 0x00};
 	char bl_tb0[] = {0x51, 0x03, 0xff};
 
 	if (level > 4095) {
@@ -629,117 +733,10 @@ static int panel_ext_reset(struct drm_panel *panel, int on)
 	return 0;
 }
 
-static int lcm_panel_poweron(struct drm_panel *panel)
-{
-	struct lcm *ctx = panel_to_lcm(panel);
-	int ret;
-	int mode;
-	int blank;
-
-	if (ctx->prepared)
-		return 0;
-
-	pr_info("%s: oplus_ac321_p_3_a0035_dsi_video_mode_panel  lcm ctx->prepared %d\n", __func__, ctx->prepared);
-
-	ctx->bias_pos = devm_gpiod_get_index(ctx->dev, "bias", 0, GPIOD_OUT_HIGH);
-	gpiod_set_value(ctx->bias_pos, 1);
-	devm_gpiod_put(ctx->dev, ctx->bias_pos);
-
-	usleep_range(5000, 5100);
-	ctx->bias_neg = devm_gpiod_get_index(ctx->dev, "bias", 1, GPIOD_OUT_HIGH);
-	gpiod_set_value(ctx->bias_neg, 1);
-	devm_gpiod_put(ctx->dev, ctx->bias_neg);
-	usleep_range(5000, 5100);
-
-	/* set VSP voltage etc. 4.0+ (parameter 2)* 0.10 */
-	ret = lcm_i2c_write_bytes(0x0, 0x14);
-	pr_debug("%s:  aw37051_write_byte return value = %d\n", __func__, ret);
-	usleep_range(1000, 1100);
-	/* set VSN voltage etc. 4.0+ (parameter 2)* 0.10 */
-	ret = lcm_i2c_write_bytes(0x1, 0x14);
-	pr_debug("%s:  aw37051_write_byte return value = %d\n", __func__, ret);
-
-	/* lcm reset - 1-0-1 */
-	usleep_range(3000, 3100);
-	ctx->reset_gpio = devm_gpiod_get(ctx->dev, "reset", GPIOD_OUT_HIGH);
-	gpiod_set_value(ctx->reset_gpio, 1);
-	usleep_range(3000, 3100);
-	gpiod_set_value(ctx->reset_gpio, 0);
-	usleep_range(3000, 3100);
-	gpiod_set_value(ctx->reset_gpio, 1);
-	devm_gpiod_put(ctx->dev, ctx->reset_gpio);
-	usleep_range(10000, 10100);
-
-        mode = get_boot_mode();
-        pr_info("[TP] in dis_panel_power_on,mode = %d\n", mode);
-        if ((mode != MSM_BOOT_MODE__FACTORY) &&(mode != MSM_BOOT_MODE__RF) && (mode != MSM_BOOT_MODE__WLAN)) {
-                #define LCD_CTL_TP_LOAD_FW 0x10
-                #define LCD_CTL_CS_ON  0x19
-                blank = LCD_CTL_CS_ON;
-                mtk_disp_notifier_call_chain(MTK_DISP_EVENT_FOR_TOUCH, &blank);
-                pr_err("[TP]TP CS will chang to spi mode and high\n");
-                usleep_range(5000, 5100);
-                blank = LCD_CTL_TP_LOAD_FW;
-                mtk_disp_notifier_call_chain(MTK_DISP_EVENT_FOR_TOUCH, &blank);
-                pr_info("[TP] start to load fw!\n");
-        }
-
-	ret = ctx->error;
-	if (ret < 0)
-		lcm_unprepare(panel);
-
-	pr_info("%s:Successful\n", __func__);
-	return 0;
-}
-
-static int lcm_panel_poweroff(struct drm_panel *panel)
-{
-	struct lcm *ctx = panel_to_lcm(panel);
-	int ret;
-	int flag_poweroff = 1;
-	if (ctx->prepared)
-		return 0;
-
-	pr_err("[TP] oplus_ac321_p_3_a0035_dsi_video_mode_panel g_shutdown_flag is %d, esd_flag is %d\n", g_shutdown_flag, esd_flag);
-	if (tp_gesture_enable_notifier && tp_gesture_enable_notifier(0) && (g_shutdown_flag == 0)) {
-		is_pd_with_guesture = true;
-		flag_poweroff = 0;
-		pr_err("[TP] tp gesture is enable,Display not to poweroff\n");
-	} else {
-		is_pd_with_guesture = false;
-		flag_poweroff = 1;
-		pr_err("[TP] set poweroff to 1\n");
-	}
-	if (flag_poweroff == 1) {
-	pr_info("%s enter+, lcm ctx->prepared = %d, esd_flag = %d\n", __func__, ctx->prepared, esd_flag);
-	ctx->reset_gpio = devm_gpiod_get(ctx->dev, "reset", GPIOD_OUT_HIGH);
-	gpiod_set_value(ctx->reset_gpio, 1);
-	devm_gpiod_put(ctx->dev, ctx->reset_gpio);
-
-	usleep_range(5000, 5100);
-
-	ctx->bias_neg = devm_gpiod_get_index(ctx->dev, "bias", 1, GPIOD_OUT_HIGH);
-	gpiod_set_value(ctx->bias_neg, 0);
-	devm_gpiod_put(ctx->dev, ctx->bias_neg);
-
-	usleep_range(5000, 5100);
-	ctx->bias_pos = devm_gpiod_get_index(ctx->dev, "bias", 0, GPIOD_OUT_HIGH);
-	gpiod_set_value(ctx->bias_pos, 0);
-	devm_gpiod_put(ctx->dev, ctx->bias_pos);
-	}
-	ret = ctx->error;
-	if (ret < 0)
-		lcm_unprepare(panel);
-
-	pr_info("%s:Successful\n", __func__);
-
-	return 0;
-}
-
 static int oplus_esd_backlight_recovery(void *dsi, dcs_write_gce cb,
 		void *handle)
 {
-	unsigned char bl_page0[] = {0xFF, 0x98, 0x83, 0x00};
+	unsigned char bl_page0[] = {0xFF, 0x5A, 0xA5, 0x00};
 	unsigned char bl_tb0[] = {0x51, 0x03, 0xff};
 	bl_tb0[1] = esd_brightness >> 8;
 	bl_tb0[2] = esd_brightness & 0xFF;
@@ -755,7 +752,7 @@ static int oplus_esd_backlight_recovery(void *dsi, dcs_write_gce cb,
 static void lcm_cabc_mode_switch_to0(void *dsi, dcs_write_gce cb,
 		void *handle, unsigned int cabc_mode)
 {
-	unsigned char cabc_cmd_page0[] = {0xFF, 0x98, 0x83, 0x00};
+	unsigned char cabc_cmd_page0[] = {0xFF, 0x5A, 0xA5, 0x00};
 	unsigned char cabc_cmd_1[] = {0x55, 0x00};
 	unsigned char cabc_cmd_2[] = {0x53, 0x2C};
 
@@ -769,7 +766,7 @@ static void lcm_cabc_mode_switch_to0(void *dsi, dcs_write_gce cb,
 static void lcm_cabc_mode_switch(void *dsi, dcs_write_gce cb,
 		void *handle, unsigned int cabc_mode)
 {
-	unsigned char cabc_cmd_page0[] = {0xFF, 0x98, 0x83, 0x00};
+	unsigned char cabc_cmd_page0[] = {0xFF, 0x5A, 0xA5, 0x00};
 	unsigned char cabc_cmd_1[] = {0x55, 0x00};
 	unsigned char cabc_cmd_2[] = {0x53, 0x2C};
 
@@ -807,8 +804,8 @@ static void lcm_cabc_mode_switch(void *dsi, dcs_write_gce cb,
 static struct mtk_panel_funcs ext_funcs = {
 	.set_backlight_cmdq = lcm_setbacklight_cmdq,
 	.reset = panel_ext_reset,
-	.panel_poweron = lcm_panel_poweron,
-	.panel_poweroff = lcm_panel_poweroff,
+	/* .panel_poweron = lcm_panel_poweron, */
+	/* .panel_poweroff = lcm_panel_poweroff, */
 	.ext_param_set = mtk_panel_ext_param_set,
 	.cabc_switch = lcm_cabc_mode_switch,
 	.esd_backlight_recovery = oplus_esd_backlight_recovery,
@@ -856,8 +853,8 @@ static int lcm_get_modes(struct drm_panel *panel, struct drm_connector *connecto
 	mode_120HZ->type = DRM_MODE_TYPE_DRIVER;
 	drm_mode_probed_add(connector, mode_120HZ);
 
-	connector->display_info.width_mm = 70;
-	connector->display_info.height_mm = 155;
+	connector->display_info.width_mm = 71;
+	connector->display_info.height_mm = 165;
 	pr_info("%s Successful-\n", __func__);
 	return 1;
 }
@@ -876,6 +873,7 @@ static int lcm_probe(struct mipi_dsi_device *dsi)
 	struct lcm *ctx;
 	struct device_node *backlight;
 	int ret;
+	int prj_id = get_project();
 	struct device_node *dsi_node, *remote_node = NULL, *endpoint = NULL;
 	pr_info("%s begin+!\n", __func__);
 
@@ -963,7 +961,15 @@ static int lcm_probe(struct mipi_dsi_device *dsi)
 #endif
 
 	register_device_proc("lcd", "a0035", "p_3");
-	oplus_max_normal_brightness = MAX_NORMAL_BRIGHTNESS;
+	if (prj_id == 24094 || prj_id == 24362 || prj_id == 24366 || prj_id == 24365
+		 || prj_id == 24361 || prj_id == 24368 || prj_id == 24369 || prj_id == 24099
+		 || prj_id == 24370 || prj_id == 24090 || prj_id == 24101) {
+		pr_info("%s oplus_max_normal_brightness = 2548 prj_id == %d\n", __func__, prj_id);
+		oplus_max_normal_brightness = 2548;
+	} else {
+		pr_info("%s oplus_max_normal_brightness = 3276 prj_id == %d\n", __func__, prj_id);
+		oplus_max_normal_brightness = MAX_NORMAL_BRIGHTNESS;
+	}
 	pr_info("%s Successful-\n", __func__);
 	return ret;
 }

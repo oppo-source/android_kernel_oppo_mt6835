@@ -3913,7 +3913,9 @@ static int ufs_mtk_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op,
 	if (status == PRE_CHANGE) {
 #if defined(CONFIG_UFSFEATURE)
 		if (hba->dev_quirks & UFS_DEVICE_QUIRK_SAMSUNG_QLC) {
-			ufsf_suspend(ufs_mtk_get_ufsf(hba), pm_op == UFS_SYSTEM_PM);
+			err = ufsf_suspend(ufs_mtk_get_ufsf(hba), pm_op == UFS_SYSTEM_PM);
+			if (err)
+				return err;
 		}
 #endif
 		err = ufs_mtk_suspend_check(hba, pm_op);
@@ -4187,6 +4189,8 @@ static void ufs_mtk_fixup_dev_quirks(struct ufs_hba *hba)
 
 #if IS_ENABLED(CONFIG_UFSFEATURE)
 	if (hba->dev_quirks & UFS_DEVICE_QUIRK_SAMSUNG_QLC) {
+		if (hba->caps & UFSHCD_CAP_WB_EN)
+			hba->caps &= ~UFSHCD_CAP_WB_EN;
 		host->ufsf.hba = hba;
 		ufsf_set_init_state(hba);
 	}

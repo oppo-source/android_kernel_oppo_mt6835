@@ -696,6 +696,26 @@
 #define SENSOR_DRVNAME_GC02M1B_MIPI_MONO_BAIKALL5         "gc02m1b_mipi_mono_baikall5"
 /////////////////// Baikal L5 end //////////////////////////////////////////////////
 
+/////////////////// Baikal-B5 start ////////////////////////////////////////////////
+#define SENSOR_ID_OFFSET_BAIKALB5                         0x13
+#define OV50D40_SENSOR_ID_BAIKALB5                        (0x565044 + SENSOR_ID_OFFSET_BAIKALB5)
+#define SENSOR_DRVNAME_OV50D40_MIPI_RAW_BAIKALB5          "ov50d40_mipi_raw_baikalb5"
+#define IMX480_SENSOR_ID_BAIKALB5                         (0x0471 + SENSOR_ID_OFFSET_BAIKALB5)
+#define SENSOR_DRVNAME_IMX480_MIPI_RAW_BAIKALB5           "imx480_mipi_raw_baikalb5"
+#define OV13B10_SENSOR_ID_BAIKALB5                        (0x560d42 + SENSOR_ID_OFFSET_BAIKALB5)
+#define SENSOR_DRVNAME_OV13B10_MIPI_RAW_BAIKALB5          "ov13b10_mipi_raw_baikalb5"
+#define GC08A8_SENSOR_ID_BAIKALB5                         (0x08a8 + SENSOR_ID_OFFSET_BAIKALB5)
+#define SENSOR_DRVNAME_GC08A8_MIPI_RAW_BAIKALB5           "gc08a8_mipi_raw_baikalb5"
+#define SC520CS_SENSOR_ID_BAIKALB5                        (0xee4b + SENSOR_ID_OFFSET_BAIKALB5)
+#define SENSOR_DRVNAME_SC520CS_MIPI_RAW_BAIKALB5          "sc520cs_mipi_raw_baikalb5"
+#define SC202CS_SENSOR_ID_BAIKALB5                        (0xeb52 + SENSOR_ID_OFFSET_BAIKALB5)
+#define SENSOR_DRVNAME_SC202CS_MIPI_RAW_BAIKALB5          "sc202cs_mipi_raw_baikalb5"
+#define GC02M1B_SENSOR_ID_BAIKALB5                        (0x02e0 + SENSOR_ID_OFFSET_BAIKALB5)
+#define SENSOR_DRVNAME_GC02M1B_MIPI_MONO_BAIKALB5         "gc02m1b_mipi_mono_baikalb5"
+#define OV02F_SENSOR_ID_BAIKALB5                        (0x5602 + SENSOR_ID_OFFSET_BAIKALB5)
+#define SENSOR_DRVNAME_OV02F_MIPI_MONO_BAIKALB5         "ov02f_mipi_mono_baikalb5"
+/////////////////// Baikal-B5 end //////////////////////////////////////////////////
+
 /////////////////// AB5 start /////////////////////////////////////////////////////
 #define OV50D40_SENSOR_ID_AVATARB5                         0x565044
 #define SENSOR_DRVNAME_OV50D40_MIPI_RAW_AVATARB5           "ov50d40_mipi_raw_avatarb5"

@@ -139,6 +139,16 @@ const struct flashlight_device_id flashlight_id_baikall5[] = {
 	{0, 0, 0, "flashlights-baikall5", 0, 1},
 };
 
+const struct flashlight_device_id flashlight_id_baikalb5[] = {
+	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
+	{0, 0, 0, "flashlights-baikalb5", 0, 1},
+};
+
+const struct flashlight_device_id flashlight_id_baikalb5_aw36410[] = {
+	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
+	{0, 0, 0, "aw36410_baikalb5", 0, 1},
+};
+
 const struct flashlight_device_id flashlight_id_alphab5[] = {
 	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
 	{0, 0, 0, "flashlights-alphab5", 0, 1},

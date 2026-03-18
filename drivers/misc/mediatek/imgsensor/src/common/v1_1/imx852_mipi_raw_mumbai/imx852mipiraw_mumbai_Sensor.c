@@ -365,7 +365,7 @@ static struct SENSOR_WINSIZE_INFO_STRUCT imgsensor_winsize_info[] = {
     // custom3 remosaic
     {8192, 6144,    0,    0, 8192, 6144, 2048, 1536,    0,    0, 2048, 1536,    0,    0, 2048, 1536},//
     // custom4 2048x1152_240FPS
-    {8192, 6144,  832,  624, 6528, 4896, 3264, 2448,    0,    0, 3264, 2448,    0,    0, 3264, 2448},
+    {8192, 6144,    0,  624, 8192, 4896, 4096, 2448,  416,    0, 3264, 2448,    0,    0, 3264, 2448},
     /* custom5 full_rmsc_corp 4096*3072@30fps*/
     {8192, 6144,    0, 1536, 8192, 3072, 8192, 3072, 2048,    0, 4096, 3072,    0,    0, 4096, 3072},
     /* custom6 1280x674_480FPS*/
@@ -5198,8 +5198,6 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
          */
         switch (*feature_data) {
         case MSDK_SCENARIO_ID_CUSTOM4:
-            *(MUINT32 *) (uintptr_t) (*(feature_data + 1)) = 0xb;
-            break;
         case MSDK_SCENARIO_ID_CAMERA_PREVIEW:
         case MSDK_SCENARIO_ID_VIDEO_PREVIEW:
         case MSDK_SCENARIO_ID_CAMERA_CAPTURE_JPEG:
@@ -5245,45 +5243,6 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
         break;
         // pvcinfo2 = (struct SENSOR_VC_INFO2_STRUCT *) (uintptr_t) (*(feature_data + 1));
         //  get_vc_info_2(pvcinfo2, *feature_data_32);
-    case SENSOR_FEATURE_GET_STAGGER_TARGET_SCENARIO:
-        if (*feature_data == MSDK_SCENARIO_ID_VIDEO_PREVIEW) {
-            switch (*(feature_data + 1)) {
-            case HDR_RAW_STAGGER_2EXP:
-                *(feature_data + 2) = MSDK_SCENARIO_ID_CUSTOM4;//custom4 was the 2 exp mode for preview mode
-                break;
-            default:
-                break;
-            }
-        }else if (*feature_data == MSDK_SCENARIO_ID_CUSTOM4) {
-            switch (*(feature_data + 1)) {
-            case HDR_NONE:
-                *(feature_data + 2) = MSDK_SCENARIO_ID_VIDEO_PREVIEW;//normal_video mode for video preview mode
-                break;
-            default:
-                break;
-            }
-        }
-        break;
-    case SENSOR_FEATURE_GET_STAGGER_MAX_EXP_TIME:
-        if (*feature_data == MSDK_SCENARIO_ID_CUSTOM4) {
-            switch (*(feature_data + 1)) {
-            case VC_STAGGER_NE:
-                *(feature_data + 2) = 32757;   //need repare
-                break;
-            case VC_STAGGER_ME:
-                *(feature_data + 2) = 32757;
-                break;
-            case VC_STAGGER_SE:
-                *(feature_data + 2) = 32757;
-                break;
-            default:
-                *(feature_data + 2) = 32757;
-                break;
-            }
-        } else {
-            *(feature_data + 2) = 0;
-        }
-        break;
     case SENSOR_FEATURE_SET_HDR_SHUTTER://for 2EXP
         LOG_INF("SENSOR_FEATURE_SET_HDR_SHUTTER LE=%d, SE=%d\n",
             (UINT16) *feature_data, (UINT16) *(feature_data + 1));

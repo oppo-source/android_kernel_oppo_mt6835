@@ -1485,4 +1485,26 @@ config DRM_PANEL_AE152_P_D_A0031_HD_DSI_VDO
           resolution and uses 24-bits RGB per pixel. It provides a
           MIPI DSI interface to host.
 
+config DRM_PANEL_AE152_P_4_A0030_HD_DSI_VDO
+        tristate "AE152_P_4_A0030 HD DSI VDO panel"
+        depends on OF
+        depends on DRM_MIPI_DSI
+        depends on BACKLIGHT_CLASS_DEVICE
+        help
+          Say Y here if you want to enable support for AE152 P_4 A0030
+          DPHY vdo mode HD Plus 120HZ panel. The panel has a 720x1570
+          resolution and uses 24-bits RGB per pixel. It provides a
+          MIPI DSI interface to host.
+
+config DRM_PANEL_AE152_P_D_A0032_HD_DSI_VDO
+        tristate "AE152_P_D_A0032 HD DSI VDO panel"
+        depends on OF
+        depends on DRM_MIPI_DSI
+        depends on BACKLIGHT_CLASS_DEVICE
+        help
+          Say Y here if you want to enable support for AE152 P_D_A0032
+          DPHY vdo mode HD Plus 120HZ panel. The panel has a 720x1570
+          resolution and uses 24-bits RGB per pixel. It provides a
+          MIPI DSI interface to host.
+
 endmenu

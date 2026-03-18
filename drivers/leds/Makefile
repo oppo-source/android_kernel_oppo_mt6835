@@ -121,3 +121,5 @@ obj-y					+= blink/
 # LED Triggers
 obj-$(CONFIG_LEDS_AW210XX)		+= aw210xx/
 obj-$(CONFIG_LEDS_AW2027)		+= aw2027/
+obj-$(CONFIG_LEDS_SGM31323)		+= sgm31323/
+

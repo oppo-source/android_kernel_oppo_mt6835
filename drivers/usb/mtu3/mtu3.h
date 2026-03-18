@@ -444,6 +444,8 @@ struct mtu3 {
 #ifdef OPLUS_FEATURE_CHG_BASIC
 	struct work_struct draw_work;
 	unsigned vbus_draw;
+	const char *usb_psy_name;
+	struct power_supply *usb_psy;
 #endif
 	int ep_slot_mode;
 

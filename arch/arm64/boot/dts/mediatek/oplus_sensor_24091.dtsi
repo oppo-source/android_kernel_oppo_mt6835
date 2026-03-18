@@ -81,7 +81,8 @@
 			i2c_addr = <0x30>;
 			direction = <0>;
 			eint_num = <0>;
-			soft-mag-parameter = <9767 0 2127 0 243 1 1321 0 11993 0 154 1 1447 0 1157 1 11037 0>;
+			alg_flag = <3>;
+			soft-mag-parameter = <9788 0 2034 0 233 1 1198 0 11708 0 31 0 1057 0 1213 1 10784 0>;
 		};
 		msensor_2: msensor_2 {
 			status = "okay";
@@ -166,7 +167,7 @@
 			dirty_high_step = <1100>;
 			ps_dirty_limit = <65535>;
 			ps_ir_limit = <2000>;
-			ps_adjust_min = <0>;
+			ps_adjust_min = <50>;
 			ps_adjust_max = <1250>;
 			sampling_count = <5>;
 			step_max = <500>;

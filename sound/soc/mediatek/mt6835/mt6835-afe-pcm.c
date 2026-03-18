@@ -1341,6 +1341,17 @@ static const struct snd_kcontrol_new memif_ul1_ch1_mix[] = {
 				    I_ADDA_UL_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("ADDA_UL_CH2", AFE_CONN21,
 				    I_ADDA_UL_CH2, 1, 0),
+/* #ifdef OPLUS_ARCH_EXTENDS */
+/* 2025/8/26, add for 2ch AEC */
+	SOC_DAPM_SINGLE_AUTODISABLE("DL1_CH1", AFE_CONN21,
+					I_DL1_CH1, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL1_CH2", AFE_CONN21,
+					I_DL1_CH2, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL3_CH1", AFE_CONN21,
+					I_DL3_CH1, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL3_CH2", AFE_CONN21,
+					I_DL3_CH2, 1, 0),
+/* #endif OPLUS_ARCH_EXTENDS */
 };
 
 static const struct snd_kcontrol_new memif_ul1_ch2_mix[] = {
@@ -1348,6 +1359,17 @@ static const struct snd_kcontrol_new memif_ul1_ch2_mix[] = {
 				    I_ADDA_UL_CH1, 1, 0),
 	SOC_DAPM_SINGLE_AUTODISABLE("ADDA_UL_CH2", AFE_CONN22,
 				    I_ADDA_UL_CH2, 1, 0),
+/* #ifdef OPLUS_ARCH_EXTENDS */
+/* 2025/8/26, add for 2ch AEC */
+	SOC_DAPM_SINGLE_AUTODISABLE("DL1_CH1", AFE_CONN22,
+				    I_DL1_CH1, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL1_CH2", AFE_CONN22,
+				    I_DL1_CH2, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL3_CH1", AFE_CONN22,
+				    I_DL3_CH1, 1, 0),
+	SOC_DAPM_SINGLE_AUTODISABLE("DL3_CH2", AFE_CONN22,
+				    I_DL3_CH2, 1, 0),
+/* #endif OPLUS_ARCH_EXTENDS */
 };
 
 static const struct snd_kcontrol_new memif_ul1_ch3_mix[] = {
@@ -1802,6 +1824,19 @@ static const struct snd_soc_dapm_route mt6835_memif_routes[] = {
 
 	{"HW_GAIN2_IN_CH1", "ADDA_UL_CH1", "ADDA_UL_Mux"},
 	{"HW_GAIN2_IN_CH2", "ADDA_UL_CH2", "ADDA_UL_Mux"},
+
+/* #ifdef OPLUS_ARCH_EXTENDS */
+/* 2025/8/26, add for 2ch AEC */
+	{"UL1_CH1", "DL1_CH1", "Hostless_UL1 UL"},
+	{"UL1_CH1", "DL1_CH2", "Hostless_UL1 UL"},
+	{"UL1_CH2", "DL1_CH1", "Hostless_UL1 UL"},
+	{"UL1_CH2", "DL1_CH2", "Hostless_UL1 UL"},
+	{"UL1_CH1", "DL3_CH1", "Hostless_UL1 UL"},
+	{"UL1_CH1", "DL3_CH2", "Hostless_UL1 UL"},
+	{"UL1_CH2", "DL3_CH1", "Hostless_UL1 UL"},
+	{"UL1_CH2", "DL3_CH2", "Hostless_UL1 UL"},
+	{"Hostless_UL1 UL", NULL, "UL1_VIRTUAL_INPUT"},
+/* #endif OPLUS_ARCH_EXTENDS */
 };
 
 static const struct mtk_base_memif_data memif_data[MT6835_MEMIF_NUM] = {

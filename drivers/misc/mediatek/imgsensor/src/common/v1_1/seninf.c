@@ -44,6 +44,10 @@ do {	\
 
 #define SENINF_RD32(addr) ioread32((void *)addr)
 
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
+#define OPLUS_FEATURE_CAMERA_COMMON
+#endif
+
 static struct SENINF gseninf;
 
 
@@ -428,6 +432,22 @@ SENINF_IOCTL_EXIT:
 
 	return ret;
 }
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+int seninf_clk_set_open(unsigned int on, unsigned int TG)
+{
+	int ret = 0;
+    struct ACDK_SENSOR_MCLK_STRUCT pdata;
+	pdata.freq = 24;
+	pdata.on = on;
+	pdata.TG = TG;
+
+	ret = seninf_clk_set(&gseninf.clk, &pdata);
+
+	return ret;
+}
+EXPORT_SYMBOL(seninf_clk_set_open);
+#endif
 
 #ifdef CONFIG_COMPAT
 static long seninf_ioctl_compat(struct file *pfile,

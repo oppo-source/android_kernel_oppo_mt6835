@@ -38,10 +38,10 @@
 
 
 /* SENSOR MIRROR FLIP INFO */
-#define GC08A8_MIRROR_NORMAL    1
+#define GC08A8_MIRROR_NORMAL    0
 #define GC08A8_MIRROR_H         0
 #define GC08A8_MIRROR_V         0
-#define GC08A8_MIRROR_HV        0
+#define GC08A8_MIRROR_HV        1
 
 #if GC08A8_MIRROR_NORMAL
 #define GC08A8_MIRROR	        0x00
@@ -54,7 +54,7 @@
 #else
 #define GC08A8_MIRROR	        0x00
 #endif
-
+#define SN_OFFSET               8
 enum IMGSENSOR_MODE {
 	IMGSENSOR_MODE_INIT,
 	IMGSENSOR_MODE_PREVIEW,
@@ -165,7 +165,7 @@ struct imgsensor_info_struct {
 	kal_uint8 mipi_lane_num; /* mipi lane num */
 	kal_uint8 i2c_addr_table[5];
 };
-
+static DEFINE_MUTEX(gc08a8_i2c_mutex);
 extern int iReadRegI2C(u8 *a_pSendData, u16 a_sizeSendData,
 	u8 *a_pRecvData, u16 a_sizeRecvData,
 		       u16 i2cId);

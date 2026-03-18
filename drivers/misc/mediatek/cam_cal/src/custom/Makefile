@@ -34,6 +34,7 @@ camera_eeprom-objs += eeprom_i2c_custom_driver.o
 camera_eeprom-objs += cam_cal_list.o
 camera_eeprom-objs += eeprom_i2c_gc08a8_driver.o
 camera_eeprom-objs += eeprom_i2c_sc800cs_driver.o
+camera_eeprom-objs += eeprom_i2c_gc08a8_mumbai_driver.o
 # custom code
 camera_eeprom-objs += otp_insensor_dev.o
 

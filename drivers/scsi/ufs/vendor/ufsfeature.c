@@ -696,16 +696,11 @@ inline void ufsf_set_init_state(struct ufs_hba *hba)
 #endif
 }
 
-inline void ufsf_suspend(struct ufsf_feature *ufsf, bool is_system_pm)
+inline int ufsf_suspend(struct ufsf_feature *ufsf, bool is_system_pm)
 {
-	/*
-	 * Wait completion of reset_wait_work.
-	 *
-	 * When suspend occurrs immediately after reset
-	 * and reset_wait_work is executed late,
-	 * we can enter here before ufsf_reset() cleans up the feature's reset sequence.
-	 */
-	flush_work(&ufsf->reset_wait_work);
+	/* Blocks suspend until reset_wait_work() has finished. */
+	if (work_busy(&ufsf->reset_wait_work))
+		return -EBUSY;
 
 #if defined(CONFIG_UFSTW)
 	if (ufstw_get_state(ufsf) == TW_PRESENT)
@@ -715,6 +710,7 @@ inline void ufsf_suspend(struct ufsf_feature *ufsf, bool is_system_pm)
 	if (ufshid_get_state(ufsf) == HID_PRESENT)
 		ufshid_suspend(ufsf, is_system_pm);
 #endif
+	return 0;
 }
 
 inline void ufsf_resume(struct ufsf_feature *ufsf, bool is_link_off)

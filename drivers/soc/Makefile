@@ -37,7 +37,6 @@ obj-$(CONFIG_OPLUS_SYSTEM_KERNEL)	+= oplus/system/
 #ifdef OPLUS_TP_BASIC
 obj-$(CONFIG_OPLUS_DEVICE_IFNO)		+= oplus/device_info/
 #endif /* OPLUS_TP_BASIC */
-
 obj-$(CONFIG_OPLUS_FEATURE_MIDAS_GKI) += oplus/midas/
 
 #ifdef OPLUS_DFR_FEATURE
@@ -56,3 +55,7 @@ obj-y += oplus/dft/
 obj-$(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)	+= oplus/oplus_mm_fb/
 #endif /* OPLUS_FEATURE_MM_FEEDBACK */
 obj-y	+= oplus/storage/
+
+#Test for Fence
+obj-y           += oplus/graphics/
+#Test for Fence

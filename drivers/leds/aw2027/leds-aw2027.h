@@ -34,9 +34,12 @@ struct aw2027_platform_data {
 	int fall_time_ms;
 	int off_time_ms;
 	int led_mode;
+	int color[3];
 	const char *led_default_trigger;
 	struct aw2027_led *led;
 };
+
+int new_always_on_color[3] ={0};
 
 typedef enum debug_level {
 	LEVEL_BASIC,    /*printk basic tp debug info*/

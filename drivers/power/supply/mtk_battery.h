@@ -1052,6 +1052,10 @@ struct mtk_battery {
 #ifdef OPLUS_FEATURE_CHG_BASIC
 	int tbat_precise;
 	int removed_bat_decidegc;
+	bool check_hmac_with_battery_id;
+	bool battery_type_by_cmdline;
+	u32 battype_array_cnt;
+	const char * const *battype_array;
 #endif
 	ktime_t uisoc_oldtime;
 	int d_saved_car;

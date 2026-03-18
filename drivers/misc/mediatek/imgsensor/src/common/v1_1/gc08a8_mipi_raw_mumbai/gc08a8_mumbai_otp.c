@@ -41,10 +41,11 @@
 #define EEPROM_I2C_MSG_SIZE_READ 2
 #include "gc08a8_mumbai_otp.h"
 
+static DEFINE_MUTEX(gc08a8_i2c_mutex);
 static struct i2c_client *g_pstI2CclientG;
 
 #define GC08A8_OTP_DEBUG  0
-#define GC08A8_I2C_ID     0x20 /*0x20*/
+#define GC08A8_I2C_ID     0x62 /*0x20*/
 
 static int iReadRegI2C1(struct i2c_client *client,
 		u8 *a_pSendData, u16 a_sizeSendData,
@@ -108,10 +109,10 @@ static void write_cmos_sensor(kal_uint32 addr, kal_uint32 para)
 	iWriteRegI2C(pu_send_cmd, 3);
 }
 
-static void gc08a8_2_otp_init(void)
+static void gc08a8_otp_init(void)
 {
-	write_cmos_sensor(0x0315, 0x80);
 	write_cmos_sensor(0x031c, 0x60);
+	write_cmos_sensor(0x0315, 0x80);
 
 	write_cmos_sensor(0x0324, 0x42);
 	write_cmos_sensor(0x0316, 0x09);
@@ -125,13 +126,13 @@ static void gc08a8_2_otp_init(void)
 	write_cmos_sensor(0x0ace, 0x0c);
 }
 
-static void gc08a8_2_otp_close(void)
+static void gc08a8_otp_close(void)
 {
 	write_cmos_sensor(0x0316, 0x01);
 	write_cmos_sensor(0x0a67, 0x00);
 }
 
-static u16 gc08a8_2_otp_read_group(u16 addr, u8 *data, u16 length)
+static u16 gc08a8_otp_read_group(u16 addr, u8 *data, u16 length)
 {
 	u16 i = 0;
 
@@ -144,7 +145,7 @@ static u16 gc08a8_2_otp_read_group(u16 addr, u8 *data, u16 length)
 	for (i = 0; i < length; i++) {
 		data[i] = read_cmos_sensor(0x0a6c);
 #if GC08A8_OTP_DEBUG
-	pr_debug("-----gc08a8_2 otp addr = 0x%x, data = 0x%x\n", addr + i * 8, data[i]);
+	pr_debug("gc08a8 otp addr = 0x%x, data = 0x%x\n", addr + i * 8, data[i]);
 #endif
 	}
 	return 0;
@@ -156,18 +157,18 @@ int gc08a8_mumbai_iReadData(unsigned int ui4_offset,
 {
 	int i4RetValue = 0;
 
-	pr_debug("gc08a8_2 otp ui4_offset = 0x%x, ui4_length = %d \n", ui4_offset, ui4_length);
+	pr_debug("gc08a8 otp ui4_offset = 0x%x, ui4_length = %d \n", ui4_offset, ui4_length);
 
-	gc08a8_2_otp_init();
+	gc08a8_otp_init();
 	mdelay(10);
 
-	i4RetValue = gc08a8_2_otp_read_group(ui4_offset, pinputdata, ui4_length);
+	i4RetValue = gc08a8_otp_read_group(ui4_offset, pinputdata, ui4_length);
 	if (i4RetValue != 0) {
 		pr_debug("I2C iReadData failed!!\n");
 		return -1;
 	}
 
-	gc08a8_2_otp_close();
+	gc08a8_otp_close();
 
 	return 0;
 }
@@ -175,7 +176,9 @@ int gc08a8_mumbai_iReadData(unsigned int ui4_offset,
 unsigned int Gc08a8_mumbai_read_region(struct i2c_client *client, unsigned int addr,
 				unsigned char *data, unsigned int size)
 {
+	mutex_lock(&gc08a8_i2c_mutex);
 	g_pstI2CclientG = client;
+	mutex_unlock(&gc08a8_i2c_mutex);
 	if (gc08a8_mumbai_iReadData(addr, size, data) == 0)
 		return size;
 	else

@@ -59,7 +59,7 @@ enum {
 #define UFSFEATURE_QUERY_OPCODE			0x5500
 
 /* Version info */
-#define UFSFEATURE_DD_VER			0x020500
+#define UFSFEATURE_DD_VER			0x020501
 #define UFSFEATURE_DD_VER_POST			""
 
 /* For read10 debug */
@@ -161,7 +161,7 @@ void ufsf_init(struct ufsf_feature *ufsf);
 void ufsf_reset(struct ufsf_feature *ufsf);
 void ufsf_remove(struct ufsf_feature *ufsf);
 void ufsf_set_init_state(struct ufs_hba *hba);
-void ufsf_suspend(struct ufsf_feature *ufsf, bool is_system_pm);
+int ufsf_suspend(struct ufsf_feature *ufsf, bool is_system_pm);
 void ufsf_resume(struct ufsf_feature *ufsf, bool is_link_off);
 
 /* mimic */

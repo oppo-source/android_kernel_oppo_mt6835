@@ -742,22 +742,20 @@ static void mtu3_gadget_async_callbacks(struct usb_gadget *g, bool enable)
 static void mtu3_vbus_draw_work(struct work_struct *data)
 {
 	struct mtu3 *mtu = container_of(data, struct mtu3, draw_work);
-	static struct power_supply *chg_psy;
 	union power_supply_propval val;
 
-	dev_info(mtu->dev, "%s %d mA\n", __func__, mtu->vbus_draw);
-
-	if (chg_psy == NULL)
-		chg_psy = power_supply_get_by_name("battery");
-	if (chg_psy == NULL || IS_ERR(chg_psy)) {
-		dev_info(mtu->dev, "%s Couldn't get chg_psy\n", __func__);
-		return;
+	if (!mtu->usb_psy) {
+		if (mtu->usb_psy_name)
+			mtu->usb_psy = power_supply_get_by_name(mtu->usb_psy_name);
+		else
+			mtu->usb_psy = power_supply_get_by_name("battery");
 	}
 
 	val.intval = !(mtu->vbus_draw > USB_SELF_POWER_VBUS_MAX_DRAW);
 	pr_err("%s intval: %d\n", __func__, val.intval);
-	power_supply_set_property(chg_psy,
-		 POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT, &val);
+	if (!IS_ERR_OR_NULL(mtu->usb_psy))
+		power_supply_set_property(mtu->usb_psy,
+			POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT, &val);
 }
 
 static mtu3_gadget_vbus_draw(struct usb_gadget *g, unsigned mA)

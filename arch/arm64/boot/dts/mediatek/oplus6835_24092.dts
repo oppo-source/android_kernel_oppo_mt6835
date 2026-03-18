@@ -232,10 +232,10 @@
 			compatible = "hw-match, main-sub";
 			aboard-gpio0 = <&pio 111 0x00>;
 			rf_match_support;
-			aboard-patterns = <2 2 2 2 2>;        /*0[high-resistance] 1[pull-down] 2[pull-up]*/
-			rf-patterns = <40 41 43 44 67>;
+			aboard-patterns = <2 2 2 2 2 2>;        /*0[high-resistance] 1[pull-down] 2[pull-up]*/
+			rf-patterns = <40 41 43 44 67 68>;
 			/*main board*/
-			match-projects = <24092 24092 24902 24092 24092>;
+			match-projects = <24092 24092 24092 24092 24092 24092>;
 		};
 	};
 
