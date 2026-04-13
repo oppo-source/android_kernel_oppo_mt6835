@@ -43,6 +43,7 @@
 
 &mtk_gauge {
 	FUELGAGUE_APPLY = <(0)>;
+	FOR_KPOC_LOGO_SHOW = <(1)>;
 	DISABLE_MTKBATTERY = <(1)>;
 };
 
@@ -331,9 +332,15 @@
 	qcom,dischg-gpio = <&pio 34 0x00>;/*VBUS_SHORT*/
 	oplus,uart_tx-gpio = <&pio 50 0x00>;
 	oplus,uart_rx-gpio = <&pio 51 0x00>;
+
+	oplus,full_limit_curr_support;
+	oplus,fcl_index = <0>;
+	oplus,vb_offset = <30>;
 };
 
 &lk_charger {
+	support_chg_time_cnt;
+	support_icl_optimization;
 	support_tuv_authentication;
 	charger_no_wiress;
 	sdp_screenon_voltage = <3250>;
@@ -356,7 +363,6 @@
 	high-temp-scheme;
 	over_high_temp_thr = <60>;
 	is_support_sc6607;
-	support_quickboot_charge;
 };
 
 &i2c5 {
