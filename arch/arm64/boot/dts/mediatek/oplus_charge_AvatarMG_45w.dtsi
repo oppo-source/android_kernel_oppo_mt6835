@@ -274,7 +274,7 @@
 	qcom,chg_ctrl_by_calling;
 	qcom,support_ntc_01c_precision;
 	qcom,sw_vfloat_over_protect_enable;
-	qcom,voocphy_support_display_vooc;
+	voocphy_support_display_vooc;
 
 	qcom,normal_vterm_hw_inc = <18>;
 	qcom,non_normal_vterm_hw_inc = <18>;

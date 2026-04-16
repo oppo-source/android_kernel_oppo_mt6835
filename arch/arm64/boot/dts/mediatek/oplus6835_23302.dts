@@ -358,6 +358,23 @@
 };
 
 &odm {
+        oplus_mm_config: oplus,mm_config {
+                compatible = "oplus,mm_osvelte-config";
+                ram-6g {
+                        oplus_boost_pool {
+                                feature-disable;
+                        };
+                        oplus_bsp_uxmem_opt {
+                                feature-disable;
+                        };
+                        oplus_bsp_zram_opt {
+                                balance_anon_file_reclaim_always_true;
+                        };
+                };
+        };
+};
+
+&odm {
 /* Add for low_mem_optimize */
 	low_mem_optimize {
 		compatible = "oplus,extra_free_kbytes";

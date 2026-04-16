@@ -321,7 +321,7 @@
 	qcom,mastercharger_psy_set;
 	oplus,use_external_cclogic;
 	qcom,support_usbtemp_protect_v2;
-	qcom,voocphy_support_display_vooc;
+	voocphy_support_display_vooc;
         qcom,usbtemp_batt_temp_low = <50>;
 	qcom,usbtemp_batt_temp_high = <50>;
 	qcom,usbtemp_ntc_temp_low = <57>;
