@@ -25,6 +25,10 @@
 //#endif
 #include "mediatek/oplus_tp_24031.dtsi"
 
+&chosen{
+       bootargs_ext = "blk_crypto_fallback.num_prealloc_bounce_pg=256";
+};
+
 /* Trustonic Mobilecore real driver */
 &mobicore{
        trustonic,real-drv = <1>;
