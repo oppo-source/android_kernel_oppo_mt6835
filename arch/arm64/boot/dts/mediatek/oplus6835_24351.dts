@@ -11,7 +11,6 @@
 #include "mediatek/mt6835_6377.dtsi"
 #include "mediatek/oplus_display/cust_mt6835_ac312_oled_1080_2372.dtsi"
 #include "mediatek/cust_mt6835_camera_24351.dtsi"
-#include "mediatek/oplus_nfc_alphaL5_th31f.dtsi"
 
 
 /* #ifdef CONFIG_UFF_FINGERPRINT */

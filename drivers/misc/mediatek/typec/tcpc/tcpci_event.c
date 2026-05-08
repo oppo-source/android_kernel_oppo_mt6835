@@ -1111,10 +1111,12 @@ void pd_notify_pe_reset_protocol(struct pd_port *pd_port)
 {
 	struct tcpc_device *tcpc = pd_port->tcpc;
 
-	if (!tcpc->pd_wait_pr_swap_complete)
-		return;
-
 	mutex_lock(&tcpc->access_lock);
+	if (!tcpc->pd_wait_pr_swap_complete) {
+		mutex_unlock(&tcpc->access_lock);
+		return;
+	}
+
 	tcpc->pd_wait_pr_swap_complete = false;
 	mutex_unlock(&tcpc->access_lock);
 

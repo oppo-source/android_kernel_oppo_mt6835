@@ -3349,7 +3349,6 @@ bool mt6375_int_chrdet_attach(void)
 	}
 }
 EXPORT_SYMBOL(mt6375_int_chrdet_attach);
-
 #endif
 
 static ssize_t shipping_mode_store(struct device *dev,

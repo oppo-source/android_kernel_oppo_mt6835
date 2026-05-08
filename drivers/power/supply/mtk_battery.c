@@ -71,7 +71,7 @@ int external_authenticate_support = 0;
 #define BAT_TYPE_XWD_4800mV_ADC_MIN 790
 #define BAT_TYPE_XWD_4800mV_ADC_MAX 1040
 
-#define BATTID_ARR_LEN 3
+#define BATTID_ARR_LEN 5 /*The number of battery types cannot exceed 5.*/
 #define BATTID_ARR_WIDTH 2
 
 enum {
@@ -443,17 +443,15 @@ int fgauge_get_profile_id(void)
 	int battery_id = 0;
 	int battery_type = BAT_TYPE__UNKNOWN;
 
-	if (external_authenticate_support) {
-		battery_id = oplus_batid_get_cmdline();
-		if (battery_id >= 0) {
-			bm_err("%s: get battid from cmdline, battid %d\n", __func__, battery_id);
-			return battery_id;
-		}
-		bm_err("%s, external_authenticate_support,return battery_id 0\n", __func__);
-		battery_id = 0;
+	battery_id = oplus_batid_get_cmdline();
+	if (battery_id >= 0) {
+		bm_err("%s: get battid from cmdline, battid %d\n", __func__, battery_id);
 		return battery_id;
+	} else {
+		battery_id = 0;
 	}
-	battery_id = battery_type_check(&battery_type);
+	if (!external_authenticate_support)
+		battery_id = battery_type_check(&battery_type);
 	return battery_id;
 }
 #endif

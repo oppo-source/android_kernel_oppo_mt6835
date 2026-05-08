@@ -53,6 +53,7 @@
 		oplus,ufcs_timeout_oplus = <17562>;
 		oplus,ufcs_ibat_over_third = <9400>;
 		oplus,ufcs_ibat_over_oplus = <16000>;
+		oplus,ufcs_ibus_over_oplus = <8000>;
 		oplus,ufcs_full_cool_sw_vbat = <4570>;
 		oplus,ufcs_full_normal_sw_vbat = <4570>;
 		oplus,ufcs_full_normal_hw_vbat = <4580>;

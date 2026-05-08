@@ -34,11 +34,11 @@
 static struct hrtimer aw36410_baikalb5_timer;
 static unsigned int aw36410_baikalb5_timeout_ms[AW36410_BAIKALB5_CHANNEL_NUM];
 static const int aw36410_baikalb5_current[AW36410_BAIKALB5_LEVEL_NUM] = {
-	  25,   50,  75, 85, 110, 150, 175,  200,  225,  250,
+	  25,   50,  75, 100, 125, 150, 162,  200,  250,  300,
    //275,  300, 325, 350, 375, 400, 450,  500,  550,  600,
-	275,  300, 325, 350, 375, 400, 450,  500,  575,  650,
+	350,  400, 450, 500, 550, 600, 650,  700,  750,  800,
   //650,  700, 750, 800, 850,  900,  950,  1000, 1050, 1100,
-	725,  800, 875, 950, 1025, 1100, 1175, 1250, 1325, 1400,
+	850,  900, 950, 1000, 1050, 1100, 1150, 1200, 1325, 1400,
   //1150, 1200
 	1475, 1500
 };
@@ -382,6 +382,7 @@ static int aw36410_baikalb5_torch_brt_ctrl(struct aw36410_baikalb5_flash *flash,
 		br_bits = SGM37863_BAIKAL_TORCH_BRT_uA_TO_REG(brt);
 		rval = regmap_update_bits(flash->regmap,
 					SGM37863_REG_LED0_TORCH_BR, 0x7F, br_bits);
+		pr_info("%s: sgm37863_return val:%d  br_bits = 0x%x", __func__,  rval, br_bits);
 	} else {
 		rval = 0;
 	}
@@ -554,6 +555,9 @@ static int aw36410_baikalb5_flash_open(void)
 
 static int aw36410_baikalb5_flash_release(void)
 {
+	aw36410_baikalb5_flash_data->led_mode = FLASH_LED_MODE_NONE;
+	aw36410_baikalb5_mode_ctrl(aw36410_baikalb5_flash_data);
+	aw36410_baikalb5_enable_ctrl(aw36410_baikalb5_flash_data, 0, false);
 	return 0;
 }
 
@@ -791,7 +795,7 @@ static int aw36410_baikalb5_probe(struct i2c_client *client,
 	pr_info("%s:%d", __func__, __LINE__);
 
     pr_info("i2c_probe Probe start.\n");
-    curProject = (is_project(24366) || is_project(24361) || is_project(24368));
+    curProject = (is_project(24366) || is_project(24361) || is_project(24368) || is_project(24369));
 
     if (!curProject) {
         err = -ENODEV;

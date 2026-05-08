@@ -962,6 +962,17 @@ static int __maybe_unused xhci_mtk_suspend(struct device *dev)
 	if (ret)
 		goto restart_poll_rh;
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	spin_lock_irq(&xhci->lock);
+	clear_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+	if (xhci->shared_hcd)
+		clear_bit(HCD_FLAG_HW_ACCESSIBLE, &xhci->shared_hcd->flags);
+	spin_unlock_irq(&xhci->lock);
+
+	if (hcd->irq > 0)
+		disable_irq(hcd->irq);
+#endif
+
 	synchronize_irq(hcd->irq);
 
 	if (!mtk->keep_clk_on)
@@ -990,12 +1001,23 @@ static int __maybe_unused xhci_mtk_resume(struct device *dev)
 		return 0;
 	}
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+	if (xhci->shared_hcd)
+		set_bit(HCD_FLAG_HW_ACCESSIBLE, &xhci->shared_hcd->flags);
+#endif
+
 	usb_wakeup_set(mtk, false);
 	if (!mtk->keep_clk_on) {
 		ret = clk_bulk_prepare_enable(BULK_CLKS_NUM, mtk->clks);
 		if (ret)
 			goto enable_wakeup;
 	}
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	if (hcd->irq > 0)
+		enable_irq(hcd->irq);
+#endif
 
 	ret = xhci_mtk_host_enable(mtk);
 	if (ret)

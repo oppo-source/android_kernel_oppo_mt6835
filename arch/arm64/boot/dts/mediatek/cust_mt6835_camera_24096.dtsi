@@ -379,7 +379,7 @@
 	cam2_pin_vcamio = "regulator";
 	cam2_pin_vcama1_gpio = "gpio";
 
-	cam0_enable_sensor = "ov50d40_mipi_raw_baikalb5 ov50d40_st_mipi_raw_baikalb5 ov13b10_mipi_raw_baikalb5";
+	cam0_enable_sensor = "ov50d40_mipi_raw_baikalb5 ov13b10_mipi_raw_baikalb5";
 	cam1_enable_sensor = "imx480_mipi_raw_baikalb5 gc08a8_mipi_raw_baikalb5 sc520cs_mipi_raw_baikalb5";
 	cam2_enable_sensor = "sc202cs_mipi_raw_baikalb5 gc02m1b_mipi_mono_baikalb5 ov02f_mipi_mono_baikalb5";
 	status = "okay";

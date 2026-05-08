@@ -361,12 +361,12 @@ struct LCM_setting_table aod_off_cmd[] = {
 
 struct LCM_setting_table aod_high_mode[] = {
 	{REGFLAG_CMD, 2, {0x6F, 0x04}},
-	{REGFLAG_CMD, 3, {0x51, 0x0F, 0xFE}},
+	{REGFLAG_CMD, 3, {0x51, 0x07, 0xFF}},
 };
 
 struct LCM_setting_table aod_low_mode[] = {
 	{REGFLAG_CMD, 2, {0x6F, 0x04}},
-	{REGFLAG_CMD, 3, {0x51, 0x00, 0x03}},
+	{REGFLAG_CMD, 3, {0x51, 0x03, 0xFF}},
 };
 
 struct LCM_setting_table hbm_on_cmd[] = {

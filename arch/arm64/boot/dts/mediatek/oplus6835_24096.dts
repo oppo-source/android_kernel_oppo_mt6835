@@ -11,7 +11,6 @@
 #include "mediatek/mt6835_6377.dtsi"
 #include "mediatek/cust_mt6835_ac321_lcd_720x1570.dtsi"
 #include "mediatek/cust_mt6835_camera_24096.dtsi"
-#include "mediatek/oplus_nfc_baikal_sn220e_pn560.dtsi"
 
 
 /* #ifdef CONFIG_UFF_FINGERPRINT */
@@ -418,6 +417,9 @@
 	oplus_mm_config: oplus,mm_config {
 		compatible = "oplus,mm_osvelte-config";
 		ram-4g {
+			allocator {
+				tcache-disable;
+			};
 			oplus_boost_pool {
 				feature-disable;
 			};

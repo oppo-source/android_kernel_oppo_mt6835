@@ -543,20 +543,6 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
         },
     },
 #endif
-#if defined(OV50D40_ST_MIPI_RAW_BAIKALB5)
-    {
-        SENSOR_DRVNAME_OV50D40_ST_MIPI_RAW_BAIKALB5,
-        {
-            {RST, Vol_Low, 1},
-            {DOVDD, Vol_1800, 3},
-            {AVDD, Vol_2800, 1},
-            {DVDD, Vol_1200, 1},
-            {AFVDD, Vol_2800, 1},
-            {SensorMCLK, Vol_High, 2},
-            {RST, Vol_High, 5},
-        },
-    },
-#endif
 #if defined(GC08A8_MIPI_RAW_BAIKALB5)
     {
         SENSOR_DRVNAME_GC08A8_MIPI_RAW_BAIKALB5,
@@ -648,7 +634,7 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
             {AVDD1_GPIO, Vol_High, 2},
             {SensorMCLK, Vol_High, 0},
             {AVDD, Vol_2800, 9},
-            {RST, Vol_High, 1}
+            {RST, Vol_High, 9}
         },
     },
 #endif

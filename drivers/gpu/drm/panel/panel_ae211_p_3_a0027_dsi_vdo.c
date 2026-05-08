@@ -65,7 +65,7 @@ extern unsigned int oplus_max_normal_brightness;
 extern int oplus_display_panel_dbv_probe(struct device *dev);
 static int current_fps = 60;
 extern atomic_t esd_pending;
-
+static unsigned int aod_last_backlight = 0;
 extern void lcdinfo_notify(unsigned long val, void *v);
 
 static unsigned int p_3_a0027_vdo_dphy_buf_thresh[14] ={896, 1792, 2688, 3584, 4480,
@@ -153,7 +153,6 @@ static void lcm_panel_init(struct lcm *ctx)
 	lcm_dcs_write_seq_static(ctx,0x44,0x09,0x44);
 	lcm_dcs_write_seq_static(ctx,0x35,0x00);
 	lcm_dcs_write_seq_static(ctx,0x53,0x20);
-	lcm_dcs_write_seq_static(ctx,0x51,0x00,0x00);
 	if (current_fps == 60) {
 		lcm_dcs_write_seq_static(ctx, 0x86,0x12);
 	} else if (current_fps == 90) {
@@ -163,6 +162,11 @@ static void lcm_panel_init(struct lcm *ctx)
 	}
 	lcm_dcs_write_seq_static(ctx,0x11,0x00);
 	usleep_range(120*1000, 121*1000);
+	lcm_dcs_write_seq_static(ctx,0x51,0x00,0x00);
+	lcm_dcs_write_seq_static(ctx,0xB0,0xC9);
+	lcm_dcs_write_seq_static(ctx,0xE8,0x0E,0x90);
+	lcm_dcs_write_seq_static(ctx,0xB0,0x53);
+	lcm_dcs_write_seq_static(ctx,0xC1,0x09);
 	lcm_dcs_write_seq_static(ctx,0xF0,0x5A,0x5A);
 	lcm_dcs_write_seq_static(ctx,0xB0,0x0A);
 	lcm_dcs_write_seq_static(ctx,0xC0,0x20,0xBF);
@@ -408,8 +412,14 @@ static struct mtk_panel_params ext_params_30Hz = {
 	.esd_check_enable = 1,
 	.esd_check_multi = 0,
 	.lcm_esd_check_table[0] = {
-                .cmd = 0x0A, .count = 1, .para_list[0] = 0x9C,
-        },
+		.cmd = 0xB1, .count = 1, .para_list[0] = 0x06,
+	},
+	.lcm_esd_check_table[1] = {
+		.cmd = 0x03, .count = 1, .para_list[0] = 0x11,
+	},
+	.lcm_esd_check_table[2] = {
+		.cmd = 0x0A, .count = 1, .para_list[0] = 0x9C,
+	},
 	//.round_corner_en = 1,
 	//.corner_pattern_height = ROUND_CORNER_H_TOP,
 	//.corner_pattern_height_bot = ROUND_CORNER_H_BOT,
@@ -417,7 +427,7 @@ static struct mtk_panel_params ext_params_30Hz = {
 	//.corner_pattern_lt_addr = (void *)top_rc_pattern,
 	.oplus_display_global_dre = 1,
 	.vendor = "A0027",
-	.manufacture = "P_3_A0027",
+	.manufacture = "P_3",
 	.oplus_display_color_mode_suppor = MTK_DRM_COLOR_MODE_DISPLAY_P3,
 	//.oplus_ofp_need_to_sync_data_in_aod_unlocking = false,
 	//.oplus_ofp_aod_off_insert_black = 0,
@@ -493,8 +503,14 @@ static struct mtk_panel_params ext_params_60Hz = {
 	.esd_check_enable = 1,
 	.esd_check_multi = 0,
 	.lcm_esd_check_table[0] = {
-                .cmd = 0x0A, .count = 1, .para_list[0] = 0x9C,
-        },
+		.cmd = 0xB1, .count = 1, .para_list[0] = 0x06,
+	},
+	.lcm_esd_check_table[1] = {
+		.cmd = 0x03, .count = 1, .para_list[0] = 0x11,
+	},
+	.lcm_esd_check_table[2] = {
+		.cmd = 0x0A, .count = 1, .para_list[0] = 0x9C,
+	},
 	//.round_corner_en = 1,
 	//.corner_pattern_height = ROUND_CORNER_H_TOP,
 	//.corner_pattern_height_bot = ROUND_CORNER_H_BOT,
@@ -502,7 +518,7 @@ static struct mtk_panel_params ext_params_60Hz = {
 	//.corner_pattern_lt_addr = (void *)top_rc_pattern,
 	.oplus_display_global_dre = 1,
 	.vendor = "A0027",
-	.manufacture = "P_3_A0027",
+	.manufacture = "P_3",
 	.oplus_display_color_mode_suppor = MTK_DRM_COLOR_MODE_DISPLAY_P3,
 	//.oplus_ofp_need_to_sync_data_in_aod_unlocking = false,
 	//.oplus_ofp_aod_off_insert_black = 0,
@@ -580,8 +596,14 @@ static struct mtk_panel_params ext_params_90Hz = {
 	.esd_check_enable = 1,
 	.esd_check_multi = 0,
 	.lcm_esd_check_table[0] = {
-                .cmd = 0x0A, .count = 1, .para_list[0] = 0x9C,
-        },
+		.cmd = 0xB1, .count = 1, .para_list[0] = 0x06,
+	},
+	.lcm_esd_check_table[1] = {
+		.cmd = 0x03, .count = 1, .para_list[0] = 0x11,
+	},
+	.lcm_esd_check_table[2] = {
+		.cmd = 0x0A, .count = 1, .para_list[0] = 0x9C,
+	},
 	//.round_corner_en = 1,
 	//.corner_pattern_height = ROUND_CORNER_H_TOP,
 	//.corner_pattern_height_bot = ROUND_CORNER_H_BOT,
@@ -589,7 +611,7 @@ static struct mtk_panel_params ext_params_90Hz = {
 	//.corner_pattern_lt_addr = (void *)top_rc_pattern,
 	.oplus_display_global_dre = 1,
 	.vendor = "A0027",
-	.manufacture = "P_3_A0027",
+	.manufacture = "P_3",
 	.oplus_display_color_mode_suppor = MTK_DRM_COLOR_MODE_DISPLAY_P3,
 	//.oplus_ofp_need_to_sync_data_in_aod_unlocking = false,
 	//.oplus_ofp_aod_off_insert_black = 0,
@@ -665,8 +687,14 @@ static struct mtk_panel_params ext_params_120Hz = {
 	.esd_check_enable = 1,
 	.esd_check_multi = 0,
 	.lcm_esd_check_table[0] = {
-                .cmd = 0x0A, .count = 1, .para_list[0] = 0x9C,
-        },
+		.cmd = 0xB1, .count = 1, .para_list[0] = 0x06,
+	},
+	.lcm_esd_check_table[1] = {
+		.cmd = 0x03, .count = 1, .para_list[0] = 0x11,
+	},
+	.lcm_esd_check_table[2] = {
+		.cmd = 0x0A, .count = 1, .para_list[0] = 0x9C,
+	},
 	//.round_corner_en = 1,
 	//.corner_pattern_height = ROUND_CORNER_H_TOP,
 	//.corner_pattern_height_bot = ROUND_CORNER_H_BOT,
@@ -674,7 +702,7 @@ static struct mtk_panel_params ext_params_120Hz = {
 	//.corner_pattern_lt_addr = (void *)top_rc_pattern,
 	.oplus_display_global_dre = 1,
 	.vendor = "A0027",
-	.manufacture = "P_3_A0027",
+	.manufacture = "P_3",
 	.oplus_display_color_mode_suppor = MTK_DRM_COLOR_MODE_DISPLAY_P3,
 	//.oplus_ofp_need_to_sync_data_in_aod_unlocking = false,
 	//.oplus_ofp_aod_off_insert_black = 0,
@@ -835,6 +863,8 @@ static int lcm_setbacklight_cmdq(void *dsi, dcs_write_gce cb, void *handle, unsi
                 }
 	}
 	last_backlight = level;
+	if(level != 0)
+		aod_last_backlight = level;
 	pr_info("%s,level = %d,", __func__, level);
 
 	return 0;
@@ -1048,7 +1078,7 @@ static int panel_set_aod_light_mode(void *dsi, dcs_write_gce cb, void *handle, u
 	return 0;
 }
 
-static struct vdo_aod_params vdo_aod_on = {
+static struct vdo_aod_params vdo_aod_on_high_bl = {
 	.porch_change_flag = 0x03,
 	.dst_hfp = 2030,
 	.dst_vfp = 44, //30fps
@@ -1059,6 +1089,19 @@ static struct vdo_aod_params vdo_aod_on = {
 	.vdo_aod_cmd_table[2]={2, {0xB0, 0x02}},
 	.vdo_aod_cmd_table[3]={3, {0x51,0x0F, 0xFE}},
 	.vdo_aod_cmd_table[4]={3, {0xF0,0xA5,0xA5} },
+};
+
+static struct vdo_aod_params vdo_aod_on_low_bl = {
+       .porch_change_flag = 0x03,
+       .dst_hfp = 2030,
+       .dst_vfp = 44, //30fps
+       .mode_idx = 3,
+       .change_mmclk = true,
+       .vdo_aod_cmd_table[0]={3, {0xF0,0x5A,0x5A} },
+       .vdo_aod_cmd_table[1]={2, {0x90,0x41} },
+       .vdo_aod_cmd_table[2]={2, {0xB0,0x02}},
+       .vdo_aod_cmd_table[3]={3, {0x51,0x00,0x03}},
+       .vdo_aod_cmd_table[4]={3, {0xF0,0xA5,0xA5} },
 };
 
 
@@ -1132,7 +1175,10 @@ static int mtk_get_vdo_aod_param(int aod_en, struct vdo_aod_params **vdo_aod_par
 
 	if(aod_en) {
 		atomic_set(&esd_pending, 1);
-		*vdo_aod_param = &vdo_aod_on;
+		if(aod_last_backlight > 1000)
+			*vdo_aod_param = &vdo_aod_on_high_bl;
+		else
+			*vdo_aod_param = &vdo_aod_on_low_bl;
 	} else {
 		if(current_fps == 60) {
 			if(oplus_ofp_get_aod_unlocking())
@@ -1586,7 +1632,7 @@ static int lcm_probe(struct mipi_dsi_device *dsi)
 		return ret;
 #endif
 	oplus_display_panel_dbv_probe(dev);
-	register_device_proc("lcd", "A0027", "P_3_A0027");
+	register_device_proc("lcd", "A0027", "P_3");
 	oplus_ofp_set_fp_type(&fp_type);
 	ctx->hbm_en = false;
 	oplus_max_normal_brightness = MAX_NORMAL_BRIGHTNESS;

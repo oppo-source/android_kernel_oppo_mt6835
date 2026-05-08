@@ -121,7 +121,7 @@ static struct imgsensor_info_struct imgsensor_info = {
 	.custom1 = {             	// custom1
 		.pclk = 112000000,
 		.linelength = 1176,
-		.framelength = 3968,
+		.framelength = 3996,
 		.startx = 0,
 		.starty = 0,
 		.grabwindow_width = 4160,
@@ -347,13 +347,8 @@ static void set_dummy(void)
 	/* check */
 	/* LOG_INF("dummyline = %d, dummypixels = %d\n", imgsensor.dummy_line, imgsensor.dummy_pixel); */
 
-	write_cmos_sensor(0x3208, 0x00); // group start, let all register effective in same frame
-	write_cmos_sensor(0x380c, imgsensor.line_length >> 8);
-	write_cmos_sensor(0x380d, imgsensor.line_length & 0xFF);
 	write_cmos_sensor(0x380e, imgsensor.frame_length >> 8);
 	write_cmos_sensor(0x380f, imgsensor.frame_length & 0xFF);
-	write_cmos_sensor(0x3208, 0x10); // group end
-	write_cmos_sensor(0x3208, 0xa0); // group launch
 }
 
 
@@ -1216,7 +1211,7 @@ kal_uint16 addr_data_pair_custom1_baikalb5_ov13b10[] = {
 	0x380c, 0x04,
 	0x380d, 0x98,
 	0x380e, 0x0f,
-	0x380f, 0x80,
+	0x380f, 0x9c,
 	0x3811, 0x18,
 	0x3813, 0x07,
 	0x3814, 0x01,
@@ -2380,16 +2375,12 @@ static kal_uint32 set_test_pattern_mode(kal_bool enable)
 	LOG_INF("enable: %d\n", enable);
 
 	if (enable) {
-		// 0x5E00[8]: 1 enable,  0 disable
-		// 0x5E00[1:0]; 00 Color bar, 01 Random Data, 10 Square, 11 BLACK
-		write_cmos_sensor(0x5081, 0x01);
-		write_cmos_sensor(0x5000,(read_cmos_sensor(0x5000)&0xa1)|0x00 );
+		write_cmos_sensor(0x5000, 0x81);
+		write_cmos_sensor(0x5080, 0x81);
 	} else {
-		// 0x5E00[8]: 1 enable,  0 disable
-		// 0x5E00[1:0]; 00 Color bar, 01 Random Data, 10 Square, 11 BLACK
-		write_cmos_sensor(0x5081, 0x00);
-		write_cmos_sensor(0x5000,(read_cmos_sensor(0x5000)&0xa1)|0x040 );
-	}
+		write_cmos_sensor(0x5000, 0xff);
+		write_cmos_sensor(0x5080, 0x00);
+	}/*No pattern*/
 
 	spin_lock(&imgsensor_drv_lock);
 	imgsensor.test_pattern = enable;

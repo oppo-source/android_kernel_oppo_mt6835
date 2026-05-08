@@ -1094,10 +1094,11 @@ EXPORT_SYMBOL_GPL(ufs_mtk_dbg_get_aee_buffer);
 static int write_irq_affinity(char *buf)
 {
 	struct ufs_hba *hba = ufshba;
+	struct ufs_mtk_host *host = ufshcd_get_variant(hba);
 	cpumask_var_t new_mask;
 	int ret;
 
-	if (hba->dev_quirks & UFS_DEVICE_QUIRK_SAMSUNG_QLC) {
+	if (host->caps & UFS_MTK_CAP_LOCAL_PROCESS) {
 		return 0;
 	}
 

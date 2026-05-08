@@ -187,7 +187,7 @@ static void gbe_do_timer2(struct work_struct *work)
 		goto out;
 
 	hlist_for_each_entry_safe(tmp_iter, h, &gbe_boost_units, hlist) {
-		if (tmp_iter->pid == iter->pid && tmp_iter->bufID == iter->bufID)
+		if (tmp_iter == iter)
 			break;
 	}
 
@@ -195,8 +195,14 @@ static void gbe_do_timer2(struct work_struct *work)
 		goto out;
 
 	if (!hlist_unhashed(&iter->hlist) && iter->state == FREE) {
-		hlist_del_init(&iter->hlist);
+		hrtimer_cancel(&iter->timer1);
+		hrtimer_cancel(&iter->timer2);
+		hlist_del(&iter->hlist);
+		mutex_unlock(&gbe_lock);
+		cancel_work_sync(&iter->work1);
+		cancel_work_sync(&iter->work2);
 		kfree(iter);
+		return;
 	} else if (iter->boost_cnt <= MAX_BOOST_CNT && check_dep_run_and_update(iter)) {
 		if (cur_ts_ms - iter->q_ts_ms > TIMER1_MS) {
 			iter->boost_cnt++;
@@ -239,6 +245,10 @@ static enum hrtimer_restart gbe_timer2_tfn(struct hrtimer *timer)
 	struct gbe_boost_unit *iter;
 
 	iter = container_of(timer, struct gbe_boost_unit, timer2);
+
+	if (READ_ONCE(iter->state) == FREE)
+		return HRTIMER_NORESTART;
+
 	schedule_work(&iter->work2);
 	return HRTIMER_NORESTART;
 }

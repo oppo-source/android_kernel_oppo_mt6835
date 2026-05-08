@@ -846,7 +846,6 @@ static struct mtk_panel_params ext_params[MODE_NUM] = {
 	.dyn_fps = {
 		.switch_en = 1,
 		.vact_timing_fps = 30,
-		.dfps_cmd_table[0] = {0, 2 , {0x2F, 0x04}},
 	},
 	.panel_bpp = 10,
 	},
@@ -1277,10 +1276,11 @@ static struct vdo_aod_params vdo_aod_on = {
 	.dst_hfp = 2100,
 	.dst_vfp = 48, //30fps
 	.mode_idx = FHD_SDC30,
-	.change_mmclk = false,
+	.change_mmclk = 1,
 	.vdo_aod_cmd_table[0]={1, {0x39} },
 	.vdo_aod_cmd_table[1]={2, {0x6F,0x04} },
 	.vdo_aod_cmd_table[2]={3, {0x51,0x0F,0xFE}},
+	.vdo_aod_cmd_table[3]={3, {0x51,0x03,0xE8}},
 };
 
 
@@ -1289,7 +1289,7 @@ static struct vdo_aod_params vdo_aod_to_120hz = {
 	.dst_hfp = 180,
 	.dst_vfp = 48,
 	.mode_idx = 0,
-	.change_mmclk = false,
+	.change_mmclk = 1,
 	.vdo_aod_cmd_table[0]={1, {0x38}},
 
 };
@@ -1299,7 +1299,7 @@ static struct vdo_aod_params vdo_aod_to_120hz_unlocking = {
 	.dst_hfp = 180,
 	.dst_vfp = 48,
 	.mode_idx = 0,
-	.change_mmclk = false,
+	.change_mmclk = 1,
 	.vdo_aod_cmd_table[0]={1, {0x38}},
 	.vdo_aod_cmd_table[1]={3, {0x51, 0x00, 0x00}},
 
@@ -1310,7 +1310,7 @@ static struct vdo_aod_params vdo_aod_to_90hz = {
 	.dst_hfp = 180,
 	.dst_vfp = 864,
 	.mode_idx = 1,
-	.change_mmclk = false,
+	.change_mmclk = 1,
 	.vdo_aod_cmd_table[0]={1, {0x38}},
 
 };
@@ -1320,7 +1320,7 @@ static struct vdo_aod_params vdo_aod_to_90hz_unlocking = {
 	.dst_hfp = 180,
 	.dst_vfp = 864,
 	.mode_idx = 1,
-	.change_mmclk = false,
+	.change_mmclk = 1,
 	.vdo_aod_cmd_table[0]={1, {0x38}},
 	.vdo_aod_cmd_table[1]={3, {0x51, 0x00, 0x00}},
 };
@@ -1330,7 +1330,7 @@ static struct vdo_aod_params vdo_aod_to_60hz = {
 	.dst_hfp = 180,
 	.dst_vfp = 2492,
 	.mode_idx = 2,
-	.change_mmclk = false,
+	.change_mmclk = 1,
 	.vdo_aod_cmd_table[0]={1, {0x38}},
 
 };
@@ -1340,7 +1340,7 @@ static struct vdo_aod_params vdo_aod_to_60hz_unlocking = {
 	.dst_hfp = 180,
 	.dst_vfp = 2492,
 	.mode_idx = 2,
-	.change_mmclk = false,
+	.change_mmclk = 1,
 	.vdo_aod_cmd_table[0]={1, {0x38}},
 	.vdo_aod_cmd_table[1]={3, {0x51, 0x00, 0x00}},
 };

@@ -185,7 +185,6 @@ static struct imgsensor_info_struct imgsensor_info = {
     .ae_shut_delay_frame = 0,        //check
     .ae_sensor_gain_delay_frame = 0,//check
     .ae_ispGain_delay_frame = 2,
-	.frame_time_delay_frame = 1,
     .ihdr_support = 0,
     .ihdr_le_firstline = 0,
     .sensor_mode_num = 8,            //support sensor mode num
@@ -198,7 +197,7 @@ static struct imgsensor_info_struct imgsensor_info = {
     .custom1_delay_frame = 3,        //enter custom1 delay frame num
     .custom2_delay_frame = 3,        //enter custom2 delay frame num
     .custom3_delay_frame = 3,        //enter custom3 delay frame num
-    .frame_time_delay_frame = 2,
+    .frame_time_delay_frame = 1,
 
     .isp_driving_current = ISP_DRIVING_4MA,
     .sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,
@@ -360,7 +359,7 @@ static struct SET_PD_BLOCK_INFO_T imgsensor_pd_info_custom2_video = {
     .i4BlockNumX = 240,
     .i4BlockNumY = 135,
     .i4Crop = { {8, 0}, {8, 0}, {8, 388}, {0, 0}, {8, 388},
-        {8, 0}, {8, 0},{128, 456} },
+        {8, 0}, {128, 456},{128, 456} },
 };
 //imgsensor_pd_info for custom3 video
 static struct SET_PD_BLOCK_INFO_T imgsensor_pd_info_custom3_video = {
@@ -874,7 +873,9 @@ static kal_uint32 return_sensor_id(void)
 static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
 {
     kal_uint8 i = 0;
+    kal_uint8 Vendorid = 0x00;
     kal_uint8 sunny_Vendorid = 0x01;
+    kal_uint8 ShineTech_Vendorid = 0x07;
     kal_uint8 retry = 2;
 
     while (imgsensor_info.i2c_addr_table[i] != 0xff) {
@@ -885,18 +886,23 @@ static kal_uint32 get_imgsensor_id(UINT32 *sensor_id)
             imgsensor_info.module_id = read_ov50d40_eeprom_module(MODULE_ID_OFFSET);
             if (sunny_Vendorid == imgsensor_info.module_id){
                 *sensor_id = return_sensor_id();
+                Vendorid = sunny_Vendorid;
                 pr_info("OV50D40 is sunny sensorid is  0x%x , imgsensor_info.module_id is 0x%x\n",*sensor_id , imgsensor_info.module_id);
+            } else if(ShineTech_Vendorid == imgsensor_info.module_id){
+                *sensor_id = return_sensor_id();
+                Vendorid = ShineTech_Vendorid;
+                pr_info("OV50D40 is ST sensorid is  0x%x , imgsensor_info.module_id is 0x%x\n",*sensor_id , imgsensor_info.module_id);
             } else {
-                pr_err("OV50D40 is not sunny sensorid is  0x%x , imgsensor_info.module_id is 0x%x\n",*sensor_id , imgsensor_info.module_id);
+                pr_err("OV50D40 is not sunny or ST, sensorid is  0x%x , imgsensor_info.module_id is 0x%x\n",*sensor_id , imgsensor_info.module_id);
                 *sensor_id = 0xFFFFFFFF;
                 return ERROR_SENSOR_CONNECT_FAIL;
             }
             if (*sensor_id == imgsensor_info.sensor_id) {
-                pr_info("[get_imgsensor_id] OV50D40 sunny Read sensor id Success, write id:0x%x, id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
+                pr_info("[get_imgsensor_id] OV50D40 Read sensor id Success, write id:0x%x, id: 0x%x\n", imgsensor.i2c_write_id, *sensor_id);
                 if(deviceInfo_register_value == 0x00) {
                     register_imgsensor_deviceinfo("Cam_r", DEVICE_VERSION, imgsensor_info.module_id);
                     read_ov50d40_module_data();
-                    deviceInfo_register_value = 0x01;
+                    deviceInfo_register_value = Vendorid;
                 }
                 if (otp_data[0] == 0) {
                     read_otp_info(otp_data);

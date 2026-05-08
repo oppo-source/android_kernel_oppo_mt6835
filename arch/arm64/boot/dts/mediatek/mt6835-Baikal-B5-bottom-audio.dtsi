@@ -62,7 +62,16 @@
 };
 
 &accdet{
-	eint_use_ext_res = <1>;
+	eint_use_ext_res = <0>;
+	moisture_detect_enable = <1>;
+	eint_detect_mode = <5>;
+	moisture_detect_mode = <5>;
+	moisture_comp_vth = <2>;
+	moisture_comp_vref2 = <2>;
+	moisture_use_ext_res = <0>;
+	moisture-external-r = <2000000>;
+	moisture-internal-r = <47000>;
+	moisture-water-r = <10000>;
 	headset-eint-trig-mode = <2>;
 	headset-three-key-threshold = <0 82 170 306>;
 };

@@ -165,7 +165,7 @@ static const unsigned char *baikalb5_torch_level;
 static const unsigned char *baikalb5_flash_level;
 
 static const int sc6607_current[BAIKALB5_LEVEL_NUM] = {
-    25,   50,   75,   100,  125,  138,  175,  188,  250,  300,
+    25,   50,   75,   100,  125,  150,  162,  200,  250,  300,
     350,  400,  450,  500,  550,  600,  650,  700,  750,  800,
     850,  900,  950,  1000, 1050, 1100, 1150, 1200
 };
@@ -174,7 +174,7 @@ static const int sc6607_current[BAIKALB5_LEVEL_NUM] = {
 Step:12.5mA
 Range: 25mA(b0000000)~500mA(b0100110~b1111111)*/
 static const unsigned char sc6607_torch_level[BAIKALB5_LEVEL_NUM] = {
-    0x00, 0x02, 0x04, 0x06, 0x08, 0x09, 0x0B, 0x0D, 0x12, 0x16,
+    0x00, 0x02, 0x04, 0x06, 0x08, 0x0A, 0x0B, 0x0E, 0x12, 0x16,
     0x1A, 0x1E, 0x22, 0x26, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
@@ -183,7 +183,7 @@ static const unsigned char sc6607_torch_level[BAIKALB5_LEVEL_NUM] = {
 Step:12.5mA
 Range: 25mA(b0000000)~1.5A(b1110110~b1111111)*/
 static const unsigned char sc6607_flash_level[BAIKALB5_LEVEL_NUM] = {
-    0x00, 0x02, 0x04, 0x06, 0x08, 0x0A, 0x0C, 0x0E, 0x12, 0x16,
+    0x00, 0x02, 0x04, 0x06, 0x08, 0x0A, 0x0B, 0x0E, 0x12, 0x16,
     0x1A, 0x1E, 0x22, 0x26, 0x2A, 0x2E, 0x32, 0x36, 0x3A, 0x3E,
     0x42, 0x46, 0x4A, 0x4E, 0x52, 0x56, 0x5A, 0x5E
 };
@@ -227,7 +227,7 @@ static int baikalb5_enable_ch1(void)
         if (baikalb5_charge_enable == 0){
             oplus_chg_set_camera_on(1);
             baikalb5_charge_enable = 1;
-            pr_info("set charge_enable 1");
+            pr_info("set charge_enable 1 ");
         }
         baikalb5_reg_enable = BAIKALB5_ENABLE_LED1_FLASH;
     }
@@ -573,6 +573,10 @@ static int baikalb5_release(void)
 
     pr_info("Release: %d\n", use_count);
 */
+    baikalb5_disable(BAIKALB5_CHANNEL_CH1);
+    baikalb5_timer_cancel(BAIKALB5_CHANNEL_CH1);
+    baikalb5_disable(BAIKALB5_CHANNEL_CH2);
+    baikalb5_timer_cancel(BAIKALB5_CHANNEL_CH2);
     return 0;
 }
 
@@ -722,7 +726,9 @@ static int baikalb5_i2c_probe(struct i2c_client *client, const struct i2c_device
     curProject = (is_project(24095) || is_project(24096) || is_project(24097) ||
                   is_project(24098) || is_project(24363) || is_project(24364) ||
                   is_project(24367) || is_project(24094) || is_project(24365) ||
-                  is_project(24362));
+                  is_project(24362) || is_project(24360) || is_project(24093) ||
+                  is_project(24099) || is_project(24370) || is_project(24090) ||
+                  is_project(24101));
 
     if (!curProject) {
         err = -ENODEV;

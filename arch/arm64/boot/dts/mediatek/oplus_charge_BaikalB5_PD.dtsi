@@ -63,7 +63,7 @@
 			pd,source-pdo-size = <1>;
 			pd,source-pdo-data = <0x00019064>;
 			pd,sink-pdo-size = <3>;
-			pd,sink-pdo-data = <0x360190c8 0x0002d096 0xc0dc3264>;
+			pd,sink-pdo-data = <0x360190c8 0x0002d096 0xc0dc3252>;
 
 			/*
 			* No DP, host + device
@@ -77,7 +77,7 @@
 			*/
 
 			pd,id-vdo-size = <6>;
-			pd,id-vdo-data = <0xd14029cf 0x0 0x17110000
+			pd,id-vdo-data = <0xd140311c 0x0 0x66000000
 					0x41800000 0x0 0x21800000>;
 
 			bat,nr = <1>;

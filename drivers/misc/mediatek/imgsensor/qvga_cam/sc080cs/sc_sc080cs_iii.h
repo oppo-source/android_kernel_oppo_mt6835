@@ -17,6 +17,7 @@ struct qvga {
 	bool avdd_powered;
 	struct i2c_client *i2c_client;
 	struct device *dev;
+	unsigned short sensor_id;
 };
 
 /********************************************

@@ -7711,11 +7711,20 @@ static int ufs_get_device_desc(struct ufs_hba *hba)
 
 		ufshpb_get_dev_info(hba, desc_buf);
 
-		if (!ufshpb_is_legacy(hba))
+		if (!ufshpb_is_legacy(hba)) {
 			err = ufshcd_query_flag_retry(hba,
 						      UPIU_QUERY_OPCODE_READ_FLAG,
 						      QUERY_FLAG_IDN_HPB_EN, 0,
 						      &hpb_en);
+			if (!err && hpb_en) {
+				err = ufshcd_query_flag_retry(hba,
+								UPIU_QUERY_OPCODE_CLEAR_FLAG,
+								QUERY_FLAG_IDN_HPB_EN, 0,
+								NULL);
+				if (err)
+					pr_err("%s: HPB Flag clear failed!", __func__);
+			}
+		}
 
 		if (ufshpb_is_legacy(hba) || (!err && hpb_en))
 			dev_info->hpb_enabled = true;

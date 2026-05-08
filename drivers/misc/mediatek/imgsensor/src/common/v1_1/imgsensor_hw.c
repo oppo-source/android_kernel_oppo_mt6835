@@ -297,8 +297,10 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
                          }
                     }
                 } else if (is_project(24094) || is_project(24095) || is_project(24096) ||
-                is_project(24097) || is_project(24098) || is_project(24361) || is_project(24362) || is_project(24363) ||
-                is_project(24364) || is_project(24365) || is_project(24366) || is_project(24367)) {
+                        is_project(24097) || is_project(24098) || is_project(24361) || is_project(24362) ||
+                        is_project(24363) || is_project(24364) || is_project(24365) || is_project(24366) ||
+                        is_project(24367) || is_project(24360) || is_project(24369) || is_project(24093) ||
+                        is_project(24099) || is_project(24370) || is_project(24090) || is_project(24101)) {
                     if (ppwr_info->pin == IMGSENSOR_HW_PIN_DVDD && (sensor_idx == 0)) {
                         aw37004_camera_power_up(OUT_DVDD1, 1224);
                     } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_DVDD && (sensor_idx == 1)) {
@@ -323,10 +325,6 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
                             ppwr_info->pin_state_on,
                             ppwr_info->pin_on_delay);
 
-                            if (ppwr_info->pin == IMGSENSOR_HW_PIN_DOVDD) {
-                                dovdd_flag ++;
-                                PK_PR_ERR("dovdd_flag = %d\n",dovdd_flag);
-                            }
                             if (pdev->set != NULL)
                                 pdev->set(
                                     pdev->pinstance,
@@ -727,8 +725,10 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
                         }
                     }
                 } else if (is_project(24094) || is_project(24095) || is_project(24096) ||
-                is_project(24097) || is_project(24098) || is_project(24361) || is_project(24362) || is_project(24363) ||
-                is_project(24364) || is_project(24365) || is_project(24366) || is_project(24367)) {
+                        is_project(24097) || is_project(24098) || is_project(24361) || is_project(24362) ||
+                        is_project(24363) || is_project(24364) || is_project(24365) || is_project(24366) ||
+                        is_project(24367) || is_project(24360) || is_project(24369) || is_project(24093) ||
+                        is_project(24099) || is_project(24370) || is_project(24090) || is_project(24101)) {
                     if (ppwr_info->pin == IMGSENSOR_HW_PIN_DVDD && (sensor_idx == 0)){
                         aw37004_camera_power_down(OUT_DVDD1);
                     } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_DVDD && (sensor_idx == 1)){
@@ -753,26 +753,12 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
                                 ppwr_info->pin_state_off,
                                 ppwr_info->pin_on_delay);
 
-                            if (ppwr_info->pin == IMGSENSOR_HW_PIN_DOVDD) {
-                                if (dovdd_flag > 1) {
-                                    PK_PR_ERR("dovdd_flag = %d do not power down\n",dovdd_flag);
-                                } else {
-                                    if (pdev->set != NULL)
-                                        pdev->set(
-                                            pdev->pinstance,
-                                            sensor_idx,
-                                            ppwr_info->pin,
-                                            ppwr_info->pin_state_off);
-                                }
-                                dovdd_flag --;
-                            } else {
-                                if (pdev->set != NULL)
-                                    pdev->set(
-                                        pdev->pinstance,
-                                        sensor_idx,
-                                        ppwr_info->pin,
-                                        ppwr_info->pin_state_off);
-                            }
+                            if (pdev->set != NULL)
+                                pdev->set(
+                                    pdev->pinstance,
+                                    sensor_idx,
+                                    ppwr_info->pin,
+                                    ppwr_info->pin_state_off);
                         }
                     }
                 } else if (is_project(24312) || is_project(24313) || is_project(24314) || is_project(24315) || is_project(24316) || is_project(24317) ||

@@ -142,7 +142,6 @@ static int sc080cs_i2c_read(struct qvga *sc080cs, int address, unsigned char *rx
 
 	while (retry > 0) {
 		ret = i2c_transfer(client->adapter, msgs, 2);
-		qvga_dev_err(&client->dev, "%s: read step1 ret:%d  msgs[1].addr=%x\n", __func__, ret, msgs[1].addr);
 		if (retry > 0)
 		{
 			mdelay(20);
@@ -467,9 +466,9 @@ int sc080cs_GetSensorID(struct qvga *sc080cs)
         sc080cs_i2c_read(sc080cs, 0x3107, &msb);
         sc080cs_i2c_read(sc080cs, 0x3108, &lsb);
         reg_data = (msb << 8) | lsb;
-		qvga_dev_err(sc080cs->dev, "drv-%s: Read MSB Sensor ID = 0x%x\n", __func__, reg_data);
 		if (reg_data == SC080CS_SENSOR_ID) {
-			qvga_dev_err(sc080cs->dev, "drv-%s: Read Sensor ID sucess = 0x%x\n", __func__, reg_data);
+			sc080cs->sensor_id = reg_data;
+			qvga_dev_err(sc080cs->dev, "drv-%s: Read Sensor ID sucess = 0x%x\n", __func__, sc080cs->sensor_id);
 			driver_flag = 1;
 			return 0;
 		} else {
@@ -490,9 +489,9 @@ int sp0821_GetSensorID(struct qvga *sp0821)
 
 	do {
 		len = sp0821_i2c_read(sp0821, 0x02, &reg_data);
-		qvga_dev_err(sp0821->dev, "drv-%s: Read MSB Sensor ID sucess = 0x%02x\n", __func__, reg_data);
 		if (reg_data == SP0821_SENSOR_ID) {
-			qvga_dev_err(sp0821->dev, "drv-%s: Read Sensor ID sucess = 0x%02x\n", __func__, reg_data);
+			sp0821->sensor_id = reg_data;
+			qvga_dev_err(sp0821->dev, "drv-%s: Read Sensor ID sucess = 0x%02x\n", __func__, sp0821->sensor_id);
 			driver_flag = 1;
 			return 0;
 		} else {
@@ -510,22 +509,19 @@ static ssize_t qvga_get_name(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	ssize_t len = 0;
-	pr_err("get_name entry");
 
 	if (driver_flag) {
 		if (qvga_sensor_info == QVGA_SENSOR_SC080CS) {
-			len += snprintf(buf + len, PAGE_SIZE - len, "%s\n",
-					"sc080cs");
-			pr_err("get_name :【sc080cs】【len:%d】",len);
+			len += snprintf(buf + len, PAGE_SIZE - len, "%s\n", "sc080cs");
+			pr_err("sensor name: sc080cs, len: %d",len);
 		} else if (qvga_sensor_info == QVGA_SENSOR_SP0821){
-			len += snprintf(buf + len, PAGE_SIZE - len, "%s\n",
-					"sp0821");
-			pr_err("get_name :【sp0821】【len:%d】",len);
+			len += snprintf(buf + len, PAGE_SIZE - len, "%s\n", "sp0821");
+			pr_err("sensor name: sp0821, len: %d",len);
 		}
 	} else {
 		len += snprintf(buf + len, PAGE_SIZE - len, "%s\n",
 				"none");
-		pr_err("get_name 【none】【len:%d】",len);
+		pr_err("sensor name: none, len: %d",len);
 	}
 
 	return len;
@@ -609,7 +605,6 @@ static ssize_t qvga_get_light(struct device *dev,
 	//sc080cs_i2c_read(qvga, 0x516b, &reg_data2);
 	//light = (reg_data1<<8) + reg_data2;
 	light = reg_data1;
-	qvga_dev_err(qvga->dev, "%s: qvga light=%d\n",   __func__, light);
 	len += snprintf(buf + len, PAGE_SIZE - len, "%d\n",
 			light);
 
@@ -622,7 +617,6 @@ static ssize_t qvga_set_light(struct device *dev,
 {
     ssize_t ret;
     unsigned int state;
-    static bool first_run = true;
 
     ret = kstrtouint(buf, 10, &state);
     if (ret) {
@@ -640,41 +634,6 @@ static ssize_t qvga_set_light(struct device *dev,
 		}
 		seninf_clk_set_open(0, SENSOR_IDX);
     } else {
-    	if (first_run) {
-    	    first_run = false;
-
-    	    seninf_clk_set_open(1, SENSOR_IDX);
-    	    qvga_sensor_open("qvga_sensor_sc080cs", SENSOR_IDX, 1);
-    	    qvga_dev_err(qvga->dev, "%s: sc080cs_i2c_addr:0x%x】\n", __func__,qvga->i2c_client->addr);
-    	    ret = sc080cs_GetSensorID(qvga);
-    	    if (ret < 0) {
-    	        qvga_sensor_open("qvga_sensor_sc080cs", SENSOR_IDX, 0);
-
-    	        qvga_dev_err(qvga->dev,"%s: sc080cs read sensor id failed ret=%d\n", __func__, ret);
-    	        qvga_sensor_open("qvga_sensor_sp0821", SENSOR_IDX, 1);
-    	        qvga->i2c_client->addr = 0x43;
-    	        qvga_dev_err(qvga->dev, "%s: sp0821_i2c_addr:0x%x】\n", __func__,qvga->i2c_client->addr);
-    	        ret = sp0821_GetSensorID(qvga);
-    	        if (ret < 0) {
-    	            qvga_dev_err(qvga->dev,"%s: sp0821 read sensor id failed ret=%d\n", __func__, ret);
-    	            qvga_sensor_open("qvga_sensor_sp0821_powerdown", SENSOR_IDX, 0);
-    	            seninf_clk_set_open(0, SENSOR_IDX);
-    	        } else {
-    	            qvga_sensor_info = QVGA_SENSOR_SP0821;
-    	            udelay(4000);
-    	            sp0821_Init(qvga);
-    	            qvga_dev_err(qvga->dev,"%s: sp0821 read sensor id success ret=%d\n", __func__, ret);
-    	            return len;
-    	        }
-    	    } else {
-    	        qvga_sensor_info = QVGA_SENSOR_SC080CS;
-    	        udelay(4000);
-    	    	sc080cs_Init(qvga);
-    	        qvga_dev_err(qvga->dev,"%s: sc080cs read sensor id success ret=%d\n", __func__, ret);
-    	        return len;
-    	    }
-    	}
-
     	if (qvga_sensor_info == QVGA_SENSOR_SC080CS) {
     	    qvga_dev_err(qvga->dev, "%s: sc080cs_power on, %d\n", __func__, state);
     	    seninf_clk_set_open(1, SENSOR_IDX);
@@ -742,24 +701,48 @@ static int qvga_i2c_probe(struct i2c_client *client,
 	qvga->dev = &client->dev;
 	i2c_set_clientdata(client, qvga);
 
-	qvga_class = class_create(THIS_MODULE, "qvga_cam");
-	if (IS_ERR(qvga_class)) {
-		ret = PTR_ERR(qvga_class);
-		pr_err("Failed to create class: %d\n", ret);
-		goto err_class_create;
-	}
-
-	dev = device_create(qvga_class, NULL, client->dev.devt, NULL, "qvga_depth");
-	if (IS_ERR(dev)) {
-		ret = PTR_ERR(dev);
-		pr_err("Failed to create device: %d\n", ret);
-		goto err_device_create;
-	}
-
-	ret = sysfs_create_group(&dev->kobj, &qvga_attribute_group);
+	seninf_clk_set_open(1, SENSOR_IDX);
+	qvga_sensor_open("qvga_sensor_sc080cs", SENSOR_IDX, 1);
+	ret = sc080cs_GetSensorID(qvga);
 	if (ret < 0) {
-		pr_err("Failed to create sysfs group: %d\n", ret);
-		goto err_sysfs_group;
+		qvga_sensor_open("qvga_sensor_sc080cs", SENSOR_IDX, 0);
+		qvga_dev_err(qvga->dev,"%s: sc080cs read sensor id failed ret=%d\n", __func__, ret);
+		qvga_sensor_open("qvga_sensor_sp0821", SENSOR_IDX, 1);
+		qvga->i2c_client->addr = 0x43;
+		ret = sp0821_GetSensorID(qvga);
+		if (ret < 0) {
+			qvga_dev_err(qvga->dev,"%s: sp0821 read sensor id failed ret=%d\n", __func__, ret);
+			qvga_sensor_open("qvga_sensor_sp0821_powerdown", SENSOR_IDX, 0);
+		} else {
+			qvga_sensor_info = QVGA_SENSOR_SP0821;
+			qvga_sensor_open("qvga_sensor_sp0821_powerdown", SENSOR_IDX, 0);
+		}
+	} else {
+		qvga_sensor_info = QVGA_SENSOR_SC080CS;
+		qvga_sensor_open("qvga_sensor_sc080cs", SENSOR_IDX, 0);
+	}
+	seninf_clk_set_open(0, SENSOR_IDX);
+
+	if(qvga->sensor_id == SC080CS_SENSOR_ID || qvga->sensor_id == SP0821_SENSOR_ID) {
+		qvga_class = class_create(THIS_MODULE, "qvga_cam");
+		if (IS_ERR(qvga_class)) {
+			ret = PTR_ERR(qvga_class);
+			pr_err("Failed to create class: %d\n", ret);
+			goto err_class_create;
+		}
+
+		dev = device_create(qvga_class, NULL, client->dev.devt, NULL, "qvga_depth");
+		if (IS_ERR(dev)) {
+			ret = PTR_ERR(dev);
+			pr_err("Failed to create device: %d\n", ret);
+			goto err_device_create;
+		}
+
+		ret = sysfs_create_group(&dev->kobj, &qvga_attribute_group);
+		if (ret < 0) {
+			pr_err("Failed to create sysfs group: %d\n", ret);
+			goto err_sysfs_group;
+		}
 	}
 
 	return 0;

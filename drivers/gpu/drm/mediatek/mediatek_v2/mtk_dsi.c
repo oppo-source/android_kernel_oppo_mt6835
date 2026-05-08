@@ -5164,7 +5164,7 @@ int mtk_dsi_esd_cmp(struct mtk_ddp_comp *comp, void *handle, void *ptr)
 
 		for (j = 0; j < lcm_esd_tb->count && j < 4; j++) {
 #ifdef OPLUS_FEATURE_DISPLAY
-			if(strstr(params->vendor,"A0032") && strstr(params->manufacture,"P_D")  && (i == 0))
+			if(strstr(params->vendor,"A0032") && strstr(params->manufacture,"P_D_2")  && (i == 0))
 			{
 				esd_value_current = chk_val[j];
 
@@ -10093,6 +10093,7 @@ static void mtk_dsi_vdo_aod_ctrl(struct mtk_dsi *dsi,
 	DDPMSG("%s+\n", __func__);
 	if (!vdo_aod_cfg) {
 		DDPPR_ERR("vdo_aod_cfg is NULL\n");
+		return;
 	} else {
 		DDPINFO("aod_en:%d, wfe_cmd_eof:%d, need_dsi_trigger:%d \n",
 		vdo_aod_cfg->aod_en, vdo_aod_cfg->wfe_cmd_eof, vdo_aod_cfg->need_dsi_trigger);

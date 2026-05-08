@@ -118,6 +118,7 @@
 	headset-three-key-threshold = <0 82 170 306>;
 	hp-eint0-disable = <1>;
 	headset-eint0-disable = <1>;
+	hp-plug-in-check = <1>;
 };
 
 &speech_usip_mem{

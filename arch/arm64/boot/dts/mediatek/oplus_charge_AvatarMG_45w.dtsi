@@ -357,6 +357,8 @@
 	oplus,poweroff_emergency_batt_temp = <770>;
 	oplus,usbtemp_batt_temp_over_hot = <60>;
 	oplus,usbtemp_temp_gap_with_batt_temp_in_over_hot = <15>;
+
+	oplus,batt_full_time = <60>;
 };
 
 &lk_charger {

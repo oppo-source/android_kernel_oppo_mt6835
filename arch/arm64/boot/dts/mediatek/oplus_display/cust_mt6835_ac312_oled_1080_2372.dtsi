@@ -113,7 +113,7 @@
     status = "okay";
     #address-cells = <1>;
     #size-cells = <0>;
-    panel23@22 {
+    panel24@23 {
         compatible = "ac312,p,3,a0025,dsi,vdo";
         reg = <0>;
         reset-gpios = <&pio 86 0>;

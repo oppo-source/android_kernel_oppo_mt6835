@@ -276,6 +276,8 @@
 };
 
 &lk_charger {
+	support_chg_time_cnt;
+	support_icl_optimization;
 	en_vol_ctrl_vibrate = <3200>;
 	support_tuv_authentication;
 	support_maxim_battery_authentication;
@@ -374,11 +376,12 @@
 		compatible = "oplus,monitor";
 		oplus,topic-update-interval = <60000>;
 
-		track,fast_chg_break_t_thd = <1000>;
+		track,fast_chg_break_t_thd = <2500>;
 		track,general_chg_break_t_thd = <200>;
 		track,voocphy_type = <3>;
 		track,wired_max_power = <80000>;
 		track,wired_fast_chg_scheme = <2>;
+		track,track_ver = <TRACK_VER_4_0>;
 	};
 
 	mt6375_gauge: mt6375_chg {
@@ -692,6 +695,7 @@
 		oplus_spec,usbtemp_cool_down_recover_ntc_high = <60>;
 		oplus_spec,usbtemp_cool_down_recover_gap_low = <6>;
 		oplus_spec,usbtemp_cool_down_recover_gap_high = <15>;
+
 		oplus_virtual_buck: oplus,virtual_buck {
 			compatible = "oplus,virtual_buck";
 			oplus,buck_ic = <&oplus_sc6607_buck &oplus_pd_manager &charger>;
@@ -722,6 +726,10 @@
 		oplus,gauge_ic = <&oplus_virtual_gauge>;
 		oplus,topic-update-interval = <10000>;
 		oplus,support_subboard_ntc;
+		oplus,fcl_support;
+		oplus,fcl_index = <1>;
+		oplus,vb_offset = <0>;
+
 		oplus_virtual_gauge: oplus,virtual_gauge {
 			compatible = "oplus,virtual_gauge";
 			oplus,gauge_ic = <&mt6375_gauge &oplus_mt6895_gauge &maxim_encryption_gauge>;
@@ -836,6 +844,7 @@
 		oplus,gauge_stuck_jump_support;
 		oplus,gauge_stuck_threshold = <15>;
 		oplus,gauge_stuck_time = <50>;
+		oplus_spec,batt_full_time = <300>;
 	};
 
 	oplus_vooc: oplus,vooc {
@@ -1084,8 +1093,8 @@
 		oplus_spec,vooc_strategy1_low_current0 = <80>;
 
 		oplus_spec,voocphy_freq_mincore = <2000000>;
-		oplus_spec,voocphy_freq_midcore = <2000000>;
-		oplus_spec,voocphy_freq_maxcore = <2200000>;
+		oplus_spec,voocphy_freq_midcore = <2200000>;
+		oplus_spec,voocphy_freq_maxcore = <2400000>;
 		oplus_spec,voocphy_current_change_timeout = <100>;
 
 		svooc_batt_sys_curve = <0 1 0 1 0 0 0	// 4000mA

@@ -78,6 +78,23 @@ static struct wl2866d_ldomap ldolist_dongfeng[] = {
     //{IMGSENSOR_SENSOR_IDX_MAIN2, DOVDD, MT6377_VTP_DOVDD}, // mt6377 pmu vtp for 2m dovdd
 };
 
+static struct wl2866d_ldomap ldolist_chopardb[] = {
+    //main 50M
+    {IMGSENSOR_SENSOR_IDX_MAIN, AVDD, MAIN_AVDD1}, //BackMain AVDD
+    {IMGSENSOR_SENSOR_IDX_MAIN, DVDD, MAIN_DVDD1}, //BackMain DVDD
+    //{IMGSENSOR_SENSOR_IDX_MAIN, DOVDD, MAIN_DOVDD}, //BackMain DOVDD
+    {IMGSENSOR_SENSOR_IDX_MAIN, AFVDD, FRONT_AVDD2}, //BackMain AFVDD
+
+    //front 16M
+    {IMGSENSOR_SENSOR_IDX_SUB, AVDD, MAIN_AVDD1}, //FrontMain AVDD
+    {IMGSENSOR_SENSOR_IDX_SUB, DVDD, FRONT_DVDD2}, //FrontMain DVDD
+    //{IMGSENSOR_SENSOR_IDX_SUB, DOVDD, MT6377_VTP_DOVDD}, // mt6377 pmu vtp for frontcam dovdd
+
+	 //mono 2M
+    {IMGSENSOR_SENSOR_IDX_MAIN2, AVDD, MAIN_AVDD1}, //BackMono AVDD
+    //{IMGSENSOR_SENSOR_IDX_MAIN2, DVDD, FRONT_DVDD2}, // mt6377 pmu vtp for 2m dovdd
+};
+
 static struct wl2866d_ldomap ldolist_chopard[] = {
     //main 50M
     {IMGSENSOR_SENSOR_IDX_MAIN, AVDD, MAIN_AVDD1}, //BackMain AVDD
@@ -193,8 +210,15 @@ static enum IMGSENSOR_RETURN wl2866d_hw_set(
                break;
             }
         }
-    } else if (is_project(25604) || is_project(25668) || is_project(25669) || is_project(25678) || is_project(25679) ||
-        is_project(25617) || is_project(25716) || is_project(25717) || is_project(25719)) {
+    } else if (is_project(25617) || is_project(25716) || is_project(25717) || is_project(25719)) {
+        for(i = 0; i < (sizeof(ldolist_chopardb) / sizeof(ldolist_chopardb[0])); i++) {
+            if(sensor_idx == ldolist_chopardb[i].sensor_index && pin == ldolist_chopardb[i].seq_type) {
+               ldonum = ldolist_chopardb[i].ldo_selected;
+               WL2866D_PRINT("[wl2866d_hw] %s sensor %d, seq_type = %d matched ldo %d\n", __FUNCTION__, sensor_idx, pin, ldonum + 1);
+               break;
+            }
+        }
+    } else if (is_project(25604) || is_project(25668) || is_project(25669) || is_project(25678) || is_project(25679)) {
         for(i = 0; i < (sizeof(ldolist_chopard) / sizeof(ldolist_chopard[0])); i++) {
             if(sensor_idx == ldolist_chopard[i].sensor_index && pin == ldolist_chopard[i].seq_type) {
                ldonum = ldolist_chopard[i].ldo_selected;

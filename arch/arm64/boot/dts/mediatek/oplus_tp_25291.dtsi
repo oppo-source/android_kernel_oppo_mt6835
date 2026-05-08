@@ -58,7 +58,7 @@
         report_flow_unlock_support;
         fingerprint_underscreen_support;
         pressure_report_support;
-        report_rate_white_list_support;
+        //report_rate_white_list_support;
         auto_test_force_pass_support;
         snr_read_support;
         screenoff_fingerprint_info_support;
@@ -78,6 +78,7 @@
         fingerprint_not_report_in_suspend;
         fingerprint_error_report_support;
         idle_freq_support;
+        report_rate_v2_support;
         touchpanel,button-type = <4>;
         touchpanel.button-TRx = <0 0>;
     };

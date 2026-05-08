@@ -93,6 +93,12 @@ mtk_printk_ctrl.disable_uart=0";
 		flavor-bin = "flip";
 	};
 	/** #endif **/
+
+	//#ifdef CONFIG_OPLUS_BINDER_STRATEGY
+	oplus_binder_sched {
+		thread_full_boost_task = <1>;
+	};
+	//#endif
 };
 
 &connv3 {

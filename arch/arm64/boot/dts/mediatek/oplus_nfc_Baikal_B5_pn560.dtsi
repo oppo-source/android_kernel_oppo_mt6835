@@ -8,6 +8,8 @@
 		chipset-24098 = "PN560";
                 chipset-24364 = "PN560";
                 chipset-24366 = "PN560";
+                chipset-24360 = "PN560";
+                chipset-24369 = "PN560";
 	};
 };
 

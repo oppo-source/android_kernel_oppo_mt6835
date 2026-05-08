@@ -696,8 +696,6 @@
 #define SENSOR_ID_OFFSET_BAIKALB5                         0x13
 #define OV50D40_SENSOR_ID_BAIKALB5                        (0x565044 + SENSOR_ID_OFFSET_BAIKALB5)
 #define SENSOR_DRVNAME_OV50D40_MIPI_RAW_BAIKALB5          "ov50d40_mipi_raw_baikalb5"
-#define OV50D40_ST_SENSOR_ID_BAIKALB5                     (0x565044 + 0xb5 + SENSOR_ID_OFFSET_BAIKALB5)
-#define SENSOR_DRVNAME_OV50D40_ST_MIPI_RAW_BAIKALB5       "ov50d40_st_mipi_raw_baikalb5"
 #define IMX480_SENSOR_ID_BAIKALB5                         (0x0471 + SENSOR_ID_OFFSET_BAIKALB5)
 #define SENSOR_DRVNAME_IMX480_MIPI_RAW_BAIKALB5           "imx480_mipi_raw_baikalb5"
 #define OV13B10_SENSOR_ID_BAIKALB5                        (0x560d42 + SENSOR_ID_OFFSET_BAIKALB5)

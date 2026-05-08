@@ -373,10 +373,11 @@ int flashlight_dev_register(
 		flashlight_id = flashlight_id_cl5;
 		flashlight_device_num = 1;
 	} else if (is_project(24095) || is_project(24096) || is_project(24097) || is_project(24098) || is_project(24363) ||
-			is_project(24364) || is_project(24367) || is_project(24094) || is_project(24365) || is_project(24362)) {
+			is_project(24364) || is_project(24367) || is_project(24094) || is_project(24365) || is_project(24362) || is_project(24360) ||
+			is_project(24093) || is_project(24099) || is_project(24370) || is_project(24090) || is_project(24101)) {
 		flashlight_id = flashlight_id_baikalb5;
 		flashlight_device_num = 1;
-	} else if (is_project(24366) || is_project(24361) || is_project(24368)) {
+	} else if (is_project(24366) || is_project(24361) || is_project(24368) || is_project(24369)) {
 		flashlight_id = flashlight_id_baikalb5_aw36410;
 		flashlight_device_num = 1;
 	} else if (is_project(24053) || is_project(24054) || is_project(24311) || is_project(24312) || is_project(24313) ||

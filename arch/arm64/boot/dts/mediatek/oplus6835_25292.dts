@@ -16,7 +16,7 @@
 #include "mediatek/oplus_tp_25291.dtsi"
 /* #ifdef OPLUS_FEATURE_CHG_BASIC */
 /* Add for CruiserL5 charge device-tree */
-#include "mediatek/oplus_charge_CruiserL5_25291_export_7000mah.dtsi"
+#include "mediatek/oplus_charge_CruiserL5_25292_export_7000mah.dtsi"
 /* #endif */
 
 /* Add for CruiserL5 Fingerprint device-tree */

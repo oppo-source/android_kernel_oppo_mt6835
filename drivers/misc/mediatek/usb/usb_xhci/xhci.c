@@ -1002,8 +1002,15 @@ int xhci_suspend_(struct xhci_hcd *xhci, bool do_wakeup)
 	xhci_disable_hub_port_wake(xhci, &xhci->usb3_rhub, do_wakeup);
 	xhci_disable_hub_port_wake(xhci, &xhci->usb2_rhub, do_wakeup);
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	if (!HCD_HW_ACCESSIBLE(hcd)) {
+		xhci_warn(xhci, "WARN: Can't queue urb, !HCD_HW_ACCESSIBLE\n");
+		return 0;
+	}
+#else
 	if (!HCD_HW_ACCESSIBLE(hcd))
 		return 0;
+#endif
 
 	xhci_dbc_suspend(xhci);
 

@@ -258,6 +258,7 @@
 		oplus,chg_spec_version = <OPLUS_CHG_SPEC_VER_V3P7>;
 		oplus,eco_region_list = /bits/ 8 <0x44 0x8D 0x83>;
 		oplus,smart_charging_screenoff;
+		oplus,common-charge-icl-support;
 
 		oplus-charger {
 			sgm41515d_groups: oplus,sgm41515d-groups {
@@ -615,6 +616,8 @@
 
 		oplus,smooth_switch;
 		oplus,reserve_chg_soc = <2>;
+
+		oplus_spec,batt_full_time = <300>;
 	};
 
 	oplus_cpa: oplus,cpa {
