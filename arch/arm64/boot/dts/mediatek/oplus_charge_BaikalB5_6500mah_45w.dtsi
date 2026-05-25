@@ -260,11 +260,12 @@
 		compatible = "oplus,monitor";
 		oplus,topic-update-interval = <60000>;
 
-		track,fast_chg_break_t_thd = <1000>;
+		track,fast_chg_break_t_thd = <2500>;
 		track,general_chg_break_t_thd = <200>;
 		track,voocphy_type = <2>;
 		track,wired_max_power = <45000>;
 		track,wired_fast_chg_scheme = <2>;
+		track,track_ver = <TRACK_VER_4_0>;
 	};
 
 	mt6375_gauge: mt6375_chg {
@@ -590,22 +591,22 @@
 			13500		/* OPLUS_WIRED_CHG_MODE_QC */
 			13500		/* OPLUS_WIRED_CHG_MODE_PD */
 		>;
-		oplus_spec,led_on-fccmax-ma = <0 1707 3300 3300 3300 3300 3300 1000 0>;
+		oplus_spec,led_on-fccmax-ma = <0 950 2850 3300 3300 3300 3300 1000 0>;
 		oplus_spec,fccmax-ma-lv = <
-			0 1200 2200 2200 2200 2200 2200 2200 0	/* OPLUS_WIRED_CHG_MODE_UNKNOWN */
-			0 600  600  600  600  600  600  600  0	/* OPLUS_WIRED_CHG_MODE_SDP */
+			0 950 2200 2200 2200 2200 2200 2200 0	/* OPLUS_WIRED_CHG_MODE_UNKNOWN */
+			0 600 600  600  600  600  600  600  0	/* OPLUS_WIRED_CHG_MODE_SDP */
 			0 950 1600 1600 1600 1600 1600 1600 0	/* OPLUS_WIRED_CHG_MODE_CDP */
 			0 950 2200 2200 2200 2200 2200 2200 0	/* OPLUS_WIRED_CHG_MODE_DCP */
-			0 1707 3300 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_VOOC */
+			0 950 2850 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_VOOC */
 			0 950 2850 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_QC */
 			0 950 2850 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_PD */
 		>;
 		oplus_spec,fccmax-ma-hv = <
-			0 1200 2200 2200 2200 2200 2200 2200 0	/* OPLUS_WIRED_CHG_MODE_UNKNOWN */
-			0 600  600  600  600  600  600  600  0	/* OPLUS_WIRED_CHG_MODE_SDP */
+			0 950 1583 2200 2200 2200 2200 2200 0	/* OPLUS_WIRED_CHG_MODE_UNKNOWN */
+			0 600 600  600  600  600  600  600  0	/* OPLUS_WIRED_CHG_MODE_SDP */
 			0 950 1583 1600 1600 1600 1600 1600 0	/* OPLUS_WIRED_CHG_MODE_CDP */
 			0 950 1583 2200 2200 2200 2200 2200 0	/* OPLUS_WIRED_CHG_MODE_DCP */
-			0 1707 3300 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_VOOC */
+			0 950 1583 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_VOOC */
 			0 950 1583 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_QC */
 			0 950 1583 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_PD */
 		>;
@@ -646,7 +647,7 @@
 		oplus_spec,non-standard-hw-fv-inc-mv = <18>;
 		oplus_spec,non-standard-sw-over-fv-mv = <3990>;
 		oplus_spec,non-standard-vbatdet-mv = <3680>;
-		oplus_spec,wired-vbatdet-mv = <0 4190 4290 4390 4390 4390 4370 4030 0>;
+		oplus_spec,wired-vbatdet-mv = <0 4150 4250 4350 4350 4350 4350 4030 0>;
 		oplus_spec,fcc-gear-thr-mv = <4180>;
 		oplus_spec,vbatt-ov-thr-mv = <4600>;
 
@@ -690,8 +691,8 @@
 		oplus,vooc_power_max_w = <45>;
 		oplus,voocphy_support = <2>;  /* AP_SINGLE_CP_VOOCPHY */
 		oplus,support_fake_vooc_check;
-		oplus,cp_cooldown_limit_percent_75 = <CP_CURR_LIMIT_7BIT_8_0A>;
-		oplus,cp_cooldown_limit_percent_85 = <CP_CURR_LIMIT_7BIT_4_0A>;
+		oplus,cp_cooldown_limit_percent_75 = <CP_CURR_LIMIT_7BIT_4_0A>;
+		oplus,cp_cooldown_limit_percent_85 = <CP_CURR_LIMIT_7BIT_2_0A>;
 		oplus,abnormal_adapter_current = <CP_CURR_LIMIT_7BIT_15_0A CP_CURR_LIMIT_7BIT_15_0A
 						CP_CURR_LIMIT_7BIT_12_6A CP_CURR_LIMIT_7BIT_12_6A
 						CP_CURR_LIMIT_7BIT_10_0A CP_CURR_LIMIT_7BIT_10_0A

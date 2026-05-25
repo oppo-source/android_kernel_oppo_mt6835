@@ -47,8 +47,8 @@
 
 		oplus,ufcs_warm_allow_vol = <4000>;
 		oplus,ufcs_warm_allow_soc = <50>;
-		oplus,ufcs_strategy_normal_current = <4000>;
-		oplus,ufcs_over_high_or_low_current = <4000>;
+		oplus,ufcs_strategy_normal_current = <4100>;
+		oplus,ufcs_over_high_or_low_current = <4100>;
 		oplus,ufcs_timeout_third = <17562>;
 		oplus,ufcs_timeout_oplus = <17562>;
 		oplus,ufcs_ibat_over_third = <9400>;
@@ -70,7 +70,7 @@
 		oplus,curve_strategy_name = "pps_ufcs_curve_v2";
 		oplus_spec,ufcs_high_soc = <90>;
 		oplus,ufcs_charge_strategy_soc = <0 20 35 50 75 85 90>;
-		oplus,ufcs_charge_strategy_temp = <0 50 120 160 350 440 530>;
+		oplus,ufcs_charge_strategy_temp = <0 50 120 160 350 440 510>;
         oplus,temperature_strategy_name = "cgcl";
         oplus,temperature_strategy_data = <OPLUS_STRATEGY_USE_SHELL_TEMP
                                                 0   385 7300 1 0
@@ -80,7 +80,7 @@
                                                 420 440 2000 4 3>;
 		ufcs_oplus_lcf_strategy {
 			oplus,temp_type = <OPLUS_STRATEGY_USE_SHELL_TEMP>;
-			oplus,temp_range = <0 50 120 160 210 350 430>;
+			oplus,temp_range = <0 50 120 160 210 380 440>;
 
 			strategy_temp_range_curves {
 				strategy_temp_range_t0 =	<480 4520 0
@@ -118,7 +118,7 @@
 
 		ufcs_third_lcf_strategy {
 			oplus,temp_type = <OPLUS_STRATEGY_USE_SHELL_TEMP>;
-			oplus,temp_range = <0 50 120 160 210 350 440>;
+			oplus,temp_range = <0 50 120 160 210 380 440>;
 
 			strategy_temp_range_curves {
 				strategy_temp_range_t0 =	<480 4520 0

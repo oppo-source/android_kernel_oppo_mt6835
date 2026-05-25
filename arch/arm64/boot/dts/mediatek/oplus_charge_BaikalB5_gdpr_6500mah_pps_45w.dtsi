@@ -42,6 +42,7 @@
 		oplus,pps_r_default = <120 10 10 15 15 15 15>;
 		oplus,pps_rmos_mohm = <4>;
 		oplus,pps_r_limit = <280 200 140 90 50>;
+		oplus,pps_little_cool_high_temp = <210>;
 		oplus,pps_strategy_batt_high_temp = <385 395 420 375 385 410>;
 		oplus,pps_strategy_high_current = <3000 2000 2000 3000 3000 3000>;
 		oplus,pps_charge_strategy_soc = <0 20 35 55 75 85 90>;

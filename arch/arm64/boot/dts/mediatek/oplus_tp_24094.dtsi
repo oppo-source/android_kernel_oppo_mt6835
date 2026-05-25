@@ -67,6 +67,7 @@
 		tp_data_record_support;
 		glove_mode_v2_support;
 		lpwg_fw_support;
+		disable_touch_event_support;
 	};
 };
 

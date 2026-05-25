@@ -289,11 +289,12 @@
 		compatible = "oplus,monitor";
 		oplus,topic-update-interval = <60000>;
 
-		track,fast_chg_break_t_thd = <1000>;
+		track,fast_chg_break_t_thd = <2500>;
 		track,general_chg_break_t_thd = <200>;
 		track,voocphy_type = <2>;
 		track,wired_max_power = <45000>;
 		track,wired_fast_chg_scheme = <2>;
+		track,track_ver = <TRACK_VER_4_0>;
 	};
 
 	mt6375_gauge: mt6375_chg {
@@ -625,22 +626,22 @@
 			13500		/* OPLUS_WIRED_CHG_MODE_QC */
 			13500		/* OPLUS_WIRED_CHG_MODE_PD */
 		>;
-		oplus_spec,led_on-fccmax-ma = <0 1707 3300 3300 3300 3300 3300 1000 0>;
+		oplus_spec,led_on-fccmax-ma = <0 1024 3300 3300 3300 3300 3300 1000 0>;
 		oplus_spec,fccmax-ma-lv = <
-			0 1200 2200 2200 2200 2200 2200 2200 0	/* OPLUS_WIRED_CHG_MODE_UNKNOWN */
+			0 1024 2200 2200 2200 2200 2200 2200 0	/* OPLUS_WIRED_CHG_MODE_UNKNOWN */
 			0 600  600  600  600  600  600  600  0	/* OPLUS_WIRED_CHG_MODE_SDP */
 			0 1024 1600 1600 1600 1600 1600 1600 0	/* OPLUS_WIRED_CHG_MODE_CDP */
 			0 1024 2200 2200 2200 2200 2200 2200 0	/* OPLUS_WIRED_CHG_MODE_DCP */
-			0 1707 3300 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_VOOC */
+			0 1024 3300 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_VOOC */
 			0 1024 3300 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_QC */
 			0 1024 3300 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_PD */
 		>;
 		oplus_spec,fccmax-ma-hv = <
-			0 1200 2200 2200 2200 2200 2200 2200 0	/* OPLUS_WIRED_CHG_MODE_UNKNOWN */
+			0 1024 2200 2200 2200 2200 2200 2200 0	/* OPLUS_WIRED_CHG_MODE_UNKNOWN */
 			0 600  600  600  600  600  600  500  0	/* OPLUS_WIRED_CHG_MODE_SDP */
 			0 1024 1600 1600 1600 1600 1600 1600 0	/* OPLUS_WIRED_CHG_MODE_CDP */
 			0 1024 2200 2200 2200 2200 2200 2200 0	/* OPLUS_WIRED_CHG_MODE_DCP */
-			0 1707 3300 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_VOOC */
+			0 1024 3073 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_VOOC */
 			0 1024 3073 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_QC */
 			0 1024 3073 3300 3300 3300 3300 3300 0	/* OPLUS_WIRED_CHG_MODE_PD */
 		>;
@@ -917,8 +918,8 @@
 						CP_CURR_LIMIT_7BIT_6_0A CP_CURR_LIMIT_7BIT_6_0A
 						CP_CURR_LIMIT_7BIT_4_0A CP_CURR_LIMIT_7BIT_4_0A>;
 
-		oplus_spec,vooc_little_cold_full_voltage = <4550>;
-		oplus_spec,vooc_cool_full_voltage = <4550>;
+		oplus_spec,vooc_little_cold_full_voltage = <4150>;
+		oplus_spec,vooc_cool_full_voltage = <4520>;
 		oplus_spec,vooc_warm_full_voltage = <4130>;
 		oplus_spec,vooc_1time_full_voltage = <4560>;
 		oplus_spec,vooc_ntime_full_voltage = <4550>;
