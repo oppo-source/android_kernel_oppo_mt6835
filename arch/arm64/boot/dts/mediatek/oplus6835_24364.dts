@@ -421,9 +421,6 @@
 			allocator {
 				tcache-disable;
 			};
-			oplus_bsp_uxmem_opt {
-				feature-disable;
-			};
 			oplus_boost_pool {
 				feature-disable;
 			};

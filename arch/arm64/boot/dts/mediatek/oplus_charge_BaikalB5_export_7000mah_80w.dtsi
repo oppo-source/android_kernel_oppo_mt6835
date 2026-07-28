@@ -914,6 +914,7 @@
 		oplus,default_protocol_list = <CHG_PROTOCOL_PPS
 							CHG_PROTOCOL_PD
 							CHG_PROTOCOL_VOOC>;
+		oplus,bc12_check_timeout_ms = <1000>;
 	};
 	oplus_virtual_cp: oplus,virtual_cp {
 		compatible = "oplus,virtual_cp";

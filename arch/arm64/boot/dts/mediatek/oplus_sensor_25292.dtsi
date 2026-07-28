@@ -119,7 +119,7 @@
  			offset_max = <15000>;
  			offset_range_min = <0>;
  			offset_range_max = <65534>;
- 			force_cali_limit = <5116>;
+ 			force_cali_limit = <0>;
  			cali_jitter_limit = <70>;
  			cal_offset_margin = <3000>;
  			60hz_psd_us = <13500>;

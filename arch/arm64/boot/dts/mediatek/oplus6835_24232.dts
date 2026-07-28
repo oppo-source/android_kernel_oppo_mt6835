@@ -381,6 +381,15 @@
 				balance_anon_file_reclaim_always_true;
 			};
 		};
+		ram-6g {
+			oplus_boost_pool {
+				feature-disable;
+			};
+			oplus_bsp_uxmem_opt {
+				page_pool_order0_mb = <32>;
+				page_pool_order1_mb = <8>;
+			};
+		};
 	};
 };
 

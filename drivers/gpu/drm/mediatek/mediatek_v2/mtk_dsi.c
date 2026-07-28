@@ -5465,10 +5465,15 @@ unsigned int mtk_dsi_mode_change_index(struct mtk_dsi *dsi,
 		}
 
 		if (cur_panel_params->dyn.vfp !=
-			adjust_panel_params->dyn.vfp)
+			adjust_panel_params->dyn.vfp) {
 			mode_chg_index |= MODE_DSI_VFP;
-		else if (drm_mode_vfp(adjust_mode) != drm_mode_vfp(old_mode))
+			if (doze_enabled_flag && oplus_ofp_video_mode_30hz_aod_is_enabled()) {
+				mode_chg_index |= MODE_DSI_HFP;
+				DDPMSG("dyn mode_chg_index flag %d\n", mode_chg_index);
+			}
+		} else if (drm_mode_vfp(adjust_mode) != drm_mode_vfp(old_mode)) {
 			mode_chg_index |= MODE_DSI_VFP;
+		}
 
 		if (cur_panel_params->dyn.hfp !=
 			adjust_panel_params->dyn.hfp)

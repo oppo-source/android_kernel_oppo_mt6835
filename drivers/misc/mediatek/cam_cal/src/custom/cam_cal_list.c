@@ -70,6 +70,9 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{OV50D40_SENSOR_ID_BAIKALL5, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
 	{IMX480_SENSOR_ID_BAIKALL5, 0xA8, Common_read_region, MAX_EEPROM_SIZE_8K},
 	{GC08A8_SENSOR_ID_BAIKALL5, 0xA0, Common_read_region, MAX_EEPROM_SIZE_8K},
+	/*bl5s*/
+	{OV50D40_SENSOR_ID_BL5S, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
+	{IMX480_SENSOR_ID_BL5S, 0xA8, Common_read_region, MAX_EEPROM_SIZE_8K},
 	/*cruiserl5*/
 	{OV50D40_SENSOR_ID_CRUISERL5, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
 	{IMX480_SENSOR_ID_CRUISERL5, 0xA8, Common_read_region, MAX_EEPROM_SIZE_8K},

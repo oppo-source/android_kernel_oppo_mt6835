@@ -434,6 +434,12 @@
 			kcompressed {
 				feature-enable;
 			};
+			ezreclaimd {
+				feature-enable;
+			};
+			oplus_bsp_mglru_opt {
+				feature-enable;
+			};
 		};
 	};
 };

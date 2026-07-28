@@ -111,6 +111,9 @@ DECLARE_HOOK(android_vh_free_unref_page_bypass,
 DECLARE_HOOK(android_vh_kvmalloc_node_use_vmalloc,
 	TP_PROTO(size_t size, gfp_t *kmalloc_flags, bool *use_vmalloc),
 	TP_ARGS(size, kmalloc_flags, use_vmalloc));
+DECLARE_HOOK(android_vh_customize_alloc_gfp,
+	TP_PROTO(gfp_t *alloc_gfp, unsigned int order),
+	TP_ARGS(alloc_gfp, order));
 DECLARE_HOOK(android_vh_should_alloc_pages_retry,
 	TP_PROTO(gfp_t gfp_mask, int order, int *alloc_flags,
 	int migratetype, struct zone *preferred_zone, struct page **page, bool *should_alloc_retry),

@@ -775,6 +775,7 @@
 		oplus,default_protocol_list = <CHG_PROTOCOL_PPS
 							CHG_PROTOCOL_PD
 							CHG_PROTOCOL_VOOC>;
+		oplus,bc12_check_timeout_ms = <1000>;
 
 		oplus,domestic {
 			oplus,region_id = /bits/ 8 <0x97>;
@@ -786,6 +787,7 @@
 							CHG_PROTOCOL_PPS
 							CHG_PROTOCOL_PD
 							CHG_PROTOCOL_VOOC>;
+			oplus,bc12_check_timeout_ms = <1000>;
 		};
 	};
 	oplus_virtual_cp: oplus,virtual_cp {

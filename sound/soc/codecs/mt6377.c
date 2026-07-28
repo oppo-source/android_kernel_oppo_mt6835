@@ -139,14 +139,6 @@ static void mt6377_reset_vow_gpio(struct mt6377_priv *priv)
 			   0x1 << 7, 0x0);
 }
 
-/* use only when not govern by DAPM */
-static void mt6377_set_dcxo(struct mt6377_priv *priv, bool enable)
-{
-	regmap_update_bits(priv->regmap, MT6377_DCXO_CW12,
-			   0x1 << RG_XO_AUDIO_EN_M_SFT,
-			   (enable ? 1 : 0) << RG_XO_AUDIO_EN_M_SFT);
-}
-
 /* use only when doing mtkaif calibraiton at the boot time */
 static void mt6377_set_clksq(struct mt6377_priv *priv, bool enable)
 {
@@ -241,7 +233,6 @@ void mt6377_mtkaif_calibration_enable(struct snd_soc_component *cmpnt)
 	mt6377_set_playback_gpio(priv);
 	mt6377_set_capture_gpio(priv);
 	mt6377_mtkaif_tx_enable(priv);
-	mt6377_set_dcxo(priv, true);
 
 	mt6377_set_aud_global_bias(priv, true);
 	mt6377_set_clksq(priv, true);
@@ -278,7 +269,6 @@ void mt6377_mtkaif_calibration_disable(struct snd_soc_component *cmpnt)
 	mt6377_set_topck(priv, false);
 	mt6377_set_clksq(priv, false);
 	mt6377_set_aud_global_bias(priv, false);
-	mt6377_set_dcxo(priv, false);
 
 	mt6377_mtkaif_tx_disable(priv);
 	mt6377_reset_playback_gpio(priv);
@@ -2302,13 +2292,15 @@ static int mt_vow_aud_lpw_event(struct snd_soc_dapm_widget *w,
 	case SND_SOC_DAPM_PRE_PMU:
 		/* add delay for RC Calibration */
 		usleep_range(1000, 1200);
-
+		/* Audio ADC 1st Stage ldd adjust bits, 11: 140% */
+		regmap_update_bits(priv->regmap, MT6377_AUDENC_ANA_CON5,
+				   0x03, 0x03);
 		/* Enable audio uplink LPW mode */
 		/* Enable Audio ADC 1st Stage LPW */
 		/* Enable Audio ADC 2nd & 3rd LPW */
-		/* Enable Audio ADC flash Audio ADC flash */
+		/* Disable Audio ADC flash Audio ADC flash */
 		regmap_update_bits(priv->regmap, MT6377_AUDENC_ANA_CON4,
-				   0x0039, 0x0039);
+				   0x39, 0x19);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		/* Disable audio uplink LPW mode */
@@ -2317,6 +2309,9 @@ static int mt_vow_aud_lpw_event(struct snd_soc_dapm_widget *w,
 		/* Disable Audio ADC flash Audio ADC flash */
 		regmap_update_bits(priv->regmap, MT6377_AUDENC_ANA_CON4,
 				   0x39, 0x0);
+		/* Audio ADC 1st Stage ldd adjust bits, 00: 100% */
+		regmap_update_bits(priv->regmap, MT6377_AUDENC_ANA_CON5,
+				   0x03, 0x0);
 		break;
 	default:
 		break;
@@ -2392,6 +2387,78 @@ static int mt_vow_ldo_event(struct snd_soc_dapm_widget *w,
 		regmap_update_bits(priv->regmap, MT6377_AUDDEC_ANA_CON26,
 				   RG_LCLDO_ENC_EN_VA28_MASK_SFT,
 				   0x0 << RG_LCLDO_ENC_EN_VA28_SFT);
+		break;
+	default:
+		break;
+	}
+	return 0;
+}
+
+static int mt_vow_pll_event(struct snd_soc_dapm_widget *w,
+			    struct snd_kcontrol *kcontrol,
+			    int event)
+{
+	struct snd_soc_component *cmpnt = snd_soc_dapm_to_component(w->dapm);
+	struct mt6377_priv *priv = snd_soc_component_get_drvdata(cmpnt);
+
+	dev_info(priv->dev, "%s(), event 0x%x\n", __func__, event);
+
+	switch (event) {
+	case SND_SOC_DAPM_PRE_PMU:
+		/* PLL VCOBAND */
+		regmap_write(priv->regmap, MT6377_VOWPLL_ANA_CON5, 0x43);
+		/* PLL low power */
+		regmap_write(priv->regmap, MT6377_VOWPLL_ANA_CON4, 0x81);
+		/* PLL devider ratio 32500*(48+2)*8 */
+		regmap_write(priv->regmap, MT6377_VOWPLL_ANA_CON1, 0x30);
+		/* Set DCKO = 1/4 F_PLL */
+		regmap_write(priv->regmap, MT6377_VOWPLL_ANA_CON0, 0x8);
+		/* Enable fbdiv relatch (low jitter) */
+		regmap_update_bits(priv->regmap, MT6377_VOWPLL_ANA_CON2,
+				   RG_PLL_RLATCH_EN_MASK_SFT,
+				   0x1 << RG_PLL_RLATCH_EN_SFT);
+		/* Enable VOWPLL CLK */
+		regmap_update_bits(priv->regmap, MT6377_VOWPLL_ANA_CON0,
+				   RG_PLL_EN_MASK_SFT,
+				   0x1 << RG_PLL_EN_SFT);
+		break;
+	case SND_SOC_DAPM_POST_PMD:
+		/* Disable VOWPLL CLK */
+		regmap_update_bits(priv->regmap, MT6377_VOWPLL_ANA_CON0,
+				   RG_PLL_EN_MASK_SFT,
+				   0x1 << RG_PLL_EN_SFT);
+		/* PLL devider ratio */
+		regmap_write(priv->regmap, MT6377_VOWPLL_ANA_CON1, 0x31);
+		/* Set DCKO = 1 F_PLL */
+		regmap_write(priv->regmap, MT6377_VOWPLL_ANA_CON0, 0x0);
+		/* Disable fbdiv relatch (low jitter) */
+		regmap_update_bits(priv->regmap, MT6377_VOWPLL_ANA_CON2,
+				   RG_PLL_RLATCH_EN_MASK_SFT,
+				   0x0 << RG_PLL_RLATCH_EN_SFT);
+		/* Disable PLL low power */
+		regmap_write(priv->regmap, MT6377_VOWPLL_ANA_CON4, 0x1);
+		/* PLL VCOBAND */
+		regmap_write(priv->regmap, MT6377_VOWPLL_ANA_CON5, 0x23);
+		break;
+	case SND_SOC_DAPM_POST_PMU:
+		/* Disable VOW CLKSQ 3.25MHz */
+		regmap_update_bits(priv->regmap, MT6377_AUDENC_ANA_CON1,
+				   RG_CLKSQ_EN_VOW_MASK_SFT,
+				   0x0 << RG_CLKSQ_EN_VOW_SFT);
+		/* For Yield */
+		regmap_update_bits(priv->regmap, MT6377_VOWPLL_ANA_CON4,
+				   RG_PLL_HPM_EN_MASK_SFT,
+				   0x1 << RG_PLL_HPM_EN_SFT);
+		break;
+	case SND_SOC_DAPM_PRE_PMD:
+		/* For Yield */
+		regmap_update_bits(priv->regmap, MT6377_VOWPLL_ANA_CON4,
+				   RG_PLL_HPM_EN_MASK_SFT,
+				   0x0 << RG_PLL_HPM_EN_SFT);
+		/* Enable VOW CLKSQ 3.25MHz */
+		regmap_update_bits(priv->regmap, MT6377_AUDENC_ANA_CON1,
+				   RG_CLKSQ_EN_VOW_MASK_SFT,
+				   0x1 << RG_CLKSQ_EN_VOW_SFT);
 		break;
 	default:
 		break;
@@ -2935,9 +3002,22 @@ static int mt_pga_l_event(struct snd_soc_dapm_widget *w,
 		return -EINVAL;
 	}
 
+#ifdef OPLUS_ARCH_EXTENDS
+	if (priv->vow_mic_pga_gain != -1) {
+		mic_gain_l = priv->vow_enable ? priv->vow_mic_pga_gain :
+				priv->ana_gain[AUDIO_ANALOG_VOLUME_MICAMP1];
+	} else {
+		/* if vow is enabled, always set volume as 4(24dB) */
+		mic_gain_l = priv->vow_enable ? 4 :
+				priv->ana_gain[AUDIO_ANALOG_VOLUME_MICAMP1];
+	}
+	dev_info(priv->dev, "%s(), event = 0x%x, mic_type %d, mic_gain_l %d, mux_pga %d, vow_enable %d\n",
+		__func__, event, mic_type, mic_gain_l, mux_pga, priv->vow_enable);
+#else
 	/* if vow is enabled, always set volume as 4(24dB) */
 	mic_gain_l = priv->vow_enable ? 4 :
 		     priv->ana_gain[AUDIO_ANALOG_VOLUME_MICAMP1];
+#endif
 	dev_dbg(priv->dev, "%s(), event = 0x%x, mic_type %d, mic_gain_l %d, mux_pga %d\n",
 		__func__, event, mic_type, mic_gain_l, mux_pga);
 
@@ -2991,9 +3071,22 @@ static int mt_pga_r_event(struct snd_soc_dapm_widget *w,
 		return -EINVAL;
 	}
 
+#ifdef OPLUS_ARCH_EXTENDS
+	if (priv->vow_mic_pga_gain != -1) {
+		mic_gain_r = priv->vow_enable ? priv->vow_mic_pga_gain :
+				priv->ana_gain[AUDIO_ANALOG_VOLUME_MICAMP2];
+	} else {
+		/* if vow is enabled, always set volume as 4(24dB) */
+		mic_gain_r = priv->vow_enable ? 4 :
+				priv->ana_gain[AUDIO_ANALOG_VOLUME_MICAMP2];
+	}
+	dev_info(priv->dev, "%s(), event = 0x%x, mic_type %d, mic_gain_r %d, mux_pga %d, vow_enable %d\n",
+		__func__, event, mic_type, mic_gain_r, mux_pga, priv->vow_enable);
+#else
 	/* if vow is enabled, always set volume as 4(24dB) */
 	mic_gain_r = priv->vow_enable ? 4 :
 		     priv->ana_gain[AUDIO_ANALOG_VOLUME_MICAMP2];
+#endif
 	dev_dbg(priv->dev, "%s(), event = 0x%x, mic_type %d, mic_gain_r %d, mux_pga %d\n",
 		__func__, event, mic_type, mic_gain_r, mux_pga);
 
@@ -3344,16 +3437,68 @@ static int mt_dc_trim_event(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
+static int mt_dcxo_event(struct snd_soc_dapm_widget *w,
+			  struct snd_kcontrol *kcontrol,
+			  int event)
+{
+	struct snd_soc_component *cmpnt = snd_soc_dapm_to_component(w->dapm);
+	struct mt6377_priv *priv = snd_soc_component_get_drvdata(cmpnt);
+
+	dev_info(priv->dev, "%s(), event = 0x%x\n", __func__, event);
+	return 0;
+}
+
+static int mt_vow_dcxo_event(struct snd_soc_dapm_widget *w,
+			  struct snd_kcontrol *kcontrol,
+			  int event)
+{
+	struct snd_soc_component *cmpnt = snd_soc_dapm_to_component(w->dapm);
+	struct mt6377_priv *priv = snd_soc_component_get_drvdata(cmpnt);
+
+	dev_info(priv->dev, "%s(), event = 0x%x, vow enable = %d\n", __func__, event, priv->vow_enable);
+
+	switch (event) {
+	case SND_SOC_DAPM_PRE_PMU:
+		/* settings for 26MHz low power pre-buffer at FPM mode*/
+		regmap_update_bits(priv->regmap, MT6377_DCXO_CW11,
+			   RG_XO_LV_PUF_FPMISET_MASK_SFT,
+			   0x7 << RG_XO_LV_PUF_FPMISET_SFT);
+		/* settings for 26MHz low power pre-buffer*/
+		regmap_update_bits(priv->regmap, MT6377_DCXO_CW11,
+			   RG_XO_LV_PUF_ISET_MASK_SFT,
+			   0x6 << RG_XO_LV_PUF_ISET_SFT);
+		/* enable 26MHz clock for VOW use*/
+		regmap_update_bits(priv->regmap, MT6377_DCXO_CW11,
+			   RG_XO_VOW_EN_MASK_SFT,
+			   0x1 << RG_XO_VOW_EN_SFT);
+		break;
+	case SND_SOC_DAPM_POST_PMD:
+		regmap_update_bits(priv->regmap, MT6377_DCXO_CW11,
+			   RG_XO_VOW_EN_MASK_SFT,
+			   0x0 << RG_XO_VOW_EN_SFT);
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
 /* DAPM Widgets */
 static const struct snd_soc_dapm_widget mt6377_dapm_widgets[] = {
 	/* Global Supply*/
 	SND_SOC_DAPM_SUPPLY_S("CLK_BUF", SUPPLY_SEQ_CLK_BUF,
-			      MT6377_DCXO_CW12,
-			      RG_XO_AUDIO_EN_M_SFT, 0, NULL, 0),
+			      SND_SOC_NOPM, 0, 0,
+			      mt_dcxo_event,
+			      SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
 	SND_SOC_DAPM_REGULATOR_SUPPLY("vaud28", 0, 0),
 	SND_SOC_DAPM_SUPPLY_S("AUDGLB", SUPPLY_SEQ_AUD_GLB,
 			      MT6377_AUDDEC_ANA_CON24,
 			      RG_AUDGLB_PWRDN_VA28_SFT, 1, NULL, 0),
+	SND_SOC_DAPM_SUPPLY_S("AUDGLB_VOW", SUPPLY_SEQ_AUD_GLB_VOW,
+			      SND_SOC_NOPM, 0, 0,
+			      mt_vow_dcxo_event,
+			      SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
 	SND_SOC_DAPM_SUPPLY_S("CLKSQ Audio", SUPPLY_SEQ_CLKSQ,
 			      MT6377_AUDENC_ANA_CON12,
 			      RG_CLKSQ_EN_SFT, 0, NULL, SND_SOC_DAPM_PRE_PMU),
@@ -3387,6 +3532,11 @@ static const struct snd_soc_dapm_widget mt6377_dapm_widgets[] = {
 			      SND_SOC_NOPM, 0, 0,
 			      mt_vow_ldo_event,
 			      SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_PRE_PMD),
+	SND_SOC_DAPM_SUPPLY_S("VOW_PLL", SUPPLY_SEQ_VOW_PLL,
+			      SND_SOC_NOPM, 0, 0,
+			      mt_vow_pll_event,
+			      SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_PRE_PMD |
+			      SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
 	SND_SOC_DAPM_SUPPLY_S("VOW_DIG_CFG", SUPPLY_SEQ_VOW_DIG_CFG,
 			      MT6377_AUD_TOP_CKPDN_CON1,
 			      RG_VOW13M_CK_PDN_SFT, 1,
@@ -3978,12 +4128,13 @@ static const struct snd_soc_dapm_route mt6377_dapm_routes[] = {
 	{"VOW TX", NULL, "CLK_BUF"},
 	{"VOW TX", NULL, "vaud28"},
 	{"VOW TX", NULL, "AUDGLB"},
-	//{"VOW TX", NULL, "AUDGLB_VOW", mt_vow_amic_connect},
+	{"VOW TX", NULL, "AUDGLB_VOW"},
 	{"VOW TX", NULL, "AUD_CK", mt_vow_amic_connect},
 	{"VOW TX", NULL, "VOW_AUD_LPW", mt_vow_amic_connect},
 	{"VOW TX", NULL, "VOW_CLK"},
 	{"VOW TX", NULL, "AUD_VOW"},
 	{"VOW TX", NULL, "VOW_LDO", mt_vow_amic_connect},
+	{"VOW TX", NULL, "VOW_PLL"},
 	{"VOW TX", NULL, "VOW_DIG_CFG"},
 	{"VOW TX", NULL, "VOW_PERIODIC_CFG", mt_vow_amic_dcc_connect},
 	{"VOW_UL_SRC_MUX", "AMIC", "VOW_AMIC0_MUX"},
@@ -4229,9 +4380,6 @@ static void start_trim_hardware(struct mt6377_priv *priv)
 	/* release HP CMFB gate rstb */
 	regmap_update_bits(priv->regmap, MT6377_AUDDEC_ANA_CON8,
 			   0x1 << 6, 0x1 << 6);
-
-	/* XO_AUDIO_EN_M Enable */
-	mt6377_set_dcxo(priv, true);
 
 	/* Enable CLKSQ */
 	/* audio clk source from internal dcxo */
@@ -4481,9 +4629,6 @@ static void stop_trim_hardware(struct mt6377_priv *priv)
 
 	/* Disable CLKSQ */
 	mt6377_set_clksq(priv, false);
-
-	/* XO_AUDIO_EN_M Disable */
-	mt6377_set_dcxo(priv, false);
 
 	/* Set HP CMFB gate rstb */
 	regmap_update_bits(priv->regmap, MT6377_AUDDEC_ANA_CON8,
@@ -5325,8 +5470,6 @@ static void *get_vow_coeff_by_name(struct mt6377_priv *priv,
 		return &(priv->reg_afe_vow_vad_cfg5);
 	else if (strcmp(name, "Audio_VOW_Periodic") == 0)
 		return &(priv->reg_afe_vow_periodic);
-	else if (strcmp(name, "Audio_VOW_Periodic_Param") == 0)
-		return (void *) &(priv->vow_periodic_param);
 	else
 		return NULL;
 }
@@ -5370,31 +5513,6 @@ static int audio_vow_cfg_set(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-static int audio_vow_periodic_parm_set(struct snd_kcontrol *kcontrol,
-				       const unsigned int __user *data,
-				       unsigned int size)
-{
-	int ret = 0;
-	struct snd_soc_component *cmpnt = snd_soc_kcontrol_component(kcontrol);
-	struct mt6377_priv *priv = snd_soc_component_get_drvdata(cmpnt);
-	struct mt6377_vow_periodic_on_off_data *vow_param_cfg;
-
-	dev_info(priv->dev, "%s(), size = %d\n", __func__, size);
-	if (size > sizeof(struct mt6377_vow_periodic_on_off_data))
-		return -EINVAL;
-	vow_param_cfg = (struct mt6377_vow_periodic_on_off_data *)
-			get_vow_coeff_by_name(priv, kcontrol->id.name);
-	if (copy_from_user(vow_param_cfg, data,
-			   sizeof(struct mt6377_vow_periodic_on_off_data))) {
-		dev_info(priv->dev, "%s(),Fail copy to user Ptr:%p,r_sz:%zu\n",
-			 __func__,
-			 data,
-			 sizeof(struct mt6377_vow_periodic_on_off_data));
-		ret = -EFAULT;
-	}
-	return ret;
-}
-
 static const struct snd_kcontrol_new mt6377_snd_vow_controls[] = {
 	SOC_SINGLE_EXT("Audio VOWCFG0 Data",
 		       SND_SOC_NOPM, 0, 0x80000, 0,
@@ -5417,9 +5535,6 @@ static const struct snd_kcontrol_new mt6377_snd_vow_controls[] = {
 	SOC_SINGLE_EXT("Audio_VOW_Periodic",
 		       SND_SOC_NOPM, 0, 0x80000, 0,
 		       audio_vow_cfg_get, audio_vow_cfg_set),
-	SND_SOC_BYTES_TLV("Audio_VOW_Periodic_Param",
-			  sizeof(struct mt6377_vow_periodic_on_off_data),
-			  NULL, audio_vow_periodic_parm_set),
 };
 
 /* misc control */
@@ -5461,9 +5576,6 @@ static int mt6377_rcv_acc_set(struct snd_kcontrol *kcontrol,
 	struct snd_soc_component *cmpnt = snd_soc_kcontrol_component(kcontrol);
 	struct mt6377_priv *priv = snd_soc_component_get_drvdata(cmpnt);
 	int status = 0;
-
-	/* enable clk buf */
-	mt6377_set_dcxo(priv, true);
 
 	if (!IS_ERR(priv->reg_vaud28)) {
 		status = regulator_enable(priv->reg_vaud28);
@@ -5716,11 +5828,6 @@ static int mt6377_codec_init_reg(struct snd_soc_component *cmpnt)
 	/* Disable AUD_ZCD */
 	zcd_enable(priv, false, DEVICE_NUM);
 
-	/* disable clk buf */
-	regmap_update_bits(priv->regmap, MT6377_DCXO_CW12,
-			   0x1 << RG_XO_AUDIO_EN_M_SFT,
-			   0x0 << RG_XO_AUDIO_EN_M_SFT);
-
 	/* this will trigger widget "DC trim" power down event */
 	enable_trim_buf(priv, true);
 
@@ -5747,6 +5854,11 @@ static int mt6377_codec_probe(struct snd_soc_component *cmpnt)
 	snd_soc_add_component_controls(cmpnt,
 				       mt6377_snd_misc_controls,
 				       ARRAY_SIZE(mt6377_snd_misc_controls));
+
+	/* add vow controls */
+	snd_soc_add_component_controls(cmpnt,
+				       mt6377_snd_vow_controls,
+				       ARRAY_SIZE(mt6377_snd_vow_controls));
 
 #if IS_ENABLED(CONFIG_SND_SOC_OPLUS_PA_MANAGER)
 	ret = oplus_add_pa_manager_snd_controls(cmpnt);
@@ -5888,6 +6000,9 @@ static ssize_t mt6377_codec_read(struct mt6377_priv *priv, char *buffer, size_t 
 	regmap_read(priv->regmap, MT6377_DCXO_CW12, &value);
 	n += scnprintf(buffer + n, size - n,
 		       "[0x%x] MT6377_DCXO_CW12 = 0x%x\n", MT6377_DCXO_CW12, value);
+	regmap_read(priv->regmap, MT6377_DCXO_CW11, &value);
+	n += scnprintf(buffer + n, size - n,
+		       "[0x%x] MT6377_DCXO_CW11 = 0x%x\n", MT6377_DCXO_CW11, value);
 	regmap_read(priv->regmap, MT6377_AUXADC_AVG_CON9, &value);
 	n += scnprintf(buffer + n, size - n,
 		       "[0x%x] MT6377_AUXADC_AVG_CON9 = 0x%x\n", MT6377_AUXADC_AVG_CON9, value);
@@ -6897,6 +7012,26 @@ static ssize_t mt6377_codec_read(struct mt6377_priv *priv, char *buffer, size_t 
 	n += scnprintf(buffer + n, size - n,
 		       "[0x%x] MT6377_AUDENC_ANA_CON34 = 0x%x\n",
 		       MT6377_AUDENC_ANA_CON34, value);
+	regmap_read(priv->regmap, MT6377_VOWPLL_ANA_CON0, &value);
+	n += scnprintf(buffer + n, size - n,
+		       "[0x%x] MT6377_VOWPLL_ANA_CON0 = 0x%x\n",
+		       MT6377_VOWPLL_ANA_CON0, value);
+	regmap_read(priv->regmap, MT6377_VOWPLL_ANA_CON1, &value);
+	n += scnprintf(buffer + n, size - n,
+		       "[0x%x] MT6377_VOWPLL_ANA_CON1 = 0x%x\n",
+		       MT6377_VOWPLL_ANA_CON1, value);
+	regmap_read(priv->regmap, MT6377_VOWPLL_ANA_CON2, &value);
+	n += scnprintf(buffer + n, size - n,
+		       "[0x%x] MT6377_VOWPLL_ANA_CON2 = 0x%x\n",
+		       MT6377_VOWPLL_ANA_CON2, value);
+	regmap_read(priv->regmap, MT6377_VOWPLL_ANA_CON4, &value);
+	n += scnprintf(buffer + n, size - n,
+		       "[0x%x] MT6377_VOWPLL_ANA_CON4 = 0x%x\n",
+		       MT6377_VOWPLL_ANA_CON4, value);
+	regmap_read(priv->regmap, MT6377_VOWPLL_ANA_CON5, &value);
+	n += scnprintf(buffer + n, size - n,
+		       "[0x%x] MT6377_VOWPLL_ANA_CON5 = 0x%x\n",
+		       MT6377_VOWPLL_ANA_CON5, value);
 	regmap_read(priv->regmap, MT6377_AUDDEC_ANA_CON0, &value);
 	n += scnprintf(buffer + n, size - n,
 		       "[0x%x] MT6377_AUDDEC_ANA_CON0 = 0x%x\n",
@@ -7237,6 +7372,17 @@ static int mt6377_parse_dt(struct mt6377_priv *priv)
 	np = of_get_child_by_name(dev->parent->of_node, "mt6377codec");
 	if (!np)
 		return -EINVAL;
+
+#ifdef OPLUS_ARCH_EXTENDS
+	/* get breeno vow mic pga gain */
+	ret = of_property_read_u32(np, "oplus,vow-mic-pga-gain",
+					&priv->vow_mic_pga_gain);
+	if (ret) {
+		dev_info(dev, "%s() failed to read vow-mic-pga-gain, default disable\n",
+			__func__);
+		priv->vow_mic_pga_gain = -1;
+	}
+#endif
 
 	/* get mic type */
 	ret = of_property_read_u32(np, "mediatek,dmic-mode",

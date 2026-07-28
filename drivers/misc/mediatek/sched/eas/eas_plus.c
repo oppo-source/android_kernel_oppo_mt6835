@@ -41,36 +41,8 @@ MODULE_LICENSE("GPL");
 #define IB_SAME_CLUSTER		(0x01)
 #define IB_OVERUTILIZATION	(0x04)
 
-DEFINE_PER_CPU(struct update_util_data __rcu *, cpufreq_update_util_data);
-DEFINE_PER_CPU(__u32, active_softirqs);
-
 struct cpumask __cpu_pause_mask;
 EXPORT_SYMBOL(__cpu_pause_mask);
-
-#ifdef CONFIG_RT_SOFTINT_OPTIMIZATION
-/*
- * Return whether the task on the given cpu is currently non-preemptible
- * while handling a potentially long softint, or if the task is likely
- * to block preemptions soon because it is a ksoftirq thread that is
- * handling slow softints.
- */
-bool task_may_not_preempt(struct task_struct *task, int cpu)
-{
-	__u32 softirqs = per_cpu(active_softirqs, cpu) |
-			local_softirq_pending();
-
-	struct task_struct *cpu_ksoftirqd = per_cpu(ksoftirqd, cpu);
-
-	return ((softirqs & LONG_SOFTIRQ_MASK) &&
-		(task == cpu_ksoftirqd ||
-		 task_thread_info(task)->preempt_count & SOFTIRQ_MASK));
-}
-#else
-bool task_may_not_preempt(struct task_struct *task, int cpu)
-{
-	return false;
-}
-#endif /* CONFIG_RT_SOFTINT_OPTIMIZATION */
 
 static struct perf_domain *find_pd(struct perf_domain *pd, int cpu)
 {
@@ -1103,6 +1075,10 @@ void mtk_select_task_rq_rt(void *data, struct task_struct *p, int source_cpu,
 			if (!mtk_rt_task_fits_capacity(p, cpu, min_cap, max_cap))
 				continue;
 
+			rq = cpu_rq(cpu);
+			curr = rq->curr;
+			if (curr && task_may_not_preempt(curr, cpu))
+				continue;
 			if (idle_cpu(cpu)
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_FRAME_BOOST)
 				&& fbg_rt_task_fits_capacity(p, cpu)
@@ -1136,17 +1112,14 @@ void mtk_select_task_rq_rt(void *data, struct task_struct *p, int source_cpu,
 				}
 				continue;
 			}
-			rq = cpu_rq(cpu);
-			curr = rq->curr;
 			if (curr && (curr->policy == SCHED_NORMAL)
-					&& (curr->prio > lowest_prio)
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_FRAME_BOOST)
 				&& (fbg_rt_task_fits_capacity(p, cpu))
 #endif
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_SCHED_ASSIST)
                                 && !sa_rt_skip_ux_cpu(cpu)
 #endif
-					&& (!task_may_not_preempt(curr, cpu))) {
+				&& (curr->prio > lowest_prio)) {
 				lowest_prio = curr->prio;
 				lowest_cpu = cpu;
 				cfs_cpus = (cfs_cpus | (1 << cpu));

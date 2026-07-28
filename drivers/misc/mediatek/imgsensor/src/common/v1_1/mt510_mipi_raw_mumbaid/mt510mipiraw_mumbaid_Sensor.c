@@ -25,7 +25,7 @@
 #define PFX "mt510_camera_sensor"
 #define LOG_INF(format, args...)    pr_debug(PFX "[%s] " format, __FUNCTION__, ##args)
 #define MAX_GAIN 240
-#define MIN_GAIN 2
+#define MIN_GAIN 0
 //#define MIPI_1LANE
 #ifdef MT510_LONG_EXP
 #define MAX_CIT_LSHIFT 7
@@ -108,7 +108,7 @@ static struct imgsensor_info_struct imgsensor_info = {
         .mipi_pixel_rate = 192000000,
      },
 
-    .min_gain = 72,   // 1.125x, base 64
+    .min_gain = 64,   // 1.125x, base 64
     .max_gain = 1024,  // 16x
     .min_gain_iso = 100,
     .gain_step = 4,
@@ -1462,24 +1462,30 @@ static int read_ready(u32 start_addr)
     return 0;
 }
 
-static u32 mt510_read(u32 addr)
+static int mt510_read(u32 addr, u32 *p_addr)
 {
     int ret = -1;
     u32 addr_offset = 0x1000;
-	u32 map_addr = addr + addr_offset;
-	ret = read_ready(addr);
+    *p_addr = addr + addr_offset;
+    ret = read_ready(addr);
     if (ret < 0) {
         LOG_INF("ready failed");
         return -1;
     }
 
-    return map_addr;
+    return 0;
 }
 
 static int read_mt510_otp_group_flag()
 {
-	u32 read_addr = 0;
-    read_addr = mt510_read(MT510_OTP_GROUP_FLAGADDR);
+    u32 read_addr = 0;
+    int ret = -1;
+    ret = mt510_read(MT510_OTP_GROUP_FLAGADDR, &read_addr);
+    if (ret < 0) {
+        LOG_INF("Failed to get mapped address for group flag");
+        mt510_otp_close();
+        return -1;
+    }
     GroupFlag = read_cmos_sensor(read_addr);
     mt510_otp_close();
 
@@ -1488,7 +1494,8 @@ static int read_mt510_otp_group_flag()
 
 static int read_mt510_module_data()
 {
-	int idx;
+    int idx;
+    int ret = -1;
     u16 sn_start = 0;
     u16 sum = 0;
     u16 check_number = 0;
@@ -1499,8 +1506,11 @@ static int read_mt510_module_data()
     u16 module_length = 17;
     BYTE temp_buff[32];
 
-    read_mt510_otp_group_flag();
-
+    ret = read_mt510_otp_group_flag();
+    if (ret < 0) {
+        LOG_INF("Failed to read OTP group flag");
+        return ret;
+    }
     if (GroupFlag == MT510_GROUP1_FLAG) {
         sn_start = MT510_OTP_SN_GROUP1_STARTADDR;
         moduleAddr = MT510_OTP_MODULE_GROUP1_STARTADDR;
@@ -1515,11 +1525,15 @@ static int read_mt510_module_data()
     }
     LOG_INF("sn_start = %d,GroupFlag = %d",sn_start,GroupFlag);
 
-	memset(mt510_mumbai_common_data, 0, sizeof(mt510_mumbai_common_data));
+    memset(mt510_mumbai_common_data, 0, sizeof(mt510_mumbai_common_data));
     memset(temp_buff, 0, sizeof(temp_buff));
 
-    read_addr = mt510_read(sn_start - 2);
-
+    ret = mt510_read(sn_start - 2, &read_addr);
+    if (ret < 0) {
+        LOG_INF("Failed to get mapped address for SN data");
+        mt510_otp_close();
+        return -1;
+    }
     for(idx = 0; idx < sn_length+2; idx++)
     {
         temp_buff[idx] = read_cmos_sensor(read_addr++);
@@ -1532,17 +1546,28 @@ static int read_mt510_module_data()
     }
     mt510_otp_close();
 
-    read_addr = mt510_read(checksumAddr);
-    check_number = read_cmos_sensor(checksumAddr);
+    ret = mt510_read(checksumAddr, &read_addr);
+    if (ret < 0) {
+        LOG_INF("Failed to get mapped address for checksum");
+        mt510_otp_close();
+        return -1;
+    }
+    check_number = read_cmos_sensor(read_addr);
 
     if ( check_number == sum%255) {
             LOG_INF("data check success sum :%d\n,checksumAddr:%x,check_number:%d", sum, checksumAddr,check_number);
         } else {
-            LOG_INF("data check success sum :%d\n,checksumAddr:%x,check_number:%d", sum, checksumAddr,check_number);
+            LOG_INF("data check fail sum :%d\n,checksumAddr:%x,check_number:%d", sum, checksumAddr,check_number);
         }
+    mt510_otp_close();
 
     memset(temp_buff, 0, sizeof(temp_buff));
-    read_addr = mt510_read(moduleAddr-1);
+    ret = mt510_read(moduleAddr-1, &read_addr);
+    if (ret < 0) {
+        LOG_INF("Failed to get mapped address for module data");
+        mt510_otp_close();
+        return -1;
+    }
     for(idx = 0; idx < module_length; idx++)
     {
         temp_buff[idx] = read_cmos_sensor(read_addr++);
@@ -2182,30 +2207,30 @@ static kal_uint32 set_test_pattern_mode(kal_bool enable)
 {
     LOG_INF("enable: %d\n", enable);
 
-    if (enable)
+if (enable)
     {
-        //color bar enable
+        //solid dark enable
         write_cmos_sensor(0x0804, 0x02);
         write_cmos_sensor(0x09ec, 0x00);
         write_cmos_sensor(0x09ed, 0x20);
         write_cmos_sensor(0x09ee, 0x0a);
         write_cmos_sensor(0x09ef, 0x98);
         write_cmos_sensor(0x09f0, 0x07);
-        write_cmos_sensor(0x09f1, 0xf6);
-        write_cmos_sensor(0x09f2, 0x00);
+        write_cmos_sensor(0x09f1, 0x7d);
+        write_cmos_sensor(0x09f2, 0x0c);
         write_cmos_sensor(0x09f3, 0xcc);
         write_cmos_sensor(0x09f4, 0xe9);
         write_cmos_sensor(0x09f5, 0x01);
-        write_cmos_sensor(0x09f6, 0x02);
-        write_cmos_sensor(0x09f7, 0x00);
+        write_cmos_sensor(0x09f6, 0x01);
+        write_cmos_sensor(0x09f7, 0x01);
         write_cmos_sensor(0x09f8, 0x00);
-        write_cmos_sensor(0x09f9, 0x02);
+        write_cmos_sensor(0x09f9, 0x00);
         write_cmos_sensor(0x09fa, 0x00);
-        write_cmos_sensor(0x09fb, 0x02);
+        write_cmos_sensor(0x09fb, 0x00);
         write_cmos_sensor(0x09fc, 0x00);
-        write_cmos_sensor(0x09fd, 0x02);
+        write_cmos_sensor(0x09fd, 0x00);
         write_cmos_sensor(0x09fe, 0x00);
-        write_cmos_sensor(0x09ff, 0x02);
+        write_cmos_sensor(0x09ff, 0x00);
         write_cmos_sensor(0x0a00, 0x44);
         write_cmos_sensor(0x0a01, 0x01);
         write_cmos_sensor(0x0a03, 0x01);

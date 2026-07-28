@@ -676,6 +676,18 @@
 #define SENSOR_DRVNAME_GC02M1B_MIPI_MONO_BAIKALL5         "gc02m1b_mipi_mono_baikall5"
 /////////////////// Baikal L5 end //////////////////////////////////////////////////
 
+/////////////////// Baikal L5s start ////////////////////////////////////////////////
+#define SENSOR_ID_OFFSET_BL5S                         0x14
+#define OV50D40_SENSOR_ID_BL5S                        (0x565044 + SENSOR_ID_OFFSET_BL5S)
+#define SENSOR_DRVNAME_OV50D40_MIPI_RAW_BL5S          "ov50d40_mipi_raw_bl5s"
+#define IMX480_SENSOR_ID_BL5S                         (0x0471 + SENSOR_ID_OFFSET_BL5S)
+#define SENSOR_DRVNAME_IMX480_MIPI_RAW_BL5S           "imx480_mipi_raw_bl5s"
+#define SC202CS_SENSOR_ID_BL5S                        (0xeb52 + SENSOR_ID_OFFSET_BL5S)
+#define SENSOR_DRVNAME_SC202CS_MIPI_RAW_BL5S          "sc202cs_mipi_raw_bl5s"
+#define GC02M1B_SENSOR_ID_BL5S                        (0x02e0 + SENSOR_ID_OFFSET_BL5S)
+#define SENSOR_DRVNAME_GC02M1B_MIPI_MONO_BL5S         "gc02m1b_mipi_mono_bl5s"
+/////////////////// Baikal L5s end //////////////////////////////////////////////////
+
 /////////////////// Cruiser L5 start ////////////////////////////////////////////////
 #define SENSOR_ID_OFFSET_CRUISERL5                         0x80
 #define OV50D40_SENSOR_ID_CRUISERL5                        (0x565044 + SENSOR_ID_OFFSET_CRUISERL5)

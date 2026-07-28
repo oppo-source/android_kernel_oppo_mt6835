@@ -435,6 +435,12 @@
 			kcompressed {
 				feature-enable;
 			};
+			ezreclaimd {
+				feature-enable;
+			};
+			oplus_bsp_mglru_opt {
+				feature-enable;
+			};
 		};
 	};
 };
@@ -447,4 +453,5 @@
 
 #include <oplus6835_25055/cust.dtsi>
 /*#include "mediatek/cust_mt6985_luna_thermal.dtsi"*/
+#include "mediatek/oplus_cust_mt6835_vow_breeno.dtsi"
 /*End of this file, DO NOT ADD ANYTHING HERE*/

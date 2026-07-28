@@ -61,6 +61,7 @@ extern unsigned int oplus_display_brightness;
 extern unsigned int oplus_max_normal_brightness;
 static int mode_id = -1;
 static unsigned int lhbm_last_backlight = 0;
+extern unsigned int get_project(void);
 
 static unsigned int nt37703a_vdo_dphy_buf_thresh[14] ={896, 1792, 2688, 3584, 4480,
 	5376, 6272, 6720, 7168, 7616, 7744, 7872, 8000, 8064};
@@ -1561,6 +1562,7 @@ static int lcm_probe(struct mipi_dsi_device *dsi)
 	struct device_node *dsi_node, *remote_node = NULL, *endpoint = NULL;
 	struct lcm *ctx;
 	struct device_node *backlight;
+	int prj_id = get_project();
 	int ret;
 /* #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 	unsigned int fp_type = 0xA10;
@@ -1669,7 +1671,13 @@ static int lcm_probe(struct mipi_dsi_device *dsi)
 /* #ifdef OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
 	oplus_ofp_set_fp_type(&fp_type);
 /* #endif  *//* OPLUS_FEATURE_DISPLAY_ONSCREENFINGERPRINT */
-	oplus_max_normal_brightness = MAX_NORMAL_BRIGHTNESS;
+	if (prj_id == 24352) {
+		pr_info("%s oplus_max_normal_brightness = 3515 prj_id == %d\n", __func__, prj_id);
+		oplus_max_normal_brightness = 3515;
+	} else {
+		pr_info("%s oplus_max_normal_brightness = 3083 prj_id == %d\n", __func__, prj_id);
+		oplus_max_normal_brightness = MAX_NORMAL_BRIGHTNESS;
+	}
 	check_is_need_fake_resolution(dev);
 	DISP_ERR("%s, ac312 lcm_probe-\n", __func__);
 	return ret;

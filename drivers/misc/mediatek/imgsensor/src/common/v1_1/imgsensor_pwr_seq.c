@@ -334,6 +334,197 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
         },
     },
 #endif
+#if defined(OV50D40_MIPI_RAW_BL5S)
+    {
+        SENSOR_DRVNAME_OV50D40_MIPI_RAW_BL5S,
+        {
+            {RST, Vol_Low, 1},
+            {DOVDD, Vol_1800, 3},
+            {AVDD, Vol_2800, 1},
+            {DVDD, Vol_1200, 1},
+            {AFVDD, Vol_2800, 1},
+            {SensorMCLK, Vol_High, 2},
+            {RST, Vol_High, 5},
+        },
+    },
+#endif
+#if defined(IMX480_MIPI_RAW_BL5S)
+    {
+        SENSOR_DRVNAME_IMX480_MIPI_RAW_BL5S,
+        {
+            {SensorMCLK, Vol_High, 0},
+            {RST, Vol_Low,  3},
+            {DOVDD, Vol_1800, 1},
+            {AVDD1_GPIO, Vol_High, 2},
+            {DVDD, Vol_1200, 1},
+            {AVDD, Vol_2800, 3},
+            {RST, Vol_High, 1},
+        },
+    },
+#endif
+#if defined(SC202CS_MIPI_RAW_BL5S)
+    {
+        SENSOR_DRVNAME_SC202CS_MIPI_RAW_BL5S,
+        {
+            {RST, Vol_Low, 1},
+            {DOVDD, Vol_1800, 1},
+            {AVDD1_GPIO, Vol_High, 2},
+            {AVDD, Vol_2800, 5},
+            {SensorMCLK, Vol_High, 1},
+            {RST, Vol_High, 5},
+        },
+    },
+#endif
+#if defined(GC02M1B_MIPI_MONO_BL5S)
+    {
+        SENSOR_DRVNAME_GC02M1B_MIPI_MONO_BL5S,
+        {
+            {RST, Vol_Low, 1},
+            {DOVDD, Vol_1800, 1},
+            {AVDD1_GPIO, Vol_High, 2},
+            {AVDD, Vol_2800, 5},
+            {SensorMCLK, Vol_High, 1},
+            {RST, Vol_High, 2},
+        },
+    },
+#endif
+#if defined(OV50D40_MIPI_RAW_CRUISERL5)
+    {
+        SENSOR_DRVNAME_OV50D40_MIPI_RAW_CRUISERL5,
+        {
+            {RST, Vol_Low, 1},
+            {DOVDD, Vol_1800, 3},
+            {AVDD, Vol_2800, 1},
+            {DVDD, Vol_1200, 1},
+            {AFVDD, Vol_2800, 1},
+            {SensorMCLK, Vol_High, 2},
+            {RST, Vol_High, 5},
+        },
+    },
+#endif
+#if defined(IMX480_MIPI_RAW_CRUISERL5)
+    {
+        SENSOR_DRVNAME_IMX480_MIPI_RAW_CRUISERL5,
+        {
+            {SensorMCLK, Vol_High, 0},
+            {RST, Vol_Low,  3},
+            {DOVDD, Vol_1800, 1},
+            {AVDD1_GPIO, Vol_High, 2},
+            {DVDD, Vol_1200, 1},
+            {AVDD, Vol_2800, 3},
+            {RST, Vol_High, 1},
+        },
+    },
+#endif
+#if defined(GC50F6_MIPI_RAW_CRUISERL5)
+    {
+        SENSOR_DRVNAME_GC08A8_MIPI_RAW_ALPHAL5,
+        {
+            {SensorMCLK, Vol_High, 0},
+            {RST, Vol_Low,  3},
+            {DOVDD, Vol_1800, 1},
+            {AVDD1_GPIO, Vol_High, 2},
+            {DVDD, Vol_1200, 1},
+            {AVDD, Vol_2800, 3},
+            {RST, Vol_High, 1},
+        },
+    },
+#endif
+#if defined(SC202CS_MIPI_RAW_ALPHAL5)
+    {
+        SENSOR_DRVNAME_SC202CS_MIPI_RAW_ALPHAL5,
+        {
+            {RST, Vol_Low, 1},
+            {DOVDD, Vol_1800, 1},
+            {AVDD1_GPIO, Vol_High, 2},
+            {AVDD, Vol_2800, 5},
+            {SensorMCLK, Vol_High, 1},
+            {RST, Vol_High, 5},
+        },
+    },
+#endif
+#if defined(GC02M1B_MIPI_MONO_ALPHAL5)
+    {
+        SENSOR_DRVNAME_GC02M1B_MIPI_MONO_ALPHAL5,
+        {
+            {RST, Vol_Low, 1},
+            {DOVDD, Vol_1800, 1},
+            {AVDD1_GPIO, Vol_High, 2},
+            {AVDD, Vol_2800, 5},
+            {SensorMCLK, Vol_High, 1},
+            {RST, Vol_High, 2},
+        },
+    },
+#endif
+
+#if defined(OV50D40_MIPI_RAW_BAIKALL5)
+    {
+        SENSOR_DRVNAME_OV50D40_MIPI_RAW_BAIKALL5,
+        {
+            {RST, Vol_Low, 1},
+            {DOVDD, Vol_1800, 3},
+            {AVDD, Vol_2800, 1},
+            {DVDD, Vol_1200, 1},
+            {AFVDD, Vol_2800, 1},
+            {SensorMCLK, Vol_High, 2},
+            {RST, Vol_High, 5},
+        },
+    },
+#endif
+#if defined(IMX480_MIPI_RAW_BAIKALL5)
+    {
+        SENSOR_DRVNAME_IMX480_MIPI_RAW_BAIKALL5,
+        {
+            {SensorMCLK, Vol_High, 0},
+            {RST, Vol_Low,  3},
+            {DOVDD, Vol_1800, 1},
+            {AVDD1_GPIO, Vol_High, 2},
+            {DVDD, Vol_1200, 1},
+            {AVDD, Vol_2800, 3},
+            {RST, Vol_High, 1},
+        },
+    },
+#endif
+#if defined(GC08A8_MIPI_RAW_BAIKALL5)
+    {
+        SENSOR_DRVNAME_GC08A8_MIPI_RAW_BAIKALL5,
+        {
+            {SensorMCLK, Vol_High, 0},
+            {RST, Vol_Low,  3},
+            {DOVDD, Vol_1800, 1},
+            {AVDD1_GPIO, Vol_High, 2},
+            {DVDD, Vol_1200, 1},
+            {AVDD, Vol_2800, 3},
+            {RST, Vol_High, 1},
+        },
+    },
+#endif
+#if defined(SC202CS_MIPI_RAW_BAIKALL5)
+    {
+        SENSOR_DRVNAME_SC202CS_MIPI_RAW_BAIKALL5,
+        {
+            {RST, Vol_Low, 1},
+            {DOVDD, Vol_1800, 1},
+            {AVDD1_GPIO, Vol_High, 2},
+            {AVDD, Vol_2800, 5},
+            {SensorMCLK, Vol_High, 1},
+            {RST, Vol_High, 5},
+        },
+    },
+#endif
+#if defined(GC02M1B_MIPI_MONO_BAIKALL5)
+    {
+        SENSOR_DRVNAME_GC02M1B_MIPI_MONO_BAIKALL5,
+        {
+            {RST, Vol_Low, 1},
+            {DOVDD, Vol_1800, 1},
+            {AVDD1_GPIO, Vol_High, 2},
+            {AVDD, Vol_2800, 5},
+            {SensorMCLK, Vol_High, 1},
+            {RST, Vol_High, 2},
+        },
+    },
+#endif
 #if defined(OV50D40_MIPI_RAW_CRUISERL5)
     {
         SENSOR_DRVNAME_OV50D40_MIPI_RAW_CRUISERL5,
@@ -398,12 +589,13 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
             {RST, Vol_Low, 1},
             {DOVDD, Vol_1800, 1},
             {AVDD1_GPIO, Vol_High, 2},
-            {AVDD, Vol_2800, 5},
-            {SensorMCLK, Vol_High, 1},
-            {RST, Vol_High, 4},
+            {SensorMCLK, Vol_High, 0},
+            {AVDD, Vol_2800, 9},
+            {RST, Vol_High, 9}
         },
     },
 #endif
+
 #if defined(GC02M1B_MIPI_MONO_CRUISERL5)
     {
         SENSOR_DRVNAME_GC02M1B_MIPI_MONO_CRUISERL5,

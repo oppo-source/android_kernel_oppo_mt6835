@@ -65,7 +65,6 @@ extern unsigned int oplus_max_normal_brightness;
 extern int oplus_display_panel_dbv_probe(struct device *dev);
 static int current_fps = 60;
 extern atomic_t esd_pending;
-static unsigned int aod_last_backlight = 0;
 extern void lcdinfo_notify(unsigned long val, void *v);
 
 static unsigned int p_3_a0027_vdo_dphy_buf_thresh[14] ={896, 1792, 2688, 3584, 4480,
@@ -332,10 +331,6 @@ static bool need_fake_resolution;
 #define VFP_120HZ               (44)
 #define VBP                     (24)
 #define VSA                     (4)
-#define DYN_PLL_CLK			    (554)
-#define DYN_DATA_RATE           (1108)
-#define HFP_DYN                 (141)
-#define HFP_DYN_30HZ            (2030)
 #define DATA_RATE				(1107)
 
 static struct drm_display_mode disp_mode_30Hz = {
@@ -394,32 +389,9 @@ static struct mtk_panel_params ext_params_30Hz = {
 		.switch_en = 1,
 		.vact_timing_fps = 30,
 	},
-	/* following MIPI hopping parameter might cause screen mess */
-	.dyn = {
-			.switch_en = 1,
-			.pll_clk = DYN_PLL_CLK,
-			.data_rate = DYN_DATA_RATE,
-			.vsa = VSA,
-			.vbp = VBP,
-			.vfp = VFP_30HZ,
-			.hsa = HSA,
-			.hbp = HBP,
-			.hfp = HFP_DYN_30HZ,
-	},
 
 	.output_mode = MTK_PANEL_DSC_SINGLE_PORT,
-	.cust_esd_check = 1,
-	.esd_check_enable = 1,
-	.esd_check_multi = 0,
-	.lcm_esd_check_table[0] = {
-		.cmd = 0xB1, .count = 1, .para_list[0] = 0x06,
-	},
-	.lcm_esd_check_table[1] = {
-		.cmd = 0x03, .count = 1, .para_list[0] = 0x11,
-	},
-	.lcm_esd_check_table[2] = {
-		.cmd = 0x0A, .count = 1, .para_list[0] = 0x9C,
-	},
+
 	//.round_corner_en = 1,
 	//.corner_pattern_height = ROUND_CORNER_H_TOP,
 	//.corner_pattern_height_bot = ROUND_CORNER_H_BOT,
@@ -484,18 +456,6 @@ static struct mtk_panel_params ext_params_60Hz = {
 		.switch_en = 1,
 		.vact_timing_fps = 60,
 		.dfps_cmd_table[0] = {0, 2 , {0x86, 0x12}},
-	},
-	/* following MIPI hopping parameter might cause screen mess */
-	.dyn = {
-			.switch_en = 1,
-			.pll_clk = DYN_PLL_CLK,
-			.data_rate = DYN_DATA_RATE,
-			.vsa = VSA,
-			.vbp = VBP,
-			.vfp = VFP_60HZ,
-			.hsa = HSA,
-			.hbp = HBP,
-			.hfp = HFP_DYN,
 	},
 
 	.output_mode = MTK_PANEL_DSC_SINGLE_PORT,
@@ -575,19 +535,6 @@ static struct mtk_panel_params ext_params_90Hz = {
 		.switch_en = 1,
 		.vact_timing_fps = 90,
 		.dfps_cmd_table[0] = {0, 2 , {0x86, 0x11}},
-	},
-
-	/* following MIPI hopping parameter might cause screen mess */
-	.dyn = {
-			.switch_en = 1,
-			.pll_clk = DYN_PLL_CLK,
-			.data_rate = DYN_DATA_RATE,
-			.vsa = VSA,
-			.vbp = VBP,
-			.vfp = VFP_90HZ,
-			.hsa = HSA,
-			.hbp = HBP,
-			.hfp = HFP_DYN,
 	},
 
 	.output_mode = MTK_PANEL_DSC_SINGLE_PORT,
@@ -670,18 +617,6 @@ static struct mtk_panel_params ext_params_120Hz = {
 		.dfps_cmd_table[0] = {0, 2 , {0x86, 0x10}},
 	},
 
-	/* following MIPI hopping parameter might cause screen mess */
-	.dyn = {
-			.switch_en = 1,
-			.pll_clk = DYN_PLL_CLK,
-			.data_rate = DYN_DATA_RATE,
-			.vsa = VSA,
-			.vbp = VBP,
-			.vfp = VFP_120HZ,
-			.hsa = HSA,
-			.hbp = HBP,
-			.hfp = HFP_DYN,
-	},
 	.output_mode = MTK_PANEL_DSC_SINGLE_PORT,
 	.cust_esd_check = 1,
 	.esd_check_enable = 1,
@@ -863,8 +798,6 @@ static int lcm_setbacklight_cmdq(void *dsi, dcs_write_gce cb, void *handle, unsi
                 }
 	}
 	last_backlight = level;
-	if(level != 0)
-		aod_last_backlight = level;
 	pr_info("%s,level = %d,", __func__, level);
 
 	return 0;
@@ -1078,7 +1011,7 @@ static int panel_set_aod_light_mode(void *dsi, dcs_write_gce cb, void *handle, u
 	return 0;
 }
 
-static struct vdo_aod_params vdo_aod_on_high_bl = {
+static struct vdo_aod_params vdo_aod_on = {
 	.porch_change_flag = 0x03,
 	.dst_hfp = 2030,
 	.dst_vfp = 44, //30fps
@@ -1090,20 +1023,6 @@ static struct vdo_aod_params vdo_aod_on_high_bl = {
 	.vdo_aod_cmd_table[3]={3, {0x51,0x0F, 0xFE}},
 	.vdo_aod_cmd_table[4]={3, {0xF0,0xA5,0xA5} },
 };
-
-static struct vdo_aod_params vdo_aod_on_low_bl = {
-       .porch_change_flag = 0x03,
-       .dst_hfp = 2030,
-       .dst_vfp = 44, //30fps
-       .mode_idx = 3,
-       .change_mmclk = true,
-       .vdo_aod_cmd_table[0]={3, {0xF0,0x5A,0x5A} },
-       .vdo_aod_cmd_table[1]={2, {0x90,0x41} },
-       .vdo_aod_cmd_table[2]={2, {0xB0,0x02}},
-       .vdo_aod_cmd_table[3]={3, {0x51,0x00,0x03}},
-       .vdo_aod_cmd_table[4]={3, {0xF0,0xA5,0xA5} },
-};
-
 
 static struct vdo_aod_params vdo_aod_to_120hz = {
 	.porch_change_flag = 0x03,
@@ -1175,10 +1094,7 @@ static int mtk_get_vdo_aod_param(int aod_en, struct vdo_aod_params **vdo_aod_par
 
 	if(aod_en) {
 		atomic_set(&esd_pending, 1);
-		if(aod_last_backlight > 1000)
-			*vdo_aod_param = &vdo_aod_on_high_bl;
-		else
-			*vdo_aod_param = &vdo_aod_on_low_bl;
+			*vdo_aod_param = &vdo_aod_on;
 	} else {
 		if(current_fps == 60) {
 			if(oplus_ofp_get_aod_unlocking())

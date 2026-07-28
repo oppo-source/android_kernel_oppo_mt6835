@@ -2398,7 +2398,7 @@ void store_effect_data(char *tmp_buf)
 	}
 	effectindex = data;
 	AW_LOG("effectindex = %d \n",effectindex);
-	if(effectindex > MAX_EFFECT)
+	if(effectindex > ((sizeof(aw210xx_cfg_array) / sizeof(aw210xx_cfg_array[0])) - 1))
 	{
 		return;
 	}
@@ -4000,7 +4000,7 @@ static int aw210xx_i2c_probe(struct i2c_client *i2c,
 
 	dev_set_drvdata(&i2c->dev, aw210xx);
 
-	aw210xx_parse_led_cdev(aw210xx, np);
+	ret = aw210xx_parse_led_cdev(aw210xx, np);
 	if (ret < 0) {
 		AW_ERR("error creating led class dev\n");
 		goto err_sysfs;

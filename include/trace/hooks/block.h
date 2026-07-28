@@ -26,6 +26,12 @@ DECLARE_HOOK(android_vh_blk_alloc_rqs,
 		struct blk_mq_tags *tags, unsigned int hctx_idx),
 	TP_ARGS(rq_size, set, tags, hctx_idx));
 
+/*
+ * This hook can be reused to determine if a thread is ux,
+ * because the alloc_time_ns will never be 2, so it can be used as a magic trick.
+ */
+#define BLOCK_TEST_UX_MAGIC	(0x02)
+
 DECLARE_HOOK(android_vh_blk_rq_ctx_init,
 	TP_PROTO(struct request *rq, struct blk_mq_tags *tags,
 		struct blk_mq_alloc_data *data, u64 alloc_time_ns),

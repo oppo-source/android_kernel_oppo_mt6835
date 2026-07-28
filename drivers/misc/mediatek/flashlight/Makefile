@@ -25,6 +25,7 @@ obj-$(CONFIG_MTK_FLASHLIGHT_AVATARB5)    += flashlights-avatarb5.o
 obj-$(CONFIG_MTK_FLASHLIGHT_23281)       += flashlights-23281.o
 obj-$(CONFIG_MTK_FLASHLIGHT_ALPHAL5)     += flashlights-alphal5.o
 obj-$(CONFIG_MTK_FLASHLIGHT_BAIKALL5)     += flashlights-baikall5.o
+obj-$(CONFIG_MTK_FLASHLIGHT_BL5S)     += flashlights-bl5s.o
 obj-$(CONFIG_MTK_FLASHLIGHT_CRUISERL5)     += flashlights-cruiserl5.o
 obj-$(CONFIG_MTK_FLASHLIGHT_BAIKALB5)     += flashlights-baikalb5.o
 obj-$(CONFIG_MTK_FLASHLIGHT_BAIKALB5_AW36410)    += aw36410_baikalb5.o

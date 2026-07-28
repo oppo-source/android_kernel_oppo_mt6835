@@ -16,6 +16,7 @@
 #include "../../../../aw37004/aw37004.h"
 static DEFINE_MUTEX(avdd1_mutex);
 static DEFINE_MUTEX(avdd2_mutex);
+static DEFINE_MUTEX(dvdd1_mutex);
 extern int aw37004_camera_power_up(int out_iotype, unsigned int out_val);
 extern int aw37004_camera_power_down(int out_iotype);
 
@@ -231,6 +232,7 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
     static int avdd1_flag = 0;
     static int avdd2_flag = 0;
     static int dovdd_flag = 0;
+    static int dvdd1_flag = 0;
 
 #ifdef CONFIG_FPGA_EARLY_PORTING  /*for FPGA*/
     if (1) {
@@ -369,8 +371,49 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
                                     ppwr_info->pin_state_on);
                          }
                     }
+                } else if (is_project(24352)) {
+                    if (ppwr_info->pin == IMGSENSOR_HW_PIN_DVDD && (sensor_idx == 0)) {
+                        aw37004_camera_power_up(OUT_DVDD1, 1224);
+                    } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_DVDD && (sensor_idx == 1)) {
+                        aw37004_camera_power_up(OUT_DVDD2, 1200);
+                    } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_AVDD) {
+                        mutex_lock(&avdd1_mutex);
+                        avdd1_flag ++;
+                        pr_info("power on avdd1_flag = %d\n", avdd1_flag);
+                        mutex_unlock(&avdd1_mutex);
+                        aw37004_camera_power_up(OUT_AVDD1, 2800);
+                    } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_AFVDD) {
+                        aw37004_camera_power_up(OUT_AVDD2, 2800);
+                    } else {
+                            pwr_id_index_unit = (psensor_pwr->id[ppwr_info->pin] < 0)
+                         ? 0
+                         : psensor_pwr->id[ppwr_info->pin];
+
+                         if (pwr_id_index_unit != IMGSENSOR_HW_ID_MAX_NUM) {
+                            pdev = phw->pdev[pwr_id_index_unit];
+
+                            //if (__ratelimit(&ratelimit))
+                                PK_PR_ERR(
+                                "caibwon sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_on %d, delay %u",
+                            sensor_idx,
+                            ppwr_info->pin,
+                            ppwr_info->pin_state_on,
+                            ppwr_info->pin_on_delay);
+
+                            if (pdev->set != NULL)
+                                pdev->set(
+                                    pdev->pinstance,
+                                    sensor_idx,
+                                    ppwr_info->pin,
+                                    ppwr_info->pin_state_on);
+                         }
+                    }
                 } else if (is_project(25291) || is_project(25292) || is_project(25055)) {
                     if (ppwr_info->pin == IMGSENSOR_HW_PIN_DVDD && ((sensor_idx == 0) || (sensor_idx == 2))) {
+                        mutex_lock(&dvdd1_mutex);
+                        dvdd1_flag ++;
+                        pr_info("power on dvdd1_flag = %d\n", dvdd1_flag);
+                        mutex_unlock(&dvdd1_mutex);
                         aw37004_camera_power_up(OUT_DVDD1, 1200);
                     } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_DVDD && (sensor_idx == 1)) {
                         aw37004_camera_power_up(OUT_DVDD2, 1100);
@@ -595,9 +638,62 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
                                     ppwr_info->pin_state_off);
                         }
                     }
+                } else if (is_project(24352)) {
+                    if (ppwr_info->pin == IMGSENSOR_HW_PIN_DVDD && (sensor_idx == 0)){
+                        aw37004_camera_power_down(OUT_DVDD1);
+                    } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_DVDD && (sensor_idx == 1)){
+                        aw37004_camera_power_down(OUT_DVDD2);
+                    }  else if (ppwr_info->pin == IMGSENSOR_HW_PIN_AVDD){
+                        if (avdd1_flag > 1) {
+                            pr_info("avdd1_flag = %d do not power down\n", avdd1_flag);
+                        } else {
+                            aw37004_camera_power_down(OUT_AVDD1);
+                        }
+                        if (avdd1_flag > 0) {
+                            mutex_lock(&avdd1_mutex);
+                            avdd1_flag --;
+                            pr_info("power off avdd1_flag = %d\n", avdd1_flag);
+                            mutex_unlock(&avdd1_mutex);
+                        }
+                    } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_AFVDD && (sensor_idx == 0)){
+                        aw37004_camera_power_down(OUT_AVDD2);
+                    }else {
+                        pwr_id_index_unit = (psensor_pwr->id[ppwr_info->pin] < 0)
+                        ? 0
+                        : psensor_pwr->id[ppwr_info->pin];
+
+                        if (pwr_id_index_unit != IMGSENSOR_HW_ID_MAX_NUM) {
+                            pdev = phw->pdev[pwr_id_index_unit];
+
+                            //if (__ratelimit(&ratelimit))
+                                PK_PR_ERR(
+                                "caibwoff sensor_idx %d, ppwr_info->pin %d, ppwr_info->pin_state_off %d, delay %u",
+                                sensor_idx,
+                                ppwr_info->pin,
+                                ppwr_info->pin_state_off,
+                                ppwr_info->pin_on_delay);
+
+                            if (pdev->set != NULL)
+                                pdev->set(
+                                    pdev->pinstance,
+                                    sensor_idx,
+                                    ppwr_info->pin,
+                                    ppwr_info->pin_state_off);
+                        }
+                    }
                 } else if (is_project(25291) || is_project(25292) || is_project(25055)) {
                     if (ppwr_info->pin == IMGSENSOR_HW_PIN_DVDD && ((sensor_idx == 0) || (sensor_idx == 2))){
-                        aw37004_camera_power_down(OUT_DVDD1);
+                        if (dvdd1_flag > 1) {
+                            pr_info("dvdd1_flag = %d do not power down\n", dvdd1_flag);
+                        } else {
+                            aw37004_camera_power_down(OUT_DVDD1);
+                        }
+                        if (dvdd1_flag > 0) {
+                            mutex_lock(&dvdd1_mutex);
+                            dvdd1_flag --;
+                            pr_info("power off dvdd1_flag = %d\n", dvdd1_flag);
+                            mutex_unlock(&dvdd1_mutex);
+                        }
                     } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_DVDD && (sensor_idx == 1)){
                         aw37004_camera_power_down(OUT_DVDD2);
                     } else if (ppwr_info->pin == IMGSENSOR_HW_PIN_AVDD) {

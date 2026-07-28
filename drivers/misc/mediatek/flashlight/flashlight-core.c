@@ -74,6 +74,7 @@ extern const struct flashlight_device_id flashlight_id_avatarb5[];
 extern const struct flashlight_device_id flashlight_id_23281[];
 extern const struct flashlight_device_id flashlight_id_alphal5[];
 extern const struct flashlight_device_id flashlight_id_baikall5[];
+extern const struct flashlight_device_id flashlight_id_bl5s[];
 extern const struct flashlight_device_id flashlight_id_cl5[];
 extern const struct flashlight_device_id flashlight_id_baikalb5[];
 extern const struct flashlight_device_id flashlight_id_baikalb5_aw36410[];
@@ -368,6 +369,9 @@ int flashlight_dev_register(
 		flashlight_device_num = 1;
 	} else if (is_project(24351) || is_project(24091) || is_project(24092)) {
 		flashlight_id = flashlight_id_baikall5;
+		flashlight_device_num = 1;
+	} else if (is_project(24352)) {
+		flashlight_id = flashlight_id_bl5s;
 		flashlight_device_num = 1;
 	} else if (is_project(25291) || is_project(25292) || is_project(25055)) {
 		flashlight_id = flashlight_id_cl5;

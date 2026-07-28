@@ -46,8 +46,8 @@
         panel_type = <3 3>;
         // type of tp_dev ,TP-BOE = 3;  TP-Tianma = 7, VXN = 18;
         firmware_name = "0xAC312","0xAC312";
-        platform_support_project = <24351 24091 24092>;
-        platform_support_project_dir = <24091 24091 24091>;
+        platform_support_project = <24351 24091 24092 24352>;
+        platform_support_project_dir = <24091 24091 24091 24352>;
         platform_support_project_commandline = "ac312_p_3_a0025_dsi_vdo","ac312_p_3_a0025_dsi_vdo";
 
         /* SW Support Feature Control */
