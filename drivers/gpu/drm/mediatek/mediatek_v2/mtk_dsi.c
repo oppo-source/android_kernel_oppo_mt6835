@@ -462,6 +462,11 @@ static void mtk_dsi_set_targetline(struct mtk_ddp_comp *comp,
 static void mtk_dsi_vdo_aod_ctrl(struct mtk_dsi *dsi,
 					struct mtk_drm_crtc *mtk_crtc, struct mtk_vdo_aod_cfg *vdo_aod_cfg);
 
+static void mtk_dsi_vdo_aod_ctrl_cpu(struct mtk_dsi *dsi,
+					struct mtk_drm_crtc *mtk_crtc, struct mtk_vdo_aod_cfg *vdo_aod_cfg);
+
+static int dsi_dcs_write(struct mtk_dsi *dsi, void *data, size_t len);
+
 static inline struct mtk_dsi *encoder_to_dsi(struct drm_encoder *e)
 {
 	return container_of(e, struct mtk_dsi, encoder);
@@ -3890,7 +3895,7 @@ static void mtk_output_dsi_enable(struct mtk_dsi *dsi,
 	vdo_aod_cfg.need_dsi_trigger = 0;
 	vdo_aod_cfg.in_dsi_init = 1;
 
-	DDPMSG("%s -,dsi->output_en = %d\n", __func__,dsi->output_en);
+	DDPMSG("%s +,dsi->output_en = %d\n", __func__,dsi->output_en);
 
 	if (!mtk_crtc || !mtk_state || !priv || !crtc) {
 		DDPPR_ERR("Fail to get mtk_crtc, mtk_state, priv or crtc, %s,%d\n",
@@ -3996,7 +4001,7 @@ static void mtk_output_dsi_enable(struct mtk_dsi *dsi,
 				if (oplus_ofp_video_mode_30hz_aod_is_enabled()) {
 					vdo_aod_cfg.aod_en = new_doze_state;
 					oplus_ofp_doze_status_handle(new_doze_state, crtc, ext, dsi->panel, dsi, mipi_dsi_dcs_write_gce2, NULL);
-					mtk_dsi_vdo_aod_ctrl(dsi, mtk_crtc, &vdo_aod_cfg);
+					mtk_dsi_vdo_aod_ctrl_cpu(dsi, mtk_crtc, &vdo_aod_cfg);
 				} else {
 					oplus_ofp_doze_status_handle(new_doze_state, crtc, ext, dsi->panel, dsi, mipi_dsi_dcs_write_gce2, NULL);
 					if (!oplus_ofp_full_screen_aod_mode_is_enabled())
@@ -6795,6 +6800,128 @@ void mipi_dsi_dcs_write_gce_dyn(struct mtk_dsi *dsi, struct cmdq_pkt *handle,
 		dsi->ddp_comp.regs_pa + DSI_START, 0x1, ~0);
 
 	mtk_dsi_poll_for_idle(dsi, handle);
+}
+
+static void mtk_dsi_vdo_aod_ctrl_cpu(struct mtk_dsi *dsi,
+			struct mtk_drm_crtc *mtk_crtc, struct mtk_vdo_aod_cfg *vdo_aod_cfg)
+{
+	unsigned int porch_change_flag;
+	unsigned int dst_vfp = 0;
+	unsigned int dst_hfp = 0;
+	unsigned int hfp_byte = 0;
+	unsigned int dsi_tmp_buf_bpp;
+	unsigned int i = 0;
+	struct vdo_aod_cmds *vdo_aod_param_cmd_list;
+	struct vdo_aod_params *vdo_aod_param = NULL;
+	int dsi_mode;
+
+
+	struct mtk_ddp_comp *comp = &dsi->ddp_comp;
+	int vrefresh, dst_vrefresh;
+	struct drm_display_mode *dst_mode;
+	struct mtk_drm_private *priv = NULL;
+
+	DDPMSG("%s+\n", __func__);
+	mtk_drm_trace_begin("mtk_dsi_vdo_aod_ctrl_cpu");
+	if (!vdo_aod_cfg) {
+		DDPPR_ERR("vdo_aod_cfg is NULL\n");
+		return;
+	} else {
+		DDPINFO("aod_en:%d, wfe_cmd_eof:%d, need_dsi_trigger:%d \n",
+		vdo_aod_cfg->aod_en, vdo_aod_cfg->wfe_cmd_eof, vdo_aod_cfg->need_dsi_trigger);
+	}
+
+	if (!dsi) {
+		DDPPR_ERR("%s, %d, invalid parameter\n", __func__, __LINE__);
+		return;
+	}
+
+	if (dsi->format == MIPI_DSI_FMT_RGB565)
+		dsi_tmp_buf_bpp = 2;
+	else
+		dsi_tmp_buf_bpp = 3;
+
+	if (dsi->ext && dsi->ext->funcs && dsi->ext->funcs->get_vdo_aod_param) {
+		if (vdo_aod_cfg) {
+			dsi->ext->funcs->get_vdo_aod_param(vdo_aod_cfg->aod_en, &vdo_aod_param);
+		} else {
+			DDPPR_ERR("vdo_aod_cfg is NULL\n");
+			return;
+		}
+	}
+
+	if (!vdo_aod_param) {
+		DDPPR_ERR("vdo_aod_param is NULL!\n");
+		return;
+	}
+
+	porch_change_flag = vdo_aod_param->porch_change_flag;
+	dst_hfp = vdo_aod_param->dst_hfp;
+	dst_vfp = vdo_aod_param->dst_vfp;
+	hfp_byte = ALIGN_TO((dst_hfp * dsi_tmp_buf_bpp - 12), 4);
+	dsi_mode = readl(dsi->regs + DSI_MODE_CTRL);
+	DDPMSG("%s, dsi_mode=0x%x, porch_change_flag=0x%x, dst_hfp=%d, dst_vfp=%d, mode_idx=%d\n",
+		__func__, dsi_mode, porch_change_flag, dst_hfp, dst_vfp, vdo_aod_param->mode_idx);
+
+
+	if(porch_change_flag & MODE_DSI_HFP) {
+		vrefresh = drm_mode_vrefresh(&mtk_crtc->base.state->adjusted_mode);
+		dst_mode = mtk_drm_crtc_avail_disp_mode(&mtk_crtc->base, vdo_aod_param->mode_idx);
+		dst_vrefresh = drm_mode_vrefresh(dst_mode);
+		DDPMSG("%s, vrefresh %d ,dst_vrefresh %d, change_mmclk %d\n", __func__, vrefresh, dst_vrefresh, vdo_aod_param->change_mmclk);
+		if (dst_vrefresh >= vrefresh && vdo_aod_param->change_mmclk) {
+			priv = mtk_crtc->base.dev->dev_private;
+			if (mtk_drm_helper_get_opt(priv->helper_opt, MTK_DRM_OPT_MMDVFS_SUPPORT)) {
+				if (dsi->driver_data && dsi->driver_data->mmclk_by_datarate) {
+					mtk_crtc->set_mmclk_by_mode = true;
+					mtk_crtc->fake_mode_idx = vdo_aod_param->mode_idx;
+					dsi->driver_data->mmclk_by_datarate(dsi, mtk_crtc, 1);
+				}
+			}
+		}
+        mtk_crtc->skip_mmclk_set_flag = !vdo_aod_cfg->aod_en;
+		/* for crtc first enable,dyn fps fail*/
+		if (dsi->data_rate == 0) {
+			DDPINFO("%s dsi->data_rate=0\n",__func__);
+			dsi->data_rate = mtk_dsi_default_rate(dsi);
+			mtk_mipi_tx_pll_rate_set_adpt(dsi->phy, dsi->data_rate);
+			if (dsi->ext->params->data_rate_khz)
+				mtk_mipi_tx_pll_rate_khz_set_adpt(dsi->phy,
+			dsi->ext->params->data_rate_khz);
+			if (dsi->slave_dsi) {
+				dsi->slave_dsi->data_rate = dsi->data_rate;
+				mtk_mipi_tx_pll_rate_set_adpt(dsi->slave_dsi->phy, dsi->data_rate);
+				if (dsi->ext->params->data_rate_khz)
+					mtk_mipi_tx_pll_rate_khz_set_adpt(dsi->slave_dsi->phy,
+				dsi->ext->params->data_rate_khz);
+			}
+			if (dsi->data_rate) {
+				mtk_dsi_phy_timconfig(dsi, NULL);
+			if (dsi->slave_dsi)
+				mtk_dsi_phy_timconfig(dsi->slave_dsi, NULL);
+			}
+		}
+
+		/*change HFP*/
+		mtk_dsi_calc_vdo_timing(dsi);
+		mtk_dsi_porch_setting(comp, NULL, DSI_HFP, hfp_byte);
+
+		if(porch_change_flag & MODE_DSI_VFP) {
+			/* Some panel need change VFP at the same time to support dynamic fps */
+			mtk_dsi_porch_setting(comp, NULL, DSI_VFP, dst_vfp);
+		}
+
+		/*1.2 send cmd: send cmd*/
+		for (i = 0; i < MAX_DYN_CMD_NUM; i++) {
+			vdo_aod_param_cmd_list = &vdo_aod_param->vdo_aod_cmd_table[i];
+			if (vdo_aod_param_cmd_list->cmd_num == 0)
+				break;
+
+			dsi_dcs_write(dsi, vdo_aod_param_cmd_list->para_list,
+				vdo_aod_param_cmd_list->cmd_num);
+		}
+	}
+	mtk_drm_trace_end();
 }
 
 void mipi_dsi_dcs_write_gce2(struct mtk_dsi *dsi, struct cmdq_pkt *dummy,

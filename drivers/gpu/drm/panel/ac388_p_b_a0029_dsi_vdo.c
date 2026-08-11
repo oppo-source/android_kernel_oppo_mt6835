@@ -53,13 +53,15 @@
 #include "../oplus/oplus_drm_disp_panel.h"
 #define BRIGHTNESS_MAX    4094
 #define BRIGHTNESS_HALF   2047
-#define MAX_NORMAL_BRIGHTNESS   3075
+#define MAX_NORMAL_BRIGHTNESS   3515
 #define LCM_BRIGHTNESS_TYPE 2
 #define FHD_LCM_WIDTH  1080
 #define FHD_LCM_HEIGHT 2372
 extern unsigned int oplus_display_brightness;
 extern unsigned int oplus_max_normal_brightness;
 static int mode_id = -1;
+extern unsigned int last_backlight;
+extern void oplus_display_get_panel_brightness_time(void);
 static unsigned int lhbm_last_backlight = 0;
 static unsigned int temp_seed_mode = 0;
 
@@ -967,6 +969,10 @@ static int lcm_setbacklight_cmdq(void *dsi, dcs_write_gce cb, void *handle, unsi
 		return -EINVAL;
 	}
 
+	if ((last_backlight == 0 || last_backlight == 1) && (level != 0 && level != 1)) {
+		oplus_display_get_panel_brightness_time();
+	}
+
 	if (level == 0) {
 		DISP_ERR("[%s:%d]backlight lvl:%u\n", __func__, __LINE__, level);
 	}
@@ -993,6 +999,7 @@ static int lcm_setbacklight_cmdq(void *dsi, dcs_write_gce cb, void *handle, unsi
 	DISP_ERR("ac388 backlight = %d bl_level[1]=%x, bl_level[2]=%x\n", level, bl_level[1], bl_level[2]);
 	oplus_display_brightness = level;
 	lhbm_last_backlight = level;
+	last_backlight = level;
 	lcdinfo_notify(LCM_BRIGHTNESS_TYPE, &level);
 
 	return 0;
